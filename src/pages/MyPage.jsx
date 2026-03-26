@@ -1,0 +1,318 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+    User, Mail, LogOut, MapPin, Calendar, Clock, ArrowRight,
+    Compass, Trash2, ChevronRight
+} from 'lucide-react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, logout } from '../firebase';
+import Navbar from '../components/Navbar';
+import { DESTINATION_DATA } from '../data';
+import { saveSearchHistory, getSearchHistory, deleteHistoryEntry, clearSearchHistory } from '../utils/history';
+
+// 날짜 포맷 헬퍼
+const formatDate = (str) => {
+    if (!str) return '';
+    try {
+        return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch { return str; }
+};
+
+const getDays = (start, end) => {
+    try {
+        const diff = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+        return isNaN(diff) ? '' : `${diff} days`;
+    } catch { return ''; }
+};
+
+// ─── 마이페이지 ────────────────────────────────────────────────────
+const MyPage = () => {
+    const [user, setUser] = useState(null);
+    const [history, setHistory] = useState([]);
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+        return () => unsub();
+    }, []);
+
+    useEffect(() => {
+        // localStorage에서 검색 이력 불러오기
+        const load = () => {
+            setHistory(getSearchHistory());
+        };
+        load();
+        // 다른 탭에서 변경 시에도 갱신
+        window.addEventListener('storage', load);
+        return () => window.removeEventListener('storage', load);
+    }, []);
+
+    const handleLogout = async () => {
+        await logout();
+        navigate('/');
+    };
+
+    const deleteEntry = (id) => {
+        setHistory(deleteHistoryEntry(id));
+    };
+
+    const clearAll = () => {
+        clearSearchHistory();
+        setHistory([]);
+    };
+
+    const replan = (entry) => {
+        navigate('/itinerary', {
+            state: {
+                destination: entry.destination,
+                startDate: entry.startDate,
+                endDate: entry.endDate,
+                focus: entry.focus,
+                pace: entry.pace,
+                vibe: entry.vibe,
+                dining: entry.dining,
+            }
+        });
+    };
+
+    return (
+        <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
+            <Navbar />
+
+            {/* ── 헤더 배너 ── */}
+            <div style={{
+                background: 'linear-gradient(135deg, #1c1917, #44403c)',
+                padding: '80px 32px 60px',
+            }}>
+                <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '28px', flexWrap: 'wrap' }}>
+                    {/* 프로필 사진 */}
+                    {user?.photoURL ? (
+                        <img
+                            src={user.photoURL}
+                            alt="Profile"
+                            style={{ width: '96px', height: '96px', borderRadius: '50%', border: '3px solid #FBBF24', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}
+                        />
+                    ) : (
+                        <div style={{
+                            width: '96px', height: '96px', borderRadius: '50%',
+                            background: 'rgba(255,255,255,0.1)', border: '3px solid #FBBF24',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                            <User size={44} color="white" />
+                        </div>
+                    )}
+                    {/* 이름 & 이메일 */}
+                    <div style={{ flex: 1 }}>
+                        <h1 style={{
+                            fontFamily: 'Georgia, serif', fontStyle: 'italic',
+                            fontSize: '36px', color: 'white', marginBottom: '6px'
+                        }}>
+                            {user?.displayName || 'Traveler'}
+                        </h1>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.6)', fontFamily: 'sans-serif', fontSize: '15px' }}>
+                            <Mail size={15} />
+                            <span>{user?.email || ''}</span>
+                        </div>
+                        <div style={{
+                            marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px',
+                            background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)',
+                            borderRadius: '20px', padding: '4px 14px',
+                            color: '#FBBF24', fontFamily: 'sans-serif', fontSize: '13px', fontWeight: 'bold'
+                        }}>
+                            <Compass size={13} />
+                            {history.length} trips planned
+                        </div>
+                    </div>
+                    {/* 로그아웃 버튼 */}
+                    <button
+                        onClick={handleLogout}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            padding: '10px 20px', background: 'rgba(255,255,255,0.1)',
+                            border: '1px solid rgba(255,255,255,0.2)', borderRadius: '10px',
+                            color: 'rgba(255,255,255,0.7)', fontFamily: 'sans-serif',
+                            fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; e.currentTarget.style.color = '#fca5a5'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                    >
+                        <LogOut size={16} /> Sign Out
+                    </button>
+                </div>
+            </div>
+
+            {/* ── 메인 콘텐츠 ── */}
+            <div style={{ maxWidth: '900px', margin: '0 auto', padding: '48px 32px' }}>
+
+                {/* 검색 이력 헤더 */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+                    <div>
+                        <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '28px', color: '#1c1917', marginBottom: '4px' }}>
+                            Your Travel History
+                        </h2>
+                        <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '14px' }}>
+                            Plans you've generated with WanderLust AI
+                        </p>
+                    </div>
+                    {history.length > 0 && (
+                        <button
+                            onClick={clearAll}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                padding: '8px 16px', background: 'transparent',
+                                border: '1px solid #e7e5e4', borderRadius: '8px',
+                                color: '#78716c', fontFamily: 'sans-serif', fontSize: '13px',
+                                cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = '#fca5a5'; e.currentTarget.style.color = '#ef4444'; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#78716c'; }}
+                        >
+                            <Trash2 size={14} /> Clear all
+                        </button>
+                    )}
+                </div>
+
+                {/* 이력 목록 */}
+                {history.length === 0 ? (
+                    <div style={{
+                        background: 'white', border: '1px solid #e7e5e4', borderRadius: '20px',
+                        padding: '64px 32px', textAlign: 'center',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.04)'
+                    }}>
+                        <MapPin size={48} color="#d6d3d1" style={{ margin: '0 auto 20px' }} />
+                        <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '22px', color: '#1c1917', marginBottom: '10px' }}>
+                            No trips yet
+                        </h3>
+                        <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '15px', marginBottom: '28px' }}>
+                            Once you plan a trip, it will appear here.
+                        </p>
+                        <Link to="/survey" style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '8px',
+                            padding: '14px 32px', background: '#1c1917', color: 'white',
+                            textDecoration: 'none', borderRadius: '50px',
+                            fontFamily: 'sans-serif', fontSize: '15px', fontWeight: 'bold'
+                        }}>
+                            Plan My First Trip <ArrowRight size={16} />
+                        </Link>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {history.map((entry) => (
+                            <div key={entry.id} style={{
+                                background: 'white', border: '1px solid #e7e5e4', borderRadius: '16px',
+                                padding: '24px 28px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                                display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap',
+                                transition: 'box-shadow 0.2s'
+                            }}
+                                onMouseEnter={e => e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.1)'}
+                                onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)'}
+                            >
+                                {/* 아이콘 */}
+                                <div style={{
+                                    width: '52px', height: '52px', borderRadius: '14px',
+                                    background: 'linear-gradient(135deg, #92400e, #b45309)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                                }}>
+                                    <MapPin size={22} color="white" />
+                                </div>
+
+                                {/* 내용 */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <h3 style={{
+                                        fontFamily: 'Georgia, serif', fontSize: '20px',
+                                        color: '#1c1917', marginBottom: '6px', fontStyle: 'italic'
+                                    }}>
+                                        {entry.destination}
+                                    </h3>
+                                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                                        {entry.startDate && (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'sans-serif', fontSize: '13px', color: '#78716c' }}>
+                                                <Calendar size={12} /> {formatDate(entry.startDate)} – {formatDate(entry.endDate)}
+                                                {getDays(entry.startDate, entry.endDate) && ` · ${getDays(entry.startDate, entry.endDate)}`}
+                                            </span>
+                                        )}
+                                        {entry.vibe && (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'sans-serif', fontSize: '13px', color: '#78716c' }}>
+                                                <Compass size={12} /> {entry.vibe}
+                                            </span>
+                                        )}
+                                        {entry.pace && (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'sans-serif', fontSize: '13px', color: '#78716c' }}>
+                                                <Clock size={12} /> {entry.pace}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {entry.focus?.length > 0 && (
+                                        <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
+                                            {entry.focus.map(f => (
+                                                <span key={f} style={{
+                                                    padding: '3px 10px', background: '#fef3c7',
+                                                    borderRadius: '20px', fontSize: '12px',
+                                                    fontFamily: 'sans-serif', color: '#92400e', fontWeight: 'bold'
+                                                }}>{f}</span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 액션 버튼 */}
+                                <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+                                    <button
+                                        onClick={() => replan(entry)}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '6px',
+                                            padding: '10px 18px', background: '#1c1917',
+                                            color: 'white', border: 'none', borderRadius: '10px',
+                                            fontFamily: 'sans-serif', fontSize: '13px',
+                                            fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = '#92400e'}
+                                        onMouseLeave={e => e.currentTarget.style.background = '#1c1917'}
+                                        title="View this itinerary again"
+                                    >
+                                        View Plan <ChevronRight size={14} />
+                                    </button>
+                                    <button
+                                        onClick={() => deleteEntry(entry.id)}
+                                        style={{
+                                            padding: '10px 12px', background: 'transparent',
+                                            border: '1px solid #e7e5e4', borderRadius: '10px',
+                                            color: '#78716c', cursor: 'pointer', transition: 'all 0.2s',
+                                            display: 'flex', alignItems: 'center'
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#fca5a5'; e.currentTarget.style.color = '#ef4444'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#78716c'; }}
+                                        title="Remove from history"
+                                    >
+                                        <Trash2 size={15} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* 새 여행 계획 CTA */}
+                {history.length > 0 && (
+                    <div style={{ marginTop: '32px', textAlign: 'center' }}>
+                        <Link to="/survey" style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '10px',
+                            padding: '14px 36px', background: 'transparent',
+                            border: '1.5px solid #d6d3d1', borderRadius: '50px',
+                            color: '#44403c', textDecoration: 'none',
+                            fontFamily: 'sans-serif', fontSize: '15px',
+                            fontWeight: 'bold', transition: 'all 0.2s'
+                        }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = '#92400e'; e.currentTarget.style.color = '#92400e'; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d6d3d1'; e.currentTarget.style.color = '#44403c'; }}
+                        >
+                            <Compass size={17} /> Plan a New Adventure
+                        </Link>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default MyPage;
