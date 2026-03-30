@@ -2,25 +2,30 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import {
     ChevronLeft, Calendar, Send, MapPin, Star, Plus, Trash2, Edit2, List,
-    Clock, MessageCircle, Sparkles, X, Plane, BedDouble, PlusCircle, ChevronDown, ChevronUp
+    Clock, MessageCircle, Sparkles, X, Plane, BedDouble, PlusCircle, ChevronDown, ChevronUp,
+    Globe, ExternalLink, ChevronRight
 } from 'lucide-react';
 import { format, addDays, differenceInDays } from 'date-fns';
 import Navbar from '../components/Navbar';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { DESTINATION_DATA } from '../data';
 import { saveSearchHistory } from '../utils/history';
 
 // ─── ADVERTISEMENT PLACEHOLDER ────────────────────────────────────────────────
-const AdPlaceholder = ({ className = '', style = {} }) => (
-    <div className={`bg-gray-100 border border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 font-bold overflow-hidden relative ${className}`} style={style}>
-        <span className="text-[10px] uppercase tracking-widest absolute top-2 right-3 text-gray-400">Advertisement</span>
-        <div className="flex flex-col items-center gap-2 mt-2">
-            <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse"></div>
-            <div className="w-24 h-3 bg-gray-200 rounded animate-pulse"></div>
-            <div className="w-16 h-2 bg-gray-200 rounded animate-pulse"></div>
+const AdPlaceholder = ({ className = '', style = {} }) => {
+    const { t } = useTranslation();
+    return (
+        <div className={`bg-gray-100 border border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 font-bold overflow-hidden relative ${className}`} style={style}>
+            <span className="text-[10px] uppercase tracking-widest absolute top-2 right-3 text-gray-400">{t('itinerary.recommended')}</span>
+            <div className="flex flex-col items-center gap-2 mt-2">
+                <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse"></div>
+                <div className="w-24 h-3 bg-gray-200 rounded animate-pulse"></div>
+                <div className="w-16 h-2 bg-gray-200 rounded animate-pulse"></div>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 // ─── IMAGE LIBRARY ───────────────────────────────────────────────────────────
 const IMAGE_LIBRARY = {
@@ -61,8 +66,22 @@ const calcDist = (la1, lo1, la2, lo2) => {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+const getDayMapUrl = (items, dest) => {
+    if (!items || items.length === 0) return '#';
+    const valid = items.filter(a => a.latitude && a.longitude);
+    if (valid.length === 0) {
+        const q = encodeURIComponent(items.map(a => a.name).join(' to ') + ' ' + (dest || ''));
+        return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
+    }
+    const origin = `${valid[0].latitude},${valid[0].longitude}`;
+    const destination = `${valid[valid.length - 1].latitude},${valid[valid.length - 1].longitude}`;
+    const waypoints = valid.slice(1, -1).map(a => `${a.latitude},${a.longitude}`).join('|');
+    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving`;
+};
+
 // ─── ACTIVITY CARD ────────────────────────────────────────────────────────────
-const ActivityCard = ({ activity, onSave, onDelete }) => {
+const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
+    const { t } = useTranslation();
     const [editing, setEditing] = useState(activity.isNew || false);
     const [ed, setEd] = useState(activity);
     const [timeEdit, setTimeEdit] = useState(false);
@@ -81,9 +100,9 @@ const ActivityCard = ({ activity, onSave, onDelete }) => {
         <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-primary/20 space-y-4">
             <div className="flex gap-3 items-center">
                 <input autoFocus value={ed.name} onChange={e => setEd({ ...ed, name: e.target.value })}
-                    className="flex-1 font-black text-2xl border-b-2 border-gray-200 focus:outline-none px-1 py-1 text-secondary" placeholder="Place name" />
+                    className="flex-1 font-black text-2xl border-b-2 border-gray-200 focus:outline-none px-1 py-1 text-secondary" placeholder={t('itinerary.newSpotName')} />
                 <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Time</span>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('itinerary.colTime')}</span>
                     <input type="time" value={ed.time} onChange={e => setEd({ ...ed, time: e.target.value })}
                         className="font-bold text-base text-primary bg-primary/5 rounded-lg px-3 py-2 outline-none border border-primary/20 focus:ring-2 focus:ring-primary/30" />
                 </div>
@@ -91,31 +110,37 @@ const ActivityCard = ({ activity, onSave, onDelete }) => {
             <textarea value={ed.desc} onChange={e => setEd({ ...ed, desc: e.target.value })} rows={2}
                 className="w-full text-sm text-gray-600 border border-gray-200 rounded-xl p-3 focus:outline-none bg-gray-50 resize-none" />
             <div className="flex gap-2 justify-end">
-                <button onClick={() => setEditing(false)} className="px-5 py-2 text-gray-500 font-bold text-sm">Cancel</button>
-                <button onClick={save} className="px-6 py-2 bg-primary text-secondary rounded-xl font-bold text-sm">Save</button>
+                <button onClick={() => setEditing(false)} className="px-5 py-2 text-gray-500 font-bold text-sm">{t('itinerary.btnCancel')}</button>
+                <button onClick={save} className="px-6 py-2 bg-primary text-secondary rounded-xl font-bold text-sm">{t('itinerary.btnSave')}</button>
             </div>
         </div>
     );
 
     return (
         <Reorder.Item value={activity} id={activity.id} dragListener={false} dragControls={dc} className="group">
-            <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex gap-5 items-center">
-                {/* drag handle */}
-                <div onPointerDown={e => dc.start(e)} className="cursor-move p-2 hover:bg-gray-50 rounded-lg text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0">
-                    <List size={20} />
-                </div>
-
-                {/* image */}
-                <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 relative shadow-inner">
-                    <img src={activity.img || getImg(activity.name, activity.type)} alt={activity.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                    <div className="absolute top-1.5 right-1.5 bg-white/90 backdrop-blur rounded px-1.5 py-0.5 text-[10px] font-black flex items-center gap-0.5 shadow-sm">
-                        <Star size={8} className="text-yellow-500 fill-yellow-500" /> {activity.rating}
+            <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col sm:flex-row gap-5 items-start sm:items-center">
+                {/* top stretch for mobile, or left for desktop */}
+                <div className="flex items-center justify-between w-full sm:w-auto">
+                    {/* drag handle */}
+                    <div onPointerDown={e => dc.start(e)} className="cursor-move p-2 hover:bg-gray-50 rounded-lg text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0">
+                        <List size={20} />
+                    </div>
+                    {/* action buttons (mobile only) */}
+                    <div className="flex sm:hidden gap-1">
+                        <button onClick={() => setEditing(true)} className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-colors"><Edit2 size={18} /></button>
+                        <button onClick={onDelete} className="p-2.5 text-red-400 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={18} /></button>
                     </div>
                 </div>
 
+                {/* image */}
+                <div className="w-full sm:w-24 h-48 sm:h-24 rounded-2xl overflow-hidden flex-shrink-0 relative shadow-inner">
+                    <img src={activity.img || getImg(activity.name, activity.type)} alt={activity.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                    {/* Removed Rating Overlay */}
+                </div>
+
                 {/* info */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 w-full">
                     <h3 className="font-black text-secondary text-xl truncate group-hover:text-primary transition-colors">{activity.name}</h3>
 
                     {/* ── INLINE TIME ── */}
@@ -136,11 +161,11 @@ const ActivityCard = ({ activity, onSave, onDelete }) => {
                         ) : (
                             <button
                                 onClick={() => setTimeEdit(true)}
-                                title="Click to change time"
+                                title={t('itinerary.setTime')}
                                 className="inline-flex items-center gap-1.5 text-primary font-bold text-xs px-2 py-1 rounded-lg hover:bg-primary/10 transition-colors border border-transparent hover:border-primary/20"
                             >
                                 <Clock size={12} />
-                                {fmtTime(activity.time) || 'Set time'}
+                                {fmtTime(activity.time) || t('itinerary.setTime')}
                                 <span className="text-[9px] text-primary/40 opacity-0 group-hover:opacity-100 transition-opacity ml-0.5">✎</span>
                             </button>
                         )}
@@ -154,7 +179,7 @@ const ActivityCard = ({ activity, onSave, onDelete }) => {
                             rel="noopener noreferrer"
                             className="flex-shrink-0 flex items-center gap-1 text-[10px] font-bold text-gray-400 hover:text-primary transition-colors bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100"
                         >
-                            <MapPin size={10} /> Maps
+                            <MapPin size={10} /> {t('itinerary.maps')}
                         </a>
                     </div>
                 </div>
@@ -171,7 +196,8 @@ const ActivityCard = ({ activity, onSave, onDelete }) => {
 
 // ─── AI CHAT MODAL ────────────────────────────────────────────────────────────
 const AIChatModal = ({ isOpen, onClose, destination }) => {
-    const [msgs, setMsgs] = useState([{ role: 'assistant', text: `Hi! I'm your travel guide for ${destination}. Any questions?` }]);
+    const { t } = useTranslation();
+    const [msgs, setMsgs] = useState([{ role: 'assistant', text: t('itinerary.chatBotGreeting', { destination }) }]);
     const [inp, setInp] = useState('');
     const [loading, setLoading] = useState(false);
     const endRef = useRef(null);
@@ -247,7 +273,7 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
                     onChange={e => setInp(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
                     className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none"
-                    placeholder="Ask anything about your trip…"
+                    placeholder={t('itinerary.chatPlaceholder')}
                     disabled={loading}
                 />
                 <button
@@ -264,6 +290,7 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
 
 // ─── COLLAPSIBLE SECTION ──────────────────────────────────────────────────────
 const Section = ({ title, icon: Icon, count, onAdd, addLabel, children }) => {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(true);
     return (
         <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
@@ -278,7 +305,7 @@ const Section = ({ title, icon: Icon, count, onAdd, addLabel, children }) => {
                 </button>
                 <button onClick={onAdd}
                     className="flex items-center gap-1.5 text-sm font-bold text-primary hover:bg-primary/10 px-4 py-2 rounded-xl transition-colors">
-                    <PlusCircle size={16} /> {addLabel}
+                    <PlusCircle size={16} /> {addLabel || t('itinerary.addSpot')}
                 </button>
             </div>
             {open && <div className="px-8 py-6 space-y-4">{children}</div>}
@@ -287,72 +314,80 @@ const Section = ({ title, icon: Icon, count, onAdd, addLabel, children }) => {
 };
 
 // ─── FLIGHT CARD ──────────────────────────────────────────────────────────────
-const FlightCard = ({ f, onChange, onRemove, showRemove }) => (
-    <div className="relative group bg-gradient-to-br from-slate-800 to-slate-900 text-white rounded-2xl p-5 shadow-lg">
-        {showRemove && (
-            <button onClick={onRemove}
-                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity">
-                <X size={12} />
-            </button>
-        )}
-        {/* ticket top strip */}
-        <div className="flex items-center gap-2 mb-3">
-            <select value={f.type} onChange={e => onChange('type', e.target.value)}
-                className="bg-white/10 border border-white/20 text-white text-xs font-bold rounded-lg px-2 py-1 outline-none">
-                <option>Outbound</option><option>Inbound</option><option>Internal</option><option>Layover</option>
-            </select>
-            <span className="ml-auto text-white/50 text-xs">✈ BOARDING PASS</span>
-        </div>
+const FlightCard = ({ f, onChange, onRemove, showRemove }) => {
+    const { t } = useTranslation();
+    return (
+        <div className="relative group bg-gradient-to-br from-slate-800 to-slate-900 text-white rounded-2xl p-5 shadow-lg">
+            {showRemove && (
+                <button onClick={onRemove}
+                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity">
+                    <X size={12} />
+                </button>
+            )}
+            {/* ticket top strip */}
+            <div className="flex items-center gap-2 mb-3">
+                <select value={f.type} onChange={e => onChange('type', e.target.value)}
+                    className="bg-white/10 border border-white/20 text-white text-xs font-bold rounded-lg px-2 py-1 outline-none">
+                    <option value="Outbound" className="text-slate-900">{t('itinerary.typeOutbound')}</option>
+                    <option value="Inbound" className="text-slate-900">{t('itinerary.typeInbound')}</option>
+                    <option value="Internal" className="text-slate-900">{t('itinerary.typeInternal')}</option>
+                    <option value="Layover" className="text-slate-900">{t('itinerary.typeLayover')}</option>
+                </select>
+                <span className="ml-auto text-white/50 text-xs text-right truncate">{t('itinerary.boardingPass').toUpperCase()}</span>
+            </div>
         {/* route */}
         <div className="flex items-center gap-3 mb-3">
             <input value={f.from} onChange={e => onChange('from', e.target.value)}
-                placeholder="FROM" className="w-20 bg-transparent text-2xl font-black uppercase outline-none placeholder:text-white/30 border-b border-white/20 text-center" />
+                placeholder={t('itinerary.from').toUpperCase()} className="w-20 bg-transparent text-2xl font-black uppercase outline-none placeholder:text-white/30 border-b border-white/20 text-center" />
             <div className="flex-1 flex items-center gap-1"><div className="flex-1 border-t border-dashed border-white/30" /><Plane size={14} className="text-white/50" /><div className="flex-1 border-t border-dashed border-white/30" /></div>
             <input value={f.to} onChange={e => onChange('to', e.target.value)}
-                placeholder="TO" className="w-20 bg-transparent text-2xl font-black uppercase outline-none placeholder:text-white/30 border-b border-white/20 text-center" />
+                placeholder={t('itinerary.to').toUpperCase()} className="w-20 bg-transparent text-2xl font-black uppercase outline-none placeholder:text-white/30 border-b border-white/20 text-center" />
         </div>
         {/* details row */}
         <div className="grid grid-cols-3 gap-2 text-xs">
-            <div><div className="text-white/40 uppercase tracking-wider mb-1">Flight No.</div>
+            <div><div className="text-white/40 uppercase tracking-wider mb-1">{t('itinerary.flightNo')}</div>
                 <input value={f.number} onChange={e => onChange('number', e.target.value)}
                     placeholder="KE1234" className="w-full bg-transparent font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" />
             </div>
-            <div><div className="text-white/40 uppercase tracking-wider mb-1">Departure</div>
+            <div><div className="text-white/40 uppercase tracking-wider mb-1">{t('itinerary.departure')}</div>
                 <input value={f.time} onChange={e => onChange('time', e.target.value)}
                     placeholder="14:30" className="w-full bg-transparent font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" />
             </div>
-            <div><div className="text-white/40 uppercase tracking-wider mb-1">Gate / Seat</div>
+            <div><div className="text-white/40 uppercase tracking-wider mb-1">{t('itinerary.gateSeat')}</div>
                 <input value={f.notes} onChange={e => onChange('notes', e.target.value)}
                     placeholder="B22 / 32A" className="w-full bg-transparent font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" />
             </div>
         </div>
     </div>
 );
+};
 
 // ─── HOTEL CARD ───────────────────────────────────────────────────────────────
-const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => (
-    <div className="relative group bg-gradient-to-br from-amber-50 to-orange-50 border border-orange-100 rounded-2xl p-5 shadow-sm">
-        {showRemove && (
-            <button onClick={onRemove}
-                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white shadow opacity-0 group-hover:opacity-100 transition-opacity">
-                <X size={12} />
-            </button>
-        )}
-        <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-orange-400/20 flex items-center justify-center text-orange-500 flex-shrink-0 mt-0.5">
-                <BedDouble size={16} />
-            </div>
-            <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-orange-400 uppercase tracking-widest">Stay {index + 1}</span>
+const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => {
+    const { t } = useTranslation();
+    return (
+        <div className="relative group bg-gradient-to-br from-amber-50 to-orange-50 border border-orange-100 rounded-2xl p-5 shadow-sm">
+            {showRemove && (
+                <button onClick={onRemove}
+                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white shadow opacity-0 group-hover:opacity-100 transition-opacity">
+                    <X size={12} />
+                </button>
+            )}
+            <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-orange-400/20 flex items-center justify-center text-orange-500 flex-shrink-0 mt-0.5">
+                    <BedDouble size={16} />
                 </div>
-                <input value={h.name} onChange={e => onChange('name', e.target.value)}
-                    placeholder="Hotel / Airbnb name…"
-                    className="w-full bg-transparent text-lg font-black text-slate-800 outline-none border-b border-orange-200 pb-1 placeholder:text-gray-300" />
+                <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-orange-400 uppercase tracking-widest">{t('itinerary.stay', { index: index + 1 })}</span>
+                    </div>
+                    <input value={h.name} onChange={e => onChange('name', e.target.value)}
+                        placeholder={t('itinerary.hotelNamePlaceholder')}
+                        className="w-full bg-transparent text-lg font-black text-slate-800 outline-none border-b border-orange-200 pb-1 placeholder:text-gray-300" />
                 <div className="grid grid-cols-2 gap-2">
                     <div className="relative">
                         <input value={h.address} onChange={e => onChange('address', e.target.value)}
-                            placeholder="Address"
+                            placeholder={t('itinerary.addressPlaceholder')}
                             className="w-full bg-white/70 border border-orange-100 rounded-lg pl-3 pr-8 py-1.5 text-sm outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" />
                         {h.address && (
                             <a
@@ -366,24 +401,26 @@ const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => (
                         )}
                     </div>
                     <input value={h.confirmation} onChange={e => onChange('confirmation', e.target.value)}
-                        placeholder="Confirmation #"
+                        placeholder={t('itinerary.hotelConfirm')}
                         className="bg-white/70 border border-orange-100 rounded-lg px-3 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                     <input value={h.checkin} onChange={e => onChange('checkin', e.target.value)}
-                        placeholder="Check-in date"
+                        placeholder={t('itinerary.hotelCheckin')}
                         className="bg-white/70 border border-orange-100 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" />
                     <input value={h.checkout} onChange={e => onChange('checkout', e.target.value)}
-                        placeholder="Check-out date"
+                        placeholder={t('itinerary.hotelCheckout')}
                         className="bg-white/70 border border-orange-100 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" />
                 </div>
             </div>
         </div>
     </div>
 );
+};
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 const Itinerary = () => {
+    const { t } = useTranslation();
     const { state } = useLocation();
 
     useEffect(() => { if (state) sessionStorage.setItem('lastSurveyData', JSON.stringify(state)); }, [state]);
@@ -544,15 +581,15 @@ const Itinerary = () => {
 
         // ── [CONSTRAINT 6] Day Theming based on geographic cluster ─────────────
         const DAY_THEMES = {
-            'Culture': 'Cultural Heritage Day', 'Nature': 'Natural Wonders Day',
-            'City': 'Urban Explorer Day', 'Relax': 'Rest & Recharge Day',
-            'Food': 'Culinary Journey Day',
+            'Culture': t('itinerary.themeCulture'), 'Nature': t('itinerary.themeNature'),
+            'City': t('itinerary.themeCity'), 'Relax': t('itinerary.themeRelax'),
+            'Food': t('itinerary.themeFood'),
         };
         const getDayTheme = (items) => {
             const typeCounts = {};
             items.forEach(i => { typeCounts[i.type] = (typeCounts[i.type] || 0) + 1; });
             const dominant = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-            return DAY_THEMES[dominant] || 'Discovery Day';
+            return DAY_THEMES[dominant] || t('itinerary.themeDefault');
         };
 
         // ── MAIN GENERATION LOOP ────────────────────────────────────────────────
@@ -625,15 +662,15 @@ const Itinerary = () => {
 
     const deleteAct = (di, id) => setDayItems(di, itinerary[di].items.filter(x => x.id !== id));
     const addAct = (di) => {
-        const nm = 'New Spot', tp = 'City';
-        const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: 'Plan something new.', type: tp, rating: 4.5, img: getImg(nm, tp), isNew: true };
+        const nm = t('itinerary.newSpotName'), tp = 'City';
+        const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: t('itinerary.newSpotDesc'), type: tp, img: getImg(nm, tp), isNew: true };
         setDayItems(di, [...itinerary[di].items, item]);
     };
 
     if (!destData) return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6 p-6">
             <Navbar />
-            <div className="text-2xl font-black text-secondary animate-pulse mt-20">Curating your perfect trip…</div>
+            <div className="text-2xl font-black text-secondary animate-pulse mt-20">{t('itinerary.curating')}</div>
             <AdPlaceholder className="w-full max-w-2xl h-[250px] shadow-sm" />
         </div>
     );
@@ -656,7 +693,7 @@ const Itinerary = () => {
                         <h1 className="font-black text-2xl text-secondary leading-none">{data.destination}</h1>
                         <p className="text-xs font-bold text-gray-400 mt-0.5 flex items-center gap-1">
                             <Calendar size={12} />
-                            {format(new Date(data.startDate), 'MMM dd')} – {format(new Date(data.endDate), 'MMM dd')} · {itinerary.length} Days
+                            {format(new Date(data.startDate), 'MMM dd')} – {format(new Date(data.endDate), 'MMM dd')} · {t('itinerary.days', { count: itinerary.length })}
                         </p>
                     </div>
                 </Link>
@@ -664,19 +701,19 @@ const Itinerary = () => {
                     {['itinerary', 'summary'].map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)}
                             className={`px-7 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-400 hover:text-gray-600'}`}>
-                            {tab[0].toUpperCase() + tab.slice(1)}
+                            {t(`itinerary.tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
                         </button>
                     ))}
                 </div>
             </nav>
 
             {/* MAIN */}
-            <main className="flex-1 w-full max-w-7xl mx-auto px-6 md:px-12 py-10 flex flex-col lg:flex-row gap-10">
+            <main className="flex-1 w-full max-w-[1440px] mx-auto px-6 md:px-12 py-10 flex flex-col lg:flex-row gap-10">
                 {/* LEFT SIDEBAR (ADS) */}
                 <aside className="hidden lg:flex flex-col w-72 flex-shrink-0">
                     <div className="sticky top-28 space-y-6">
                         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Recommended</h3>
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">{t('itinerary.recommended')}</h3>
                             <AdPlaceholder className="w-full h-[600px] shadow-inner" />
                         </div>
                     </div>
@@ -691,13 +728,26 @@ const Itinerary = () => {
                                 {itinerary.map((day, di) => (
                                     <div key={day.id}>
                                         <div className="flex items-center gap-5 mb-7">
-                                            <div className="w-16 h-16 bg-secondary text-white rounded-2xl flex flex-col items-center justify-center font-black shadow-xl">
-                                                <span className="text-[9px] uppercase tracking-widest opacity-60">Day</span>
-                                                <span className="text-3xl leading-none">{day.dayNum}</span>
+                                            <div className="w-20 h-20 bg-secondary text-white rounded-3xl flex flex-col items-center justify-center font-black shadow-2xl border-4 border-white/10 shrink-0 transform hover:scale-105 transition-transform">
+                                                <span className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-0.5">{t('itinerary.dayLabel')}</span>
+                                                <span className="text-4xl leading-none">{day.dayNum}</span>
                                             </div>
                                             <div>
                                                 <h2 className="text-3xl font-black text-secondary">{format(day.date, 'EEEE, MMM do')}</h2>
-                                                <p className="text-sm text-gray-400 font-bold mt-0.5">{day.items.length} Activities</p>
+                                                <div className="flex items-center gap-3 mt-1">
+                                                    <p className="text-sm text-gray-400 font-bold">{t('itinerary.activitiesCount', { count: day.items.length })}</p>
+                                                    {day.items.length > 0 && (
+                                                        <a
+                                                            href={getDayMapUrl(day.items, data.destination)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-1.5 text-[11px] font-black text-primary hover:text-secondary hover:bg-primary transition-all bg-primary/10 px-3 py-1.5 rounded-full shadow-sm active:scale-95"
+                                                        >
+                                                            <MapPin size={12} />
+                                                            <span>{t('itinerary.routeMap')}</span>
+                                                        </a>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <Reorder.Group axis="y" values={day.items} onReorder={items => setDayItems(di, items)} className="space-y-4">
@@ -709,7 +759,7 @@ const Itinerary = () => {
                                         </Reorder.Group>
                                         <button onClick={() => addAct(di)}
                                             className="w-full mt-6 py-5 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400 font-bold hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-2 group">
-                                            <Plus size={22} className="group-hover:rotate-90 transition-transform" /> Add Spot
+                                            <Plus size={22} className="group-hover:rotate-90 transition-transform" /> {t('itinerary.addSpot')}
                                         </button>
                                     </div>
                                 ))}
@@ -721,7 +771,7 @@ const Itinerary = () => {
                             <motion.div key="sum" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
 
                                 {/* FLIGHTS */}
-                                <Section title="Flights" icon={Plane} count={flights.length} onAdd={addFlight} addLabel="Add Flight">
+                                <Section title={t('itinerary.flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('itinerary.addFlight')}>
                                     {flights.map(f => (
                                         <FlightCard key={f.id} f={f}
                                             onChange={(k, v) => updateFlight(f.id, k, v)}
@@ -731,7 +781,7 @@ const Itinerary = () => {
                                 </Section>
 
                                 {/* HOTELS */}
-                                <Section title="Accommodation" icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel="Add Stay">
+                                <Section title={t('itinerary.accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('itinerary.addStay')}>
                                     {hotels.map((h, i) => (
                                         <HotelCard key={h.id} h={h} index={i}
                                             onChange={(k, v) => updateHotel(h.id, k, v)}
@@ -744,19 +794,19 @@ const Itinerary = () => {
                                 <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
                                     <div className="px-8 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                                         <h3 className="text-lg font-black text-secondary flex items-center gap-2.5">
-                                            <List size={18} className="text-primary" /> Journey Overview
+                                            <List size={18} className="text-primary" /> {t('itinerary.journeyOverview')}
                                         </h3>
                                         <div className="flex gap-3">
-                                            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold">{itinerary.length} Days</span>
-                                            <span className="px-3 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-bold">{totalSpots} Spots</span>
+                                            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold">{t('itinerary.days', { count: itinerary.length })}</span>
+                                            <span className="px-3 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-bold">{t('itinerary.spots', { count: totalSpots })}</span>
                                         </div>
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left">
                                             <thead>
                                                 <tr className="border-b border-gray-100">
-                                                    {['Day', 'Time', 'Activity', 'Type', 'Rating'].map(h => (
-                                                        <th key={h} className={`px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest ${h === 'Rating' ? 'text-right' : ''}`}>{h}</th>
+                                                    {['day', 'time', 'activity', 'type', 'map'].map(h => (
+                                                        <th key={h} className={`px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest ${h === 'map' ? 'text-center' : ''}`}>{t(`itinerary.col${h.charAt(0).toUpperCase() + h.slice(1)}`)}</th>
                                                     ))}
                                                 </tr>
                                             </thead>
@@ -765,39 +815,46 @@ const Itinerary = () => {
                                                     day.items.length > 0 ? day.items.map((item, idx) => (
                                                         <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                                                             {idx === 0 && (
-                                                                <td rowSpan={day.items.length} className="px-6 py-5 align-top whitespace-nowrap">
-                                                                    <span className="text-xl font-black text-secondary block">D{day.dayNum}</span>
-                                                                    <span className="text-xs font-bold text-gray-400">{format(day.date, 'MMM dd')}</span>
+                                                                <td rowSpan={day.items.length} className="px-6 py-6 align-top border-r border-gray-50 bg-gray-50/30">
+                                                                    <div className="flex flex-col items-center gap-3">
+                                                                        <span className="font-black text-primary text-lg">{t('itinerary.dayShort', { count: day.dayNum })}</span>
+                                                                        <a
+                                                                            href={getDayMapUrl(day.items, data.destination)}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            title={t('itinerary.routeMap')}
+                                                                            className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary text-secondary shadow-lg shadow-primary/20 hover:scale-110 active:scale-95 transition-all"
+                                                                        >
+                                                                            <MapPin size={18} />
+                                                                        </a>
+                                                                        <span className="text-[9px] font-black text-primary/40 uppercase tracking-tighter">{t('itinerary.route')}</span>
+                                                                    </div>
                                                                 </td>
                                                             )}
                                                             <td className="px-6 py-5 text-primary font-bold text-sm whitespace-nowrap">{fmtTime(item.time)}</td>
                                                             <td className="px-6 py-5">
-                                                                <div className="flex items-center gap-2">
-                                                                    <p className="font-black text-secondary text-sm">{item.name}</p>
-                                                                    <a
-                                                                        href={`https://www.google.com/maps/search/?api=1&query=${item.latitude && item.longitude ? `${item.latitude},${item.longitude}` : encodeURIComponent(item.name + ' ' + (data.destination || ''))}`}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="text-gray-300 hover:text-primary transition-colors"
-                                                                    >
-                                                                        <MapPin size={12} />
-                                                                    </a>
-                                                                </div>
-                                                                <p className="text-xs text-gray-400 truncate max-w-[180px]">{item.desc}</p>
+                                                                <p className="font-black text-secondary text-sm">{item.name}</p>
+                                                                <p className="text-xs text-gray-400 truncate max-w-[200px]">{item.desc}</p>
                                                             </td>
                                                             <td className="px-6 py-5">
                                                                 <span className="px-2.5 py-1 bg-gray-100 rounded-full text-[10px] font-black uppercase text-gray-500">{item.type}</span>
                                                             </td>
-                                                            <td className="px-6 py-5 text-right">
-                                                                <span className="font-black text-secondary text-sm flex items-center justify-end gap-1">
-                                                                    <Star size={11} className="text-yellow-400 fill-yellow-400" /> {item.rating}
-                                                                </span>
+                                                            <td className="px-6 py-5 text-center">
+                                                                <a
+                                                                    href={`https://www.google.com/maps/search/?api=1&query=${item.latitude && item.longitude ? `${item.latitude},${item.longitude}` : encodeURIComponent(item.name + ' ' + (data.destination || ''))}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-primary hover:text-secondary transition-all group"
+                                                                    title={t('itinerary.maps')}
+                                                                >
+                                                                    <MapPin size={14} className="group-hover:scale-110 transition-transform" />
+                                                                </a>
                                                             </td>
                                                         </tr>
                                                     )) : (
                                                         <tr key={`empty-${day.id}`}>
-                                                            <td className="px-6 py-5 font-black text-secondary">D{day.dayNum}</td>
-                                                            <td colSpan={4} className="px-6 py-5 text-gray-400 text-sm italic">No activities yet</td>
+                                                            <td className="px-6 py-5 font-black text-secondary">{t('itinerary.dayShort', { count: day.dayNum })}</td>
+                                                            <td colSpan={4} className="px-6 py-5 text-gray-400 text-sm italic">{t('itinerary.noActivities')}</td>
                                                         </tr>
                                                     )
                                                 )}
@@ -809,6 +866,52 @@ const Itinerary = () => {
                         )}
                     </AnimatePresence>
                 </div>
+
+                {/* RIGHT SIDEBAR (BOOKING SHORTCUTS) */}
+                <aside className="hidden xl:flex flex-col w-72 flex-shrink-0">
+                    <div className="sticky top-28 space-y-6">
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 backdrop-blur-xl bg-white/80">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <ExternalLink size={14} /> {t('itinerary.bookingShortcuts')}
+                            </h3>
+                            <div className="space-y-3">
+                                {[
+                                    { name: t('itinerary.bookSkyscanner'), icon: Plane, color: 'bg-blue-50 text-blue-600', url: `https://www.skyscanner.net/` },
+                                    { name: t('itinerary.bookAgoda'), icon: BedDouble, color: 'bg-emerald-50 text-emerald-600', url: `https://www.agoda.com/search?city=${encodeURIComponent(data.destination)}` },
+                                    { name: t('itinerary.bookBooking'), icon: Globe, color: 'bg-indigo-50 text-indigo-600', url: `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(data.destination)}` }
+                                ].map((link, idx) => (
+                                    <a
+                                        key={idx}
+                                        href={link.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-4 p-4 rounded-2xl border border-gray-50 hover:border-primary/20 hover:bg-white hover:shadow-md transition-all group"
+                                    >
+                                        <div className={`w-10 h-10 ${link.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                                            <link.icon size={20} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-black text-secondary truncate">{link.name}</p>
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Book now</p>
+                                        </div>
+                                        <ChevronRight size={14} className="text-gray-300 group-hover:text-primary transition-colors" />
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* MINI TIP */}
+                        <div className="p-6 rounded-3xl bg-secondary text-white shadow-xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform duration-700">
+                                <Globe size={80} />
+                            </div>
+                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">Travel Tip</p>
+                            <p className="text-sm font-bold leading-relaxed relative z-10">
+                                {data.destination} {t('itinerary.bookingShortcuts')}를 통해 최적의 가격으로 여행을 완성하세요!
+                            </p>
+                        </div>
+                    </div>
+                </aside>
             </main>
 
             {/* FAB + CHAT */}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MapPin, Users, Calendar, DollarSign, Activity, Coffee, Mountain, Palmtree, Building2, Tent, Compass } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import { format } from 'date-fns';
@@ -11,6 +12,7 @@ import Navbar from '../components/Navbar';
 import { DESTINATION_DATA } from '../data';
 
 const Survey = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const [step, setStep] = useState(1);
@@ -101,8 +103,12 @@ const Survey = () => {
         return (
             <div className="min-h-screen bg-secondary flex flex-col items-center justify-center text-white p-8 text-center">
                 <div className="w-24 h-24 rounded-full border-4 border-primary border-t-transparent animate-spin mb-8"></div>
-                <h2 className="text-2xl font-bold mb-2">Curating Your Journey...</h2>
-                <p className="text-gray-400">Designing a {formData.style > 50 ? "thrilling" : "relaxing"} {formData.destination} experience.</p>
+                <h2 className="text-2xl font-bold mb-2">{t('survey.loading')}</h2>
+                <p className="text-gray-400">
+                    {formData.style > 50 
+                        ? t('survey.loadingThrilling', { destination: formData.destination }) 
+                        : t('survey.loadingRelaxing', { destination: formData.destination })}
+                </p>
             </div>
         );
     }
@@ -115,19 +121,19 @@ const Survey = () => {
                 totalSteps={3}
                 title={
                     <span className="font-heading">
-                        {step === 1 ? "Define Your Travel DNA" :
-                            step === 2 ? "Pick Your Paradise" :
-                                "Final Details"}
+                        {step === 1 ? t('survey.step1Title') :
+                            step === 2 ? t('survey.step2Title') :
+                                t('survey.step3Title')}
                     </span>
                 }
                 subtitle={
-                    step === 1 ? "Help us understand your perfect trip." :
-                        step === 2 ? "Where is your heart leading you?" :
-                            "Logistics and final touches."
+                    step === 1 ? t('survey.step1Subtitle') :
+                        step === 2 ? t('survey.step2Subtitle') :
+                            t('survey.step3Subtitle')
                 }
                 onNext={handleNext}
                 onBack={handleBack}
-                nextLabel={step === 3 ? "Generate My Plan" : "Next Step"}
+                nextLabel={step === 3 ? t('survey.genItin') : t('survey.nextStep')}
                 canNext={
                     (step === 1 &&
                         formData.vibe &&
@@ -146,13 +152,13 @@ const Survey = () => {
                         {/* Travel Vibe & Exploration Style */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <section>
-                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">Your Travel Vibe</label>
-                                <div className="grid grid-cols-2 gap-3">
+                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.vibeTitle')}</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {[
-                                        { id: 'Chill', label: 'Chill Wanderer', desc: 'Slow & relaxed pace' },
-                                        { id: 'Active', label: 'Active Explorer', desc: 'Energy & adventure' },
-                                        { id: 'Social', label: 'Social & Lively', desc: 'Love meeting people' },
-                                        { id: 'Quiet', label: 'Private & Quiet', desc: 'Peaceful relaxation' },
+                                        { id: 'Chill', label: t('survey.vibeChill'), desc: t('survey.vibeChillDesc') },
+                                        { id: 'Active', label: t('survey.vibeActive'), desc: t('survey.vibeActiveDesc') },
+                                        { id: 'Social', label: t('survey.vibeSocial'), desc: t('survey.vibeSocialDesc') },
+                                        { id: 'Quiet', label: t('survey.vibeQuiet'), desc: t('survey.vibeQuietDesc') },
                                     ].map((opt) => (
                                         <button
                                             key={opt.id}
@@ -166,11 +172,11 @@ const Survey = () => {
                                 </div>
                             </section>
                             <section>
-                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">Exploration Style</label>
-                                <div className="flex gap-3">
+                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.exploreTitle')}</label>
+                                <div className="flex flex-col sm:flex-row gap-3">
                                     {[
-                                        { id: 'Spontaneous', label: 'Spontaneous', desc: 'Follow the flow' },
-                                        { id: 'Planned', label: 'Well-Planned', desc: 'Every detail counts' }
+                                        { id: 'Spontaneous', label: t('survey.exploreSpont'), desc: t('survey.exploreSpontDesc') },
+                                        { id: 'Planned', label: t('survey.explorePlan'), desc: t('survey.explorePlanDesc') }
                                     ].map((opt) => (
                                         <button
                                             key={opt.id}
@@ -187,15 +193,15 @@ const Survey = () => {
 
                         {/* Preferred Climates */}
                         <section>
-                            <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">Preferred Climates <span className="text-xs font-medium text-gray-400 normal-case tracking-normal">(Select Multiple)</span></label>
-                            <div className="grid grid-cols-2 gap-3">
+                            <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.climateTitle')} <span className="text-xs font-medium text-gray-400 normal-case tracking-normal">{t('survey.selectMultiple')}</span></label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                 {[
-                                    { label: 'Tropical', icon: <Palmtree size={18} /> },
-                                    { label: 'Alpine', icon: <Mountain size={18} /> },
-                                    { label: 'Urban', icon: <Building2 size={18} /> },
-                                    { label: 'Desert', icon: <Tent size={18} /> },
-                                    { label: 'Mediterranean', icon: <Compass size={18} /> },
-                                    { label: 'Oceanic', icon: <MapPin size={18} /> },
+                                    { label: 'Tropical', tLabel: t('survey.climateTropical'), icon: <Palmtree size={18} /> },
+                                    { label: 'Alpine', tLabel: t('survey.climateAlpine'), icon: <Mountain size={18} /> },
+                                    { label: 'Urban', tLabel: t('survey.climateUrban'), icon: <Building2 size={18} /> },
+                                    { label: 'Desert', tLabel: t('survey.climateDesert'), icon: <Tent size={18} /> },
+                                    { label: 'Mediterranean', tLabel: t('survey.climateMed'), icon: <Compass size={18} /> },
+                                    { label: 'Oceanic', tLabel: t('survey.climateOceanic'), icon: <MapPin size={18} /> },
                                 ].map((opt) => (
                                     <button
                                         key={opt.label}
@@ -206,7 +212,7 @@ const Survey = () => {
                                                 : 'bg-white border-gray-100 text-gray-600 hover:border-primary/50'}
                                     `}
                                     >
-                                        {opt.icon} <span>{opt.label}</span>
+                                        {opt.icon} <span>{opt.tLabel}</span>
                                     </button>
                                 ))}
                             </div>
@@ -215,37 +221,50 @@ const Survey = () => {
                         {/* Dining, Pace, Accommodation */}
                         <section className="space-y-7">
                             <div>
-                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">Dining Preference</label>
-                                <div className="flex gap-3">
-                                    {['Street Food', 'Casual Dining', 'Fine Dining'].map(opt => (
-                                        <button key={opt} onClick={() => updateData('dining', opt)}
+                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.diningTitle')}</label>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    {[
+                                        { id: 'Street Food', label: t('survey.diningStreet') },
+                                        { id: 'Casual Dining', label: t('survey.diningCasual') },
+                                        { id: 'Fine Dining', label: t('survey.diningFine') }
+                                    ].map(opt => (
+                                        <button key={opt.id} onClick={() => updateData('dining', opt.id)}
                                             className={`flex-1 py-4 px-3 rounded-2xl border-2 text-base font-bold transition-all
-                                            ${formData.dining === opt ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}>
-                                            {opt}
+                                            ${formData.dining === opt.id ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}>
+                                            {opt.label}
                                         </button>
                                     ))}
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">Daily Pace</label>
-                                <div className="flex gap-3">
-                                    {['Relaxed', 'Moderate', 'Packed'].map(opt => (
-                                        <button key={opt} onClick={() => updateData('pace', opt)}
+                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.paceTitle')}</label>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    {[
+                                        { id: 'Relaxed', label: t('survey.paceRelaxed') },
+                                        { id: 'Moderate', label: t('survey.paceModerate') },
+                                        { id: 'Packed', label: t('survey.pacePacked') }
+                                    ].map(opt => (
+                                        <button key={opt.id} onClick={() => updateData('pace', opt.id)}
                                             className={`flex-1 py-4 px-3 rounded-2xl border-2 text-base font-bold transition-all
-                                            ${formData.pace === opt ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}>
-                                            {opt}
+                                            ${formData.pace === opt.id ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}>
+                                            {opt.label}
                                         </button>
                                     ))}
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">Accommodation</label>
-                                <div className="flex gap-3">
-                                    {['Hostel', 'Hotel', 'Luxury Resort', 'Airbnb'].map(opt => (
-                                        <button key={opt} onClick={() => updateData('accommodation', opt)}
+                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.accTitle')}</label>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    {[
+                                        { id: 'Hostel', label: t('survey.accHostel') },
+                                        { id: 'Hotel', label: t('survey.accHotel') },
+                                        { id: 'Luxury Resort', label: t('survey.accResort') },
+                                        { id: 'Airbnb', label: t('survey.accAirbnb') }
+                                    ].map(opt => (
+                                        <button key={opt.id} onClick={() => updateData('accommodation', opt.id)}
                                             className={`flex-1 py-4 px-2 rounded-2xl border-2 text-sm font-bold transition-all
-                                            ${formData.accommodation === opt ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}>
-                                            {opt}
+                                            ${formData.accommodation === opt.id ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}>
+                                            {opt.label}
                                         </button>
                                     ))}
                                 </div>
@@ -259,33 +278,33 @@ const Survey = () => {
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         {knowsDest === null ? (
                             <div className="text-center py-10">
-                                <h3 className="text-xl font-bold text-secondary mb-8">Do you have a specific destination in mind?</h3>
-                                <div className="flex gap-4 justify-center">
+                                <h3 className="text-xl font-bold text-secondary mb-8">{t('survey.destPrompt')}</h3>
+                                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                                     <button
                                         onClick={() => setKnowsDest('yes')}
-                                        className="px-8 py-4 bg-primary text-secondary rounded-xl font-bold text-lg hover:shadow-lg hover:scale-105 transition-all w-40"
+                                        className="px-8 py-4 bg-primary text-secondary rounded-xl font-bold text-lg hover:shadow-lg hover:scale-105 transition-all w-full sm:w-40"
                                     >
-                                        Yes
+                                        {t('survey.destYes')}
                                     </button>
                                     <button
                                         onClick={() => setKnowsDest('no')}
-                                        className="px-8 py-4 bg-white border-2 border-primary text-primary rounded-xl font-bold text-lg hover:bg-primary/10 transition-all w-40"
+                                        className="px-8 py-4 bg-white border-2 border-primary text-primary rounded-xl font-bold text-lg hover:bg-primary/10 transition-all w-full sm:w-40"
                                     >
-                                        No, Inspire Me
+                                        {t('survey.destNo')}
                                     </button>
                                 </div>
                             </div>
                         ) : knowsDest === 'yes' ? (
                             <section>
                                 <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">
-                                    Where are you heading?
+                                    {t('survey.destWhere')}
                                 </label>
                                 {/* 검색창 */}
                                 <div className="relative mb-5">
                                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-primary z-10" size={20} />
                                     <input
                                         type="text"
-                                        placeholder="나라 또는 도시를 검색하세요 (예: Japan, Seoul, Paris)..."
+                                        placeholder={t('survey.destSearchPlace')}
                                         className="w-full pl-12 pr-4 py-5 rounded-2xl border-2 border-primary/30 focus:border-primary focus:outline-none text-lg font-medium transition-all bg-white shadow-sm"
                                         value={formData.destination}
                                         onChange={(e) => updateData('destination', e.target.value)}
@@ -348,13 +367,13 @@ const Survey = () => {
                                     if (filtered.length === 0) return (
                                         <div className="text-center py-8 text-gray-400">
                                             <MapPin size={32} className="mx-auto mb-2 opacity-30" />
-                                            <p className="font-medium">검색 결과가 없습니다</p>
-                                            <p className="text-sm mt-1">입력한 내용을 목적지로 직접 사용할 수 있어요</p>
+                                            <p className="font-medium">{t('survey.destNotFound')}</p>
+                                            <p className="text-sm mt-1">{t('survey.destUseInput')}</p>
                                             <button
                                                 onClick={() => {/* 그냥 현재 input값 사용 */}}
                                                 className="mt-3 px-5 py-2 bg-primary text-secondary rounded-xl font-bold text-sm hover:opacity-90 transition"
                                             >
-                                                "{formData.destination}" 사용하기
+                                                {t('survey.destUseBtn', { dest: formData.destination })}
                                             </button>
                                         </div>
                                     );
@@ -389,7 +408,9 @@ const Survey = () => {
                         ) : (
                             <section>
                                 <label className="block text-sm font-medium text-gray-500 mb-4 uppercase tracking-wider">
-                                    {formData.climate.length > 0 ? `${formData.climate.join(' & ')} matches for you:` : "We recommend these for you:"}
+                                    {formData.climate.length > 0 
+                                      ? t('survey.destMatches', { climates: formData.climate.join(' & ') }) 
+                                      : t('survey.destRecommend')}
                                 </label>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {(() => {
@@ -455,10 +476,10 @@ const Survey = () => {
                 {step === 3 && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <section>
-                            <label className="block text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">Travel Dates</label>
-                            <div className="grid grid-cols-2 gap-4">
+                            <label className="block text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">{t('survey.datesTitle')}</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="flex flex-col">
-                                    <label className="block text-xs text-gray-400 mb-1">Start Date</label>
+                                    <label className="block text-xs text-gray-400 mb-1">{t('survey.datesStart')}</label>
                                     <DatePicker
                                         selected={formData.startDate ? new Date(formData.startDate) : null}
                                         onChange={(date) => {
@@ -472,7 +493,7 @@ const Survey = () => {
                                     />
                                 </div>
                                 <div className="flex flex-col">
-                                    <label className="block text-xs text-gray-400 mb-1">End Date</label>
+                                    <label className="block text-xs text-gray-400 mb-1">{t('survey.datesEnd')}</label>
                                     <DatePicker
                                         selected={formData.endDate ? new Date(formData.endDate) : null}
                                         onChange={(date) => {
@@ -489,9 +510,9 @@ const Survey = () => {
                         </section>
 
                         <section>
-                            <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">Estimated Budget Per Person</label>
+                            <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.budgetTitle')}</label>
                             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                                <p className="text-sm text-gray-400 mb-3">Enter your total budget in USD</p>
+                                <p className="text-sm text-gray-400 mb-3">{t('survey.budgetSub')}</p>
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-primary">$</span>
                                     <input
@@ -509,24 +530,24 @@ const Survey = () => {
                                 </div>
                                 {formData.budget > 0 && (
                                     <p className="text-center text-sm font-semibold text-primary mt-3">
-                                        Budget: <span className="text-xl font-black">${Number(formData.budget).toLocaleString()}</span>
+                                        {t('survey.budgetFormat')} <span className="text-xl font-black">${Number(formData.budget).toLocaleString()}</span>
                                     </p>
                                 )}
                             </div>
                         </section>
 
                         <section>
-                            <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">Traveling With</label>
-                            <div className="grid grid-cols-2 gap-4">
+                            <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.withTitle')}</label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                 {[
-                                    { id: 'Solo', icon: <Users size={24} className="text-gray-400" /> },
-                                    { id: 'Couple', icon: <Users size={24} className="text-rose-400" /> },
-                                    { id: 'Friends', icon: <Users size={24} className="text-blue-400" /> },
-                                    { id: 'Family', icon: <Users size={24} className="text-amber-400" /> }
+                                    { id: 'Solo', label: t('survey.withSolo'), icon: <Users size={24} className="text-gray-400" /> },
+                                    { id: 'Couple', label: t('survey.withCouple'), icon: <Users size={24} className="text-rose-400" /> },
+                                    { id: 'Friends', label: t('survey.withFriends'), icon: <Users size={24} className="text-blue-400" /> },
+                                    { id: 'Family', label: t('survey.withFamily'), icon: <Users size={24} className="text-amber-400" /> }
                                 ].map((comp) => (
                                     <Card key={comp.id} selected={formData.companions === comp.id} onClick={() => updateData('companions', comp.id)} className="flex flex-col items-center justify-center gap-2 py-5">
                                         <div className={`p-3 rounded-full ${formData.companions === comp.id ? 'bg-primary/20' : 'bg-gray-50'}`}>{comp.icon}</div>
-                                        <span className="font-bold text-secondary text-base">{comp.id}</span>
+                                        <span className="font-bold text-secondary text-base">{comp.label}</span>
                                     </Card>
                                 ))}
                             </div>
@@ -534,47 +555,58 @@ const Survey = () => {
 
                         {/* Extra Questions */}
                         <section className="space-y-6 pt-4 border-t border-gray-100">
-                            <label className="block text-base font-bold text-secondary">Final touches to perfect your plan:</label>
+                            <label className="block text-base font-bold text-secondary">{t('survey.finalTitle')}</label>
 
                             <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">Special Occasion?</label>
+                                <label className="block text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">{t('survey.occTitle')}</label>
                                 <select
                                     className="w-full p-4 rounded-2xl border-2 border-gray-100 bg-white text-base font-medium text-secondary focus:border-primary focus:outline-none"
                                     onChange={(e) => updateData('occasion', e.target.value)}
                                     value={formData.occasion}
                                 >
-                                    <option value="">No special occasion</option>
-                                    <option value="honeymoon">Honeymoon</option>
-                                    <option value="anniversary">Anniversary</option>
-                                    <option value="birthday">Birthday Trip</option>
-                                    <option value="work">Workcation</option>
+                                    <option value="">{t('survey.occNone')}</option>
+                                    <option value="honeymoon">{t('survey.occHoneymoon')}</option>
+                                    <option value="anniversary">{t('survey.occAnniversary')}</option>
+                                    <option value="birthday">{t('survey.occBirthday')}</option>
+                                    <option value="work">{t('survey.occWork')}</option>
                                 </select>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">Transport Mode</label>
-                                <div className="flex gap-3">
-                                    {['Public Transit', 'Rental Car', 'Walking/Uber'].map(opt => (
-                                        <button key={opt} onClick={() => updateData('transport', opt)}
+                                <label className="block text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">{t('survey.transTitle')}</label>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    {[
+                                        { id: 'Public Transit', label: t('survey.transPub') },
+                                        { id: 'Rental Car', label: t('survey.transRent') },
+                                        { id: 'Walking/Uber', label: t('survey.transWalk') }
+                                    ].map(opt => (
+                                        <button key={opt.id} onClick={() => updateData('transport', opt.id)}
                                             className={`flex-1 py-3 px-2 rounded-2xl border-2 text-sm font-bold transition-all
-                                            ${formData.transport === opt ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}>
-                                            {opt}
+                                            ${formData.transport === opt.id ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}>
+                                            {opt.label}
                                         </button>
                                     ))}
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">Trip Focus <span className="text-xs font-medium text-gray-400 normal-case tracking-normal">(Select Multiple)</span></label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    {['Culture', 'Nature', 'Food', 'Shopping', 'Relax', 'Adventure'].map(opt => (
+                                <label className="block text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">{t('survey.focusTitle')} <span className="text-xs font-medium text-gray-400 normal-case tracking-normal">{t('survey.selectMultiple')}</span></label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {[
+                                        { id: 'Culture', label: t('survey.focusCulture') },
+                                        { id: 'Nature', label: t('survey.focusNature') },
+                                        { id: 'Food', label: t('survey.focusFood') },
+                                        { id: 'Shopping', label: t('survey.focusShopping') },
+                                        { id: 'Relax', label: t('survey.focusRelax') },
+                                        { id: 'Adventure', label: t('survey.focusAdventure') }
+                                    ].map(opt => (
                                         <button
-                                            key={opt}
-                                            onClick={() => toggleArrayItem('focus', opt)}
+                                            key={opt.id}
+                                            onClick={() => toggleArrayItem('focus', opt.id)}
                                             className={`py-3 px-2 rounded-2xl border-2 text-sm font-bold transition-all
-                                            ${formData.focus.includes(opt) ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}
+                                            ${formData.focus.includes(opt.id) ? 'bg-primary text-secondary border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'}`}
                                         >
-                                            {opt}
+                                            {opt.label}
                                         </button>
                                     ))}
                                 </div>

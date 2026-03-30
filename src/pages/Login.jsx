@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Compass, LogIn, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { auth, signInWithGoogle } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 const Login = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -27,7 +29,7 @@ const Login = () => {
             await signInWithGoogle();
             // onAuthStateChanged가 감지하여 자동으로 리다이렉트
         } catch (err) {
-            setError('Sign in failed. Please try again.');
+            setError(t('login.fail'));
             setLoading(false);
         }
     };
@@ -64,7 +66,7 @@ const Login = () => {
                     fontFamily: 'sans-serif', color: 'rgba(255,255,255,0.6)',
                     fontSize: '15px', marginBottom: '40px', lineHeight: 1.6
                 }}>
-                    Sign in to access your profile and view your travel history.
+                    {t('login.welcome')}
                 </p>
 
                 {/* 에러 메시지 */}
@@ -108,7 +110,7 @@ const Login = () => {
                         fontFamily: 'sans-serif', fontSize: '16px',
                         fontWeight: 'bold', color: '#1c1917'
                     }}>
-                        {loading ? 'Signing in…' : 'Continue with Google'}
+                        {loading ? t('login.signingIn') : t('login.googleBtn')}
                     </span>
                 </button>
 
@@ -124,7 +126,7 @@ const Login = () => {
                     onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'}
                     onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
                 >
-                    ← Back to Home
+                    ← {t('login.backHome')}
                 </a>
             </div>
         </div>

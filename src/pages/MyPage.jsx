@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     User, Mail, LogOut, MapPin, Calendar, Clock, ArrowRight,
     Compass, Trash2, ChevronRight
@@ -18,15 +19,16 @@ const formatDate = (str) => {
     } catch { return str; }
 };
 
-const getDays = (start, end) => {
+const getDays = (start, end, t) => {
     try {
         const diff = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
-        return isNaN(diff) ? '' : `${diff} days`;
+        return isNaN(diff) ? '' : t('itinerary.daysCount', { count: diff });
     } catch { return ''; }
 };
 
 // ─── 마이페이지 ────────────────────────────────────────────────────
 const MyPage = () => {
+    const { t } = useTranslation();
     const [user, setUser] = useState(null);
     const [history, setHistory] = useState([]);
     const navigate = useNavigate();
@@ -107,7 +109,7 @@ const MyPage = () => {
                             fontFamily: 'Georgia, serif', fontStyle: 'italic',
                             fontSize: '36px', color: 'white', marginBottom: '6px'
                         }}>
-                            {user?.displayName || 'Traveler'}
+                            {user?.displayName || t('myPage.traveler')}
                         </h1>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.6)', fontFamily: 'sans-serif', fontSize: '15px' }}>
                             <Mail size={15} />
@@ -120,7 +122,7 @@ const MyPage = () => {
                             color: '#FBBF24', fontFamily: 'sans-serif', fontSize: '13px', fontWeight: 'bold'
                         }}>
                             <Compass size={13} />
-                            {history.length} trips planned
+                            {t('myPage.tripsCount', { count: history.length })}
                         </div>
                     </div>
                     {/* 로그아웃 버튼 */}
@@ -136,7 +138,7 @@ const MyPage = () => {
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; e.currentTarget.style.color = '#fca5a5'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
                     >
-                        <LogOut size={16} /> Sign Out
+                        <LogOut size={16} /> {t('myPage.signOut')}
                     </button>
                 </div>
             </div>
@@ -148,10 +150,10 @@ const MyPage = () => {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
                     <div>
                         <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '28px', color: '#1c1917', marginBottom: '4px' }}>
-                            Your Travel History
+                            {t('myPage.historyTitle')}
                         </h2>
                         <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '14px' }}>
-                            Plans you've generated with WanderLust AI
+                            {t('myPage.historySubtitle')}
                         </p>
                     </div>
                     {history.length > 0 && (
@@ -167,7 +169,7 @@ const MyPage = () => {
                             onMouseEnter={e => { e.currentTarget.style.borderColor = '#fca5a5'; e.currentTarget.style.color = '#ef4444'; }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#78716c'; }}
                         >
-                            <Trash2 size={14} /> Clear all
+                            <Trash2 size={14} /> {t('myPage.clearAll')}
                         </button>
                     )}
                 </div>
@@ -181,10 +183,10 @@ const MyPage = () => {
                     }}>
                         <MapPin size={48} color="#d6d3d1" style={{ margin: '0 auto 20px' }} />
                         <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '22px', color: '#1c1917', marginBottom: '10px' }}>
-                            No trips yet
+                            {t('myPage.noTrips')}
                         </h3>
                         <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '15px', marginBottom: '28px' }}>
-                            Once you plan a trip, it will appear here.
+                            {t('myPage.noTripsDesc')}
                         </p>
                         <Link to="/survey" style={{
                             display: 'inline-flex', alignItems: 'center', gap: '8px',
@@ -192,7 +194,7 @@ const MyPage = () => {
                             textDecoration: 'none', borderRadius: '50px',
                             fontFamily: 'sans-serif', fontSize: '15px', fontWeight: 'bold'
                         }}>
-                            Plan My First Trip <ArrowRight size={16} />
+                            {t('myPage.planFirst')} <ArrowRight size={16} />
                         </Link>
                     </div>
                 ) : (
@@ -228,7 +230,7 @@ const MyPage = () => {
                                         {entry.startDate && (
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'sans-serif', fontSize: '13px', color: '#78716c' }}>
                                                 <Calendar size={12} /> {formatDate(entry.startDate)} – {formatDate(entry.endDate)}
-                                                {getDays(entry.startDate, entry.endDate) && ` · ${getDays(entry.startDate, entry.endDate)}`}
+                                                {getDays(entry.startDate, entry.endDate, t) && ` · ${getDays(entry.startDate, entry.endDate, t)}`}
                                             </span>
                                         )}
                                         {entry.vibe && (
@@ -270,7 +272,7 @@ const MyPage = () => {
                                         onMouseLeave={e => e.currentTarget.style.background = '#1c1917'}
                                         title="View this itinerary again"
                                     >
-                                        View Plan <ChevronRight size={14} />
+                                        {t('myPage.viewPlan')} <ChevronRight size={14} />
                                     </button>
                                     <button
                                         onClick={() => deleteEntry(entry.id)}
@@ -306,7 +308,7 @@ const MyPage = () => {
                             onMouseEnter={e => { e.currentTarget.style.borderColor = '#92400e'; e.currentTarget.style.color = '#92400e'; }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = '#d6d3d1'; e.currentTarget.style.color = '#44403c'; }}
                         >
-                            <Compass size={17} /> Plan a New Adventure
+                            <Compass size={17} /> {t('myPage.planNew')}
                         </Link>
                     </div>
                 )}
