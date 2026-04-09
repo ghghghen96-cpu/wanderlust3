@@ -242,6 +242,9 @@ const Marketplace = () => {
             await recordPurchase(user.uid, plan);
             setPurchasedIds(prev => [...prev, plan.id]);
             setIsModalOpen(false);
+            
+            // 바로 결제한 템플릿 상세 페이지로 이동
+            navigate(`/template/${plan.id}`, { state: { template: plan } });
         } catch (error) {
             console.error("Purchase failed", error);
             alert(t('marketplace.purchaseError'));

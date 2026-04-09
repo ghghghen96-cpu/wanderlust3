@@ -22,16 +22,18 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess }) => {
         setTimeout(() => {
             setIsProcessing(false);
             setIsSuccess(true);
-            setTimeout(() => {
-                onSuccess(plan); // 부모 컴포넌트에 구매 완료 이벤트 전달
-                setIsSuccess(false);
-            }, 2500);
+            setTimeout(async () => {
+                await onSuccess(plan); // 부모 컴포넌트에 구매 완료 이벤트 전달 (그곳에서 언마운트 됨)
+            }, 1000); // 1초 정도 성공 화면 보여주기
         }, 2000);
     };
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+            <div 
+                className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+                onClick={onClose}
+            >
                 <motion.div 
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -45,8 +47,9 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess }) => {
                     {/* 닫기 버튼 */}
                     {!isProcessing && !isSuccess && (
                         <button 
+                            type="button"
                             onClick={onClose} 
-                            className="absolute top-5 right-5 text-slate-400 hover:text-white transition-colors z-10 p-2 hover:bg-[#1E293B] rounded-full"
+                            className="absolute top-5 right-5 text-slate-400 hover:text-white transition-colors z-50 p-2 hover:bg-[#1E293B] rounded-full cursor-pointer"
                         >
                             <X size={20} />
                         </button>

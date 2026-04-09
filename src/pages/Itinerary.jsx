@@ -299,6 +299,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     const [selectedThumb, setSelectedThumb] = useState(0);
     const [publishing, setPublishing] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [publishError, setPublishError] = useState('');
 
     // 일정에서 대표 이미지 후보 자동 추출
     const thumbnailCandidates = useMemo(() => {
@@ -317,8 +318,9 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     const handlePublish = async () => {
         if (!price || !description) return;
         setPublishing(true);
+        setPublishError('');
         try {
-            // 전체 일정 데이터를 Firestore에 저장
+            // 전체 일정 데이터를 구성
             const templateData = {
                 // 판매자 정보
                 creatorUid: user.uid,
@@ -361,11 +363,15 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 pace: data.pace || 'Moderate',
                 vibe: data.vibe || '',
             };
-            await publishToMarketplace(templateData);
+            
+            // undefined 값이나 중첩된 참조 에러 방지를 위해 완전한 Plain Object 로 직렬화
+            const cleanData = JSON.parse(JSON.stringify(templateData));
+            
+            await publishToMarketplace(cleanData);
             setSuccess(true);
         } catch (err) {
             console.error('Publish error:', err);
-            alert('Failed to publish. Please try again.');
+            setPublishError(err.message || 'Failed to publish. Please try again.');
         } finally {
             setPublishing(false);
         }
@@ -511,6 +517,12 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                     </div>
                                 )}
                             </div>
+
+                            {publishError && (
+                                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-500 text-xs font-bold text-center">
+                                    {publishError}
+                                </div>
+                            )}
 
                             {/* 등록 버튼 */}
                             <button
