@@ -6,16 +6,18 @@ import {
     Compass, Trash2, ChevronRight
 } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, logout } from '../firebase';
+import { auth, logout, getUserPurchases } from '../firebase';
 import Navbar from '../components/Navbar';
-import { DESTINATION_DATA } from '../data';
+import i18n from '../i18n';
 import { saveSearchHistory, getSearchHistory, deleteHistoryEntry, clearSearchHistory } from '../utils/history';
 
 // 날짜 포맷 헬퍼
 const formatDate = (str) => {
     if (!str) return '';
     try {
-        return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        // i18n 언어 설정에 따라 날짜 포맷 변경
+        const locale = i18n.language === 'ko' ? 'ko-KR' : 'en-US';
+        return new Date(str).toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
     } catch { return str; }
 };
 
@@ -31,10 +33,19 @@ const MyPage = () => {
     const { t } = useTranslation();
     const [user, setUser] = useState(null);
     const [history, setHistory] = useState([]);
+    const [purchases, setPurchases] = useState([]);
     const navigate = useNavigate();
 
     useEffect(() => {
-        const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+        const unsub = onAuthStateChanged(auth, async (u) => {
+            setUser(u);
+            if (u) {
+                const userPurchases = await getUserPurchases(u.uid);
+                setPurchases(userPurchases);
+            } else {
+                setPurchases([]);
+            }
+        });
         return () => unsub();
     }, []);
 
@@ -75,6 +86,10 @@ const MyPage = () => {
                 dining: entry.dining,
             }
         });
+    };
+
+    const goToTemplate = (templateId, template) => {
+        navigate(`/template/${templateId}`, { state: { template } });
     };
 
     return (
@@ -312,6 +327,100 @@ const MyPage = () => {
                         </Link>
                     </div>
                 )}
+
+                {/* ── 구매한 템플릿 섹션 ── */}
+                <div style={{ marginTop: '60px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+                        <div>
+                            <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '28px', color: '#1c1917', marginBottom: '4px' }}>
+                                {t('myPage.purchasedTitle')}
+                            </h2>
+                            <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '14px' }}>
+                                {t('myPage.purchasedDesc')}
+                            </p>
+                        </div>
+                    </div>
+
+                    {purchases.length === 0 ? (
+                        <div style={{
+                            background: 'white', border: '1px solid #e7e5e4', borderRadius: '20px',
+                            padding: '48px 32px', textAlign: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+                        }}>
+                            <div style={{ display: 'inline-flex', padding: '16px', background: '#f5f5f4', borderRadius: '50%', marginBottom: '16px' }}>
+                                <Compass size={36} color="#a8a29e" />
+                            </div>
+                            <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '22px', color: '#44403c', marginBottom: '8px' }}>
+                                {t('myPage.noPurchasesTitle')}
+                            </h3>
+                            <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '15px', marginBottom: '24px' }}>
+                                {t('myPage.noPurchasesDesc')}
+                            </p>
+                            <Link to="/marketplace" style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                                padding: '14px 32px', background: '#1c1917', color: 'white',
+                                textDecoration: 'none', borderRadius: '50px',
+                                fontFamily: 'sans-serif', fontSize: '15px', fontWeight: 'bold'
+                            }}>
+                                {t('myPage.goMarketplace')} <ArrowRight size={16} />
+                            </Link>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {purchases.map((purchase) => {
+                                const template = purchase.planData || {};
+                                return (
+                                    <div key={purchase.docId} style={{
+                                        background: 'white', border: '1px solid #e7e5e4', borderRadius: '16px',
+                                        padding: '20px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                                        display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap',
+                                        cursor: 'pointer', transition: 'box-shadow 0.2s', position: 'relative'
+                                    }}
+                                        onClick={() => goToTemplate(purchase.templateId, template)}
+                                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.1)'}
+                                        onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)'}
+                                    >
+                                        <div style={{
+                                            width: '80px', height: '60px', borderRadius: '10px', overflow: 'hidden', background: '#e5e7eb'
+                                        }}>
+                                            {template.image && (
+                                                <img src={template.image} alt={template.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            )}
+                                        </div>
+
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                                <h3 style={{
+                                                    fontFamily: 'serif', fontSize: '18px', color: '#1c1917', fontStyle: 'italic',
+                                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                                }}>
+                                                    {template.title || 'Unknown Title'}
+                                                </h3>
+                                                {template.region && (
+                                                    <span style={{ fontSize: '11px', background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                                                        {t(`regions.${template.region}`, { defaultValue: template.region })}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontFamily: 'sans-serif', fontSize: '13px', color: '#78716c' }}>
+                                                <User size={12} /> {template.creator || 'Creator'}
+                                                {template.budget && (
+                                                    <>
+                                                        <span>•</span>
+                                                        <span>{t(`budgets.${template.budget}`, { defaultValue: template.budget })}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        <div style={{ flexShrink: 0, paddingRight: '4px' }}>
+                                            <ChevronRight size={20} color="#a8a29e" />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

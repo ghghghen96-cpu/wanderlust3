@@ -8,6 +8,8 @@ import Contact from './pages/Contact';
 import About from './pages/About';
 import Login from './pages/Login';
 import MyPage from './pages/MyPage';
+import Marketplace from './pages/Marketplace';
+import TemplateDetail from './pages/TemplateDetail';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -23,6 +25,7 @@ function App() {
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/marketplace" element={<Marketplace />} />
 
                 {/* 보호된 라우트: 로그인 필수 */}
                 <Route
@@ -30,6 +33,14 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <MyPage />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/template/:id"
+                    element={
+                        <ProtectedRoute>
+                            <TemplateDetail />
                         </ProtectedRoute>
                     }
                 />

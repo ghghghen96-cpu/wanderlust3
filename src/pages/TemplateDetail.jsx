@@ -1,0 +1,144 @@
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { ArrowLeft, MapPin, Star, Calendar, Clock, Compass, Tag, BedDouble, Plane } from 'lucide-react';
+import Navbar from '../components/Navbar';
+import { motion } from 'framer-motion';
+
+const TemplateDetail = () => {
+    const { id } = useParams();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { t } = useTranslation();
+
+    const [template, setTemplate] = useState(null);
+
+    useEffect(() => {
+        if (location.state && location.state.template) {
+            setTemplate(location.state.template);
+        } else {
+            // Ideally fetch from Firestore by ID if not in state
+            // For now, redirect back to marketplace or mypage
+            navigate('/mypage');
+        }
+    }, [location.state, navigate]);
+
+    if (!template) {
+        return (
+            <div className="min-h-screen bg-[#111111] flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FF8A71]"></div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-[#fafaf9] font-sans">
+            <Navbar />
+            
+            {/* Header Hero Section */}
+            <div className="relative pt-24 pb-16 px-6 md:px-12 bg-gradient-to-br from-[#1c1917] to-[#44403c] text-white">
+                <div className="max-w-5xl mx-auto flex flex-col md:flex-row gap-8 items-center">
+                    <div className="flex-1">
+                        <button 
+                            onClick={() => navigate(-1)} 
+                            className="inline-flex items-center gap-2 text-white/60 hover:text-white transition-colors mb-6 text-sm font-bold uppercase tracking-wider"
+                        >
+                            <ArrowLeft size={16} /> {t('survey.back')}
+                        </button>
+                        
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/20 mb-4 text-xs font-bold tracking-widest uppercase">
+                            <MapPin size={12} className="text-[#FBBF24]" /> {t(`regions.${template.region}`, { defaultValue: template.region })}
+                        </div>
+                        
+                        <h1 className="text-4xl md:text-5xl font-serif italic mb-4 leading-tight">
+                            {template.title}
+                        </h1>
+                        
+                        <p className="text-white/70 text-lg mb-6 max-w-2xl leading-relaxed">
+                            {template.description || t('myPage.historySubtitle')}
+                        </p>
+                        
+                        <div className="flex items-center gap-4 text-sm font-medium">
+                            <div className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">
+                                <span className="text-white/50">{t('itinerary.from')}</span>
+                                <span className="font-bold text-[#FBBF24]">{template.creator || t('myPage.traveler')}</span>
+                            </div>
+                            {template.budget && (
+                                <div className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">
+                                    <span className="text-white/50">{t('marketplace.budget')}:</span>
+                                    <span className="font-bold">{t(`budgets.${template.budget}`, { defaultValue: template.budget })}</span>
+                                </div>
+                            )}
+                            {template.category && (
+                                <div className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">
+                                    <span className="text-white/50">{t('landing.earnCategory')}:</span>
+                                    <span className="font-bold">
+                                        {t(`categories.${template.category}`, { defaultValue: template.category })}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Content Area */}
+            <div className="max-w-5xl mx-auto px-6 md:px-12 py-12">
+                <div className="bg-white rounded-3xl shadow-sm border border-[#e7e5e4] p-8 md:p-12">
+                    <div className="flex items-center justify-between mb-8 pb-6 border-b border-[#e7e5e4]">
+                        <h2 className="text-2xl font-serif italic text-[#1c1917]">{t('itinerary.journeyOverview')}</h2>
+                    </div>
+                    
+                    {template.itinerary && template.itinerary.length > 0 ? (
+                        <div className="space-y-12">
+                            {template.itinerary.map((dayPlan, index) => (
+                                <div key={index} className="relative">
+                                    <h3 className="text-xl font-bold text-[#1c1917] mb-6 flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-[#FBBF24]/10 text-[#000] flex items-center justify-center font-bold">
+                                            {dayPlan.dayNum}
+                                        </div>
+                                        {t('itinerary.dayLabel')} {dayPlan.dayNum} - {dayPlan.theme || t('itinerary.themeDefault')}
+                                    </h3>
+                                    
+                                    <div className="space-y-4 pl-5 border-l-2 border-[#e7e5e4] ml-5">
+                                        {dayPlan.items && dayPlan.items.length > 0 ? (
+                                            dayPlan.items.map((item, idx) => (
+                                                <div key={item.id || idx} className="relative pl-6 pb-2">
+                                                    <div className="absolute left-[-5px] top-1.5 w-2 h-2 rounded-full bg-[#FF8A71]" />
+                                                    <div className="bg-[#f5f5f5] rounded-2xl p-5 border border-[#e7e5e4]">
+                                                        <div className="flex items-start justify-between gap-4 mb-2">
+                                                            <h4 className="font-bold text-lg text-[#1c1917]">{item.name}</h4>
+                                                            <span className="text-sm font-bold text-[#000] bg-[#FBBF24] px-2.5 py-1 rounded-lg">
+                                                                {item.time || "--:--"}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm text-[#78716c] mb-3">{item.desc}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] uppercase tracking-wider font-bold text-[#a8a29e] bg-white border border-[#e7e5e4] px-2 py-1 rounded-md">
+                                                                {item.type || t('itinerary.colActivity')}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="pl-6 text-sm text-[#a8a29e] italic">{t('itinerary.emptyActs')}</div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-12">
+                            <Compass size={48} className="mx-auto text-[#d6d3d1] mb-4" />
+                            <h3 className="text-xl font-serif italic text-[#44403c] mb-2">No structured itinerary available</h3>
+                            <p className="text-[#a8a29e] max-w-md mx-auto">This template does not contain a day-by-day plan.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default TemplateDetail;

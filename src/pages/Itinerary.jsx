@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
     ChevronLeft, Calendar, Send, MapPin, Star, Plus, Trash2, Edit2, List,
     Clock, MessageCircle, Sparkles, X, Plane, BedDouble, PlusCircle, ChevronDown, ChevronUp,
-    Globe, ExternalLink, ChevronRight
+    Globe, ExternalLink, ChevronRight, Upload, CheckCircle2, DollarSign, Image, FileText, Tag
 } from 'lucide-react';
 import { format, addDays, differenceInDays } from 'date-fns';
 import Navbar from '../components/Navbar';
@@ -11,6 +11,8 @@ import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion
 import { useTranslation } from 'react-i18next';
 import { DESTINATION_DATA } from '../data';
 import { saveSearchHistory } from '../utils/history';
+import { auth, publishToMarketplace } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 // ─── ADVERTISEMENT PLACEHOLDER ────────────────────────────────────────────────
 const AdPlaceholder = ({ className = '', style = {} }) => {
@@ -288,6 +290,254 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
     );
 };
 
+// ─── PUBLISH MODAL ────────────────────────────────────────────────────────────
+const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user }) => {
+    const { t } = useTranslation();
+    const navigate = useNavigate();
+    const [price, setPrice] = useState('');
+    const [description, setDescription] = useState('');
+    const [selectedThumb, setSelectedThumb] = useState(0);
+    const [publishing, setPublishing] = useState(false);
+    const [success, setSuccess] = useState(false);
+
+    // 일정에서 대표 이미지 후보 자동 추출
+    const thumbnailCandidates = useMemo(() => {
+        const imgs = [];
+        itinerary.forEach(day => {
+            day.items.forEach(item => {
+                if (item.img && !imgs.includes(item.img)) {
+                    imgs.push(item.img);
+                }
+            });
+        });
+        return imgs.slice(0, 6); // 최대 6개까지 후보
+    }, [itinerary]);
+
+    // 등록 핸들러
+    const handlePublish = async () => {
+        if (!price || !description) return;
+        setPublishing(true);
+        try {
+            // 전체 일정 데이터를 Firestore에 저장
+            const templateData = {
+                // 판매자 정보
+                creatorUid: user.uid,
+                creatorName: user.displayName || 'Anonymous',
+                creatorEmail: user.email,
+                creatorAvatar: user.photoURL || '',
+                // 상품 정보
+                title: description,
+                price: parseFloat(price),
+                thumbnail: thumbnailCandidates[selectedThumb] || '',
+                destination: data.destination,
+                region: detectRegion(data.destination),
+                category: data.travelWith || 'Solo',
+                budget: data.pace || 'Moderate',
+                // 일정 데이터 (장소, 시간, 메모 등)
+                days: itinerary.map(day => ({
+                    dayNum: day.dayNum,
+                    date: day.date?.toISOString?.() || day.date,
+                    theme: day.theme,
+                    items: day.items.map(item => ({
+                        name: item.name,
+                        desc: item.desc,
+                        type: item.type,
+                        time: item.time,
+                        img: item.img,
+                        latitude: item.latitude || null,
+                        longitude: item.longitude || null,
+                        rating: item.rating || null,
+                    }))
+                })),
+                // 항공편 및 숙소 데이터
+                flights: flights.map(f => ({ type: f.type, from: f.from, to: f.to, number: f.number, time: f.time, notes: f.notes })),
+                hotels: hotels.map(h => ({ name: h.name, address: h.address, confirmation: h.confirmation, checkin: h.checkin, checkout: h.checkout })),
+                // 여행 메타 정보
+                startDate: data.startDate,
+                endDate: data.endDate,
+                totalDays: itinerary.length,
+                totalSpots: itinerary.reduce((s, d) => s + d.items.length, 0),
+                focus: data.focus || [],
+                pace: data.pace || 'Moderate',
+                vibe: data.vibe || '',
+            };
+            await publishToMarketplace(templateData);
+            setSuccess(true);
+        } catch (err) {
+            console.error('Publish error:', err);
+            alert('Failed to publish. Please try again.');
+        } finally {
+            setPublishing(false);
+        }
+    };
+
+    // 지역 자동 감지 (간단 매핑)
+    const detectRegion = (dest) => {
+        const d = (dest || '').toLowerCase();
+        if (['japan', 'korea', 'seoul', 'tokyo', 'osaka', 'bangkok', 'bali', 'singapore', 'vietnam', 'china', 'beijing', 'shanghai', 'taipei', 'hong kong'].some(k => d.includes(k))) return 'Asia';
+        if (['paris', 'london', 'rome', 'barcelona', 'amsterdam', 'berlin', 'zurich', 'switzerland', 'interlaken', 'santorini', 'greece', 'italy', 'spain', 'france', 'germany', 'portugal'].some(k => d.includes(k))) return 'Europe';
+        if (['new york', 'los angeles', 'san francisco', 'miami', 'hawaii', 'usa', 'canada', 'mexico'].some(k => d.includes(k))) return 'Americas';
+        if (['maldives', 'dubai', 'qatar', 'turkey', 'istanbul'].some(k => d.includes(k))) return 'Middle East';
+        if (['sydney', 'melbourne', 'australia', 'new zealand', 'fiji'].some(k => d.includes(k))) return 'Oceania';
+        if (['cape town', 'morocco', 'kenya', 'egypt', 'africa'].some(k => d.includes(k))) return 'Africa';
+        return 'Other';
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+            {/* 배경 오버레이 */}
+            <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={onClose}
+            />
+            {/* 모달 본체 */}
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                className="relative w-full max-w-lg mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+            >
+                {/* 성공 화면 */}
+                {success ? (
+                    <div className="p-10 text-center space-y-6">
+                        <motion.div
+                            initial={{ scale: 0 }} animate={{ scale: 1 }}
+                            transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
+                            className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center"
+                        >
+                            <CheckCircle2 size={40} className="text-green-500" />
+                        </motion.div>
+                        <h2 className="text-2xl font-black text-secondary">{t('itinerary.publishSuccess')}</h2>
+                        <p className="text-gray-500">{t('itinerary.publishSuccessDesc')}</p>
+                        <div className="flex gap-3 justify-center">
+                            <button onClick={onClose} className="px-6 py-3 bg-gray-100 rounded-xl font-bold text-gray-600 hover:bg-gray-200 transition-colors">
+                                {t('itinerary.btnCancel')}
+                            </button>
+                            <button onClick={() => navigate('/marketplace')} className="px-6 py-3 bg-secondary text-white rounded-xl font-bold hover:bg-secondary/90 transition-colors">
+                                {t('itinerary.publishViewMarket')}
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {/* 헤더 */}
+                        <div className="relative bg-gradient-to-br from-secondary via-slate-800 to-slate-900 px-8 py-8 text-white">
+                            <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
+                                <X size={22} />
+                            </button>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                                    <Upload size={20} className="text-secondary" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black">{t('itinerary.publishTitle')}</h2>
+                                    <p className="text-white/60 text-xs font-bold">{t('itinerary.publishSubtitle')}</p>
+                                </div>
+                            </div>
+                            {/* 일정 정보 요약 */}
+                            <div className="flex gap-3 mt-4">
+                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{data.destination}</span>
+                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{itinerary.length} {t('itinerary.days')}</span>
+                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{itinerary.reduce((s, d) => s + d.items.length, 0)} {t('itinerary.spots')}</span>
+                            </div>
+                        </div>
+
+                        {/* 폼 */}
+                        <div className="p-8 space-y-6">
+                            {/* 가격 입력 */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <DollarSign size={14} className="text-primary" /> {t('itinerary.publishPrice')}
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={price}
+                                    onChange={e => setPrice(e.target.value)}
+                                    placeholder={t('itinerary.publishPricePlaceholder')}
+                                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-lg font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
+                                />
+                            </div>
+
+                            {/* 한 줄 설명 */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <FileText size={14} className="text-primary" /> {t('itinerary.publishDesc')}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={description}
+                                    onChange={e => setDescription(e.target.value)}
+                                    placeholder={t('itinerary.publishDescPlaceholder')}
+                                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
+                                />
+                            </div>
+
+                            {/* 썸네일 선택 */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <Image size={14} className="text-primary" /> {t('itinerary.publishThumbnail')}
+                                </label>
+                                <p className="text-[10px] text-gray-400 font-bold">{t('itinerary.publishThumbnailAuto')}</p>
+                                {thumbnailCandidates.length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {thumbnailCandidates.map((img, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setSelectedThumb(idx)}
+                                                className={`relative aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all hover:scale-105 ${
+                                                    selectedThumb === idx
+                                                        ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30'
+                                                        : 'border-gray-200 hover:border-gray-300'
+                                                }`}
+                                            >
+                                                <img src={img} alt={`thumb-${idx}`} className="w-full h-full object-cover" />
+                                                {selectedThumb === idx && (
+                                                    <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                                        <CheckCircle2 size={24} className="text-white drop-shadow-lg" />
+                                                    </div>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center h-24 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-sm">
+                                        No images available
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 등록 버튼 */}
+                            <button
+                                onClick={handlePublish}
+                                disabled={publishing || !price || !description}
+                                className="w-full py-4 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-lg rounded-2xl shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-3"
+                            >
+                                {publishing ? (
+                                    <>
+                                        <div className="w-5 h-5 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />
+                                        {t('itinerary.publishSubmitting')}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Upload size={20} />
+                                        {t('itinerary.publishSubmit')}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </>
+                )}
+            </motion.div>
+        </div>
+    );
+};
+
 // ─── COLLAPSIBLE SECTION ──────────────────────────────────────────────────────
 const Section = ({ title, icon: Icon, count, onAdd, addLabel, children }) => {
     const { t } = useTranslation();
@@ -436,6 +686,15 @@ const Itinerary = () => {
     const [destData, setDestData] = useState(null);
     const [activeTab, setActiveTab] = useState('itinerary');
     const [chatOpen, setChatOpen] = useState(false);
+    const [publishOpen, setPublishOpen] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
+    const navigate = useNavigate();
+
+    // ── 로그인 상태 감지 ──
+    useEffect(() => {
+        const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
+        return () => unsub();
+    }, []);
 
     // ── FLIGHTS state (array) ──
     const [flights, setFlights] = useState(() => {
@@ -511,7 +770,6 @@ const Itinerary = () => {
             'Active': ['Nature', 'City', 'Culture'],
             'Active Explorer': ['Nature', 'City', 'Culture'],
             'Social': ['City', 'Food', 'Culture'],
-            'Spontaneous': ['City', 'Food', 'Culture'],
             'Quiet': ['Nature', 'Relax', 'Culture'],
         };
         const prefTypes = VIBE_PREFS[data.vibe] || [];
@@ -697,13 +955,31 @@ const Itinerary = () => {
                         </p>
                     </div>
                 </Link>
-                <div className="flex bg-gray-100 p-1.5 rounded-2xl">
-                    {['itinerary', 'summary'].map(tab => (
-                        <button key={tab} onClick={() => setActiveTab(tab)}
-                            className={`px-7 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-400 hover:text-gray-600'}`}>
-                            {t(`itinerary.tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
-                        </button>
-                    ))}
+                <div className="flex items-center gap-3">
+                    <div className="flex bg-gray-100 p-1.5 rounded-2xl">
+                        {['itinerary', 'summary'].map(tab => (
+                            <button key={tab} onClick={() => setActiveTab(tab)}
+                                className={`px-7 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-400 hover:text-gray-600'}`}>
+                                {t(`itinerary.tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
+                            </button>
+                        ))}
+                    </div>
+                    {/* Publish 버튼 */}
+                    <button
+                        onClick={() => {
+                            if (!currentUser) {
+                                if (window.confirm(t('itinerary.publishLoginRequired'))) {
+                                    navigate('/login');
+                                }
+                                return;
+                            }
+                            setPublishOpen(true);
+                        }}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-sm rounded-xl shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-105 active:scale-95 transition-all"
+                    >
+                        <Upload size={16} />
+                        {t('itinerary.publishBtn')}
+                    </button>
                 </div>
             </nav>
 
@@ -920,6 +1196,21 @@ const Itinerary = () => {
                 <MessageCircle size={28} />
             </button>
             <AIChatModal isOpen={chatOpen} onClose={() => setChatOpen(false)} destination={data.destination} />
+
+            {/* Publish 모달 */}
+            <AnimatePresence>
+                {publishOpen && (
+                    <PublishModal
+                        isOpen={publishOpen}
+                        onClose={() => setPublishOpen(false)}
+                        itinerary={itinerary}
+                        data={data}
+                        flights={flights}
+                        hotels={hotels}
+                        user={currentUser}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 };

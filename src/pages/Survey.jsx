@@ -22,7 +22,6 @@ const Survey = () => {
     const [formData, setFormData] = useState({
         // Step 1: DNA (Phase 18: Replaced MBTI with Vibe & Style)
         vibe: '', // 'Social' or 'Quiet'
-        exploration: '', // 'Spontaneous' or 'Planned'
         style: 50,
         climate: [],
         dining: '',
@@ -137,7 +136,6 @@ const Survey = () => {
                 canNext={
                     (step === 1 &&
                         formData.vibe &&
-                        formData.exploration &&
                         formData.dining &&
                         formData.pace &&
                         formData.accommodation &&
@@ -149,8 +147,8 @@ const Survey = () => {
                 {/* Step 1: Travel DNA */}
                 {step === 1 && (
                     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        {/* Travel Vibe & Exploration Style */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Travel Vibe */}
+                        <div className="grid grid-cols-1 gap-6">
                             <section>
                                 <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.vibeTitle')}</label>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -166,24 +164,6 @@ const Survey = () => {
                                             className={`p-5 rounded-2xl border-2 transition-all text-left ${formData.vibe === opt.id ? 'bg-primary/10 border-primary shadow-inner' : 'bg-white border-gray-100 hover:border-primary/50'}`}
                                         >
                                             <div className={`text-base font-black ${formData.vibe === opt.id ? 'text-primary' : 'text-secondary'}`}>{opt.label}</div>
-                                            <div className="text-xs text-gray-400 font-medium uppercase mt-1">{opt.desc}</div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </section>
-                            <section>
-                                <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.exploreTitle')}</label>
-                                <div className="flex flex-col sm:flex-row gap-3">
-                                    {[
-                                        { id: 'Spontaneous', label: t('survey.exploreSpont'), desc: t('survey.exploreSpontDesc') },
-                                        { id: 'Planned', label: t('survey.explorePlan'), desc: t('survey.explorePlanDesc') }
-                                    ].map((opt) => (
-                                        <button
-                                            key={opt.id}
-                                            onClick={() => updateData('exploration', opt.id)}
-                                            className={`flex-1 p-5 rounded-2xl border-2 transition-all text-left ${formData.exploration === opt.id ? 'bg-primary/10 border-primary shadow-inner' : 'bg-white border-gray-100 hover:border-primary/50'}`}
-                                        >
-                                            <div className={`text-base font-black ${formData.exploration === opt.id ? 'text-primary' : 'text-secondary'}`}>{opt.label}</div>
                                             <div className="text-xs text-gray-400 font-medium uppercase mt-1">{opt.desc}</div>
                                         </button>
                                     ))}

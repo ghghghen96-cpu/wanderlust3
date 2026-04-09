@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Sun, ArrowRight, Compass } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useTranslation } from 'react-i18next';
-
+import { auth, listenToUserEarnings, updateCreatorEarnings, requestPayout } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import PayoutModal from '../components/PayoutModal';
 // ─── 히어로 섹션 ──────────────────────────────────────────────────
 const HeroSection = ({ slides, currentSlide, setCurrentSlide }) => {
     const navigate = useNavigate();
@@ -161,6 +163,64 @@ const Landing = () => {
     const { t } = useTranslation();
     const [currentSlide, setCurrentSlide] = useState(0);
 
+    // 사용자 수익 상태
+    const [earnings, setEarnings] = useState({
+        currentBalance: 0,
+        totalEarnings: 0,
+        templatesSold: 0
+    });
+
+    // Travel-to-Earn Form States
+    const [selectedPlan, setSelectedPlan] = useState('');
+    const [price, setPrice] = useState('');
+    const [description, setDescription] = useState('');
+    const [category, setCategory] = useState('');
+    const [isPublishing, setIsPublishing] = useState(false);
+    const [isPublished, setIsPublished] = useState(false);
+
+    // Payout Modal State
+    const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
+
+    const handlePayoutConfirm = async (balance, bankInfo) => {
+        if (!auth.currentUser) return;
+        try {
+            await requestPayout(auth.currentUser.uid, balance, bankInfo);
+            // Local state is updated via listenToUserEarnings automatically!
+        } catch (error) {
+            console.error("Payout error", error);
+            throw error;
+        }
+    };
+
+    const mockPlans = [
+        { id: 'p1', title: t('landing.mockPlan1') },
+        { id: 'p2', title: t('landing.mockPlan2') },
+        { id: 'p3', title: t('landing.mockPlan3') }
+    ];
+
+    const handlePublish = async (e) => {
+        e.preventDefault();
+        if (!selectedPlan || !price || !category) return;
+        setIsPublishing(true);
+        setTimeout(async () => {
+            setIsPublishing(false);
+            setIsPublished(true);
+            
+            // 데모용으로 Publish 시 수익을 즉시 반영하여 실시간 업데이트 시연
+            if (auth.currentUser) {
+                await updateCreatorEarnings(auth.currentUser.uid, parseFloat(price));
+            }
+
+            setTimeout(() => {
+                setIsPublished(false);
+                setSelectedPlan('');
+                setPrice('');
+                setDescription('');
+                setCategory('');
+            }, 3000);
+        }, 1500);
+    };
+
     const slides = [
         {
             image: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=2073&auto=format&fit=crop",
@@ -187,6 +247,28 @@ const Landing = () => {
         return () => clearInterval(timer);
     }, []);
 
+    useEffect(() => {
+        let unsubscribeEarnings = null;
+        const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                unsubscribeEarnings = listenToUserEarnings(user.uid, (data) => {
+                    setEarnings(data);
+                });
+            } else {
+                setEarnings({ currentBalance: 0, totalEarnings: 0, templatesSold: 0 });
+                if (unsubscribeEarnings) {
+                    unsubscribeEarnings();
+                    unsubscribeEarnings = null;
+                }
+            }
+        });
+
+        return () => {
+            unsubscribeAuth();
+            if (unsubscribeEarnings) unsubscribeEarnings();
+        };
+    }, []);
+
     return (
         <div style={{ minHeight: '100vh', fontFamily: 'Georgia, serif', color: 'white' }}>
             <Navbar />
@@ -197,34 +279,165 @@ const Landing = () => {
                 setCurrentSlide={setCurrentSlide}
             />
 
-            {/* ── Philosophy Section ── */}
+            {/* ── Travel-to-Earn Section ── */}
             <section className="bg-stone-50 text-stone-900 py-40 px-8 md:px-16">
                 <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-24 items-center">
                     <div>
-                        <span className="text-sm font-bold tracking-[0.3em] uppercase text-stone-400 mb-6 block">{t('landing.philosophyLabel')}</span>
-                        <h2 className="text-5xl md:text-7xl font-serif italic mb-10 leading-tight">
-                            {t('landing.philosophyTitle1')} <br /> {t('landing.philosophyTitle2')} <span className="text-stone-500">{t('landing.philosophyTitle3')}</span>
-                        </h2>
-                        <p className="text-xl md:text-2xl text-stone-600 leading-relaxed font-light mb-10 whitespace-pre-line">
-                            {t('landing.philosophyDesc1')}
-                        </p>
-                        <p className="text-xl md:text-2xl text-stone-600 leading-relaxed font-light whitespace-pre-line">
-                            {t('landing.philosophyDesc2')}
-                        </p>
-                    </div>
-                    <div className="relative">
-                        <div className="aspect-[3/4] rounded-sm overflow-hidden shadow-2xl">
-                            <img
-                                src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&q=80&w=1000"
-                                alt="Serene Lake"
-                                className="w-full h-full object-cover hover:scale-105 transition-transform duration-[1500ms]"
-                            />
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-[0.2em] uppercase mb-8">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                            {t('landing.earnLabel')}
                         </div>
-                        <div className="absolute -bottom-12 -left-12 bg-white p-10 shadow-2xl max-w-sm hidden md:block border border-gray-50">
-                            <p className="font-serif italic text-2xl mb-4 text-gray-800">{t('landing.quote')}</p>
-                            <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-stone-400">
-                                <Sun size={16} /> {t('landing.recommended')}
+                        <h2 className="text-5xl md:text-7xl font-serif italic mb-10 leading-tight">
+                            {t('landing.earnTitle1')} <br /> 
+                            <span style={{ 
+                                background: 'linear-gradient(135deg, #d97706 0%, #ea580c 100%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent'
+                            }}>
+                                {t('landing.earnTitle2')}
+                            </span>
+                        </h2>
+                        <div className="space-y-8 border-l-[3px] border-amber-200 pl-8 mb-10">
+                            <p className="text-xl md:text-2xl text-stone-600 leading-relaxed font-light break-keep">
+                                {t('landing.earnDesc1')}
+                            </p>
+                            <p className="text-xl md:text-2xl text-stone-600 leading-relaxed font-light break-keep">
+                                {t('landing.earnDesc2')}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {/* Interactive Publish Form & Dashboard */}
+                    <div className="relative">
+                        <div className="absolute -inset-4 bg-gradient-to-r from-amber-200 to-orange-300 blur-2xl opacity-40 rounded-full"></div>
+                        
+                        <div className="relative bg-white border border-stone-100 shadow-2xl rounded-2xl overflow-hidden hover:-translate-y-1 transition-transform duration-500">
+                            {/* Dashboard Metrics Header */}
+                            <div className="p-6 md:p-8 border-b border-stone-50 bg-[#FAF9F6]">
+                                <div className="flex justify-between items-start mb-6">
+                                    <div>
+                                        <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-1">{t('landing.earnTag')}</p>
+                                        <h3 className="text-xl font-serif italic text-stone-800">@creator_dashboard</h3>
+                                    </div>
+                                    <div className="bg-green-50 text-emerald-600 border border-green-100 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase flex items-center gap-2 shadow-sm">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        {t('dashboard.active')}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <p className="text-xs font-medium text-stone-500 mb-1">Current Balance</p>
+                                        <div className="flex flex-col items-start gap-1.5">
+                                            <span className="text-2xl font-bold font-serif text-amber-600">${(earnings?.currentBalance || 0).toLocaleString()}</span>
+                                            <button 
+                                                onClick={(e) => { e.preventDefault(); setIsPayoutModalOpen(true); }}
+                                                disabled={(earnings?.currentBalance || 0) < 50}
+                                                className={`text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-md transition-all ${
+                                                    (earnings?.currentBalance || 0) >= 50 
+                                                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 cursor-pointer shadow-sm border border-amber-200' 
+                                                        : 'bg-stone-100 text-stone-400 cursor-not-allowed border border-stone-200'
+                                                }`}
+                                            >
+                                                Payout Ready
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-stone-500 mb-1">{t('landing.earnMetric1')}</p>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-2xl font-bold font-serif text-stone-900">${(earnings?.totalEarnings || 0).toLocaleString()}</span>
+                                            <span className="text-[10px] text-green-500 font-semibold bg-green-50 px-1 py-0.5 rounded">+12%</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-stone-500 mb-1">{t('landing.earnMetric2')}</p>
+                                        <span className="text-2xl font-bold font-serif text-stone-900">{earnings?.templatesSold || 0}</span>
+                                    </div>
+                                </div>
                             </div>
+                            
+                            {/* Registration Form */}
+                            <form onSubmit={handlePublish} className="p-6 md:p-8 space-y-5">
+                                <div>
+                                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">{t('landing.earnSelectPlan')}</label>
+                                    <select 
+                                        className="w-full p-3 border border-stone-200 rounded-lg text-stone-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all"
+                                        value={selectedPlan}
+                                        onChange={(e) => setSelectedPlan(e.target.value)}
+                                        required
+                                    >
+                                        <option value="" disabled>{t('dashboard.itineraryPlaceholder')}</option>
+                                        {mockPlans.map(plan => (
+                                            <option key={plan.id} value={plan.id}>{plan.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">{t('landing.earnPrice')}</label>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            className="w-full p-3 border border-stone-200 rounded-lg text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all"
+                                            placeholder={t('landing.earnPricePlaceholder')}
+                                            value={price}
+                                            onChange={(e) => setPrice(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">{t('landing.earnCategory')}</label>
+                                        <select 
+                                            className="w-full p-3 border border-stone-200 rounded-lg text-stone-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all"
+                                            value={category}
+                                            onChange={(e) => setCategory(e.target.value)}
+                                            required
+                                        >
+                                            <option value="" disabled>{t('dashboard.categoryPlaceholder')}</option>
+                                            <option value="couple">{t('landing.earnCatCouple')}</option>
+                                            <option value="family">{t('landing.earnCatFamily')}</option>
+                                            <option value="solo">{t('landing.earnCatSolo')}</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">{t('landing.earnFormDesc')}</label>
+                                    <textarea 
+                                        rows="2"
+                                        className="w-full p-3 border border-stone-200 rounded-lg text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all resize-none"
+                                        placeholder={t('landing.earnDescPlaceholder')}
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        required
+                                    ></textarea>
+                                </div>
+
+                                <button 
+                                    type="submit" 
+                                    disabled={isPublishing || isPublished}
+                                    className={`w-full py-4 rounded-lg text-center font-bold text-white tracking-widest uppercase transition-all duration-300 ${
+                                        isPublished ? 'bg-emerald-500 hover:bg-emerald-600' :
+                                        isPublishing ? 'bg-amber-400 cursor-not-allowed' :
+                                        'bg-stone-900 hover:bg-amber-500 shadow-md hover:shadow-xl'
+                                    }`}
+                                >
+                                    {isPublished ? (
+                                        <span className="flex items-center justify-center gap-2">✓ {t('landing.earnSuccess')}</span>
+                                    ) : isPublishing ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            {t('landing.earnPublishing')}
+                                        </span>
+                                    ) : (
+                                        t('landing.earnPublishBtn')
+                                    )}
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -292,12 +505,18 @@ const Landing = () => {
 
                     <div className="mt-12 pt-8 border-t border-stone-800 text-center">
                         <div className="text-xs tracking-widest uppercase opacity-50 font-sans">
-                            &copy; 2026 WanderLust AI. Crafted with Soul.
+                            {t('dashboard.copyright')}
                         </div>
                     </div>
                 </div>
             </footer>
 
+            <PayoutModal 
+                isOpen={isPayoutModalOpen}
+                onClose={() => setIsPayoutModalOpen(false)}
+                balance={earnings?.currentBalance || 0}
+                onConfirm={handlePayoutConfirm}
+            />
         </div>
     );
 };
