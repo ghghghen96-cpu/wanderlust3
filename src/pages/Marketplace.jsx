@@ -186,9 +186,10 @@ const Marketplace = () => {
             setUser(u);
             if (u) {
                 const purchases = await getUserPurchases(u.uid);
-                setPurchasedIds(purchases.map(p => p.templateId));
+                // templateId가 숫자일 수도, 문자열일 수도 있어서 양첨 모두 문자열로 저장
+                setPurchasedIds(purchases.map(p => String(p.templateId)));
             } else {
-                setPurchasedIds([]); // Reset on logout
+                setPurchasedIds([]); // 로그아웃 시 리셋
             }
         });
         return () => unsubscribe();
@@ -232,6 +233,11 @@ const Marketplace = () => {
             }
             return;
         }
+        // 자신이 만든 템플릿은 구매창 없이 바로 열람
+        if (plan.creatorUid === user.uid) {
+            navigate(`/template/${plan.id}`, { state: { template: plan } });
+            return;
+        }
         setSelectedPlan(plan);
         setIsModalOpen(true);
     };
@@ -240,7 +246,8 @@ const Marketplace = () => {
         if (!user) return;
         try {
             await recordPurchase(user.uid, plan);
-            setPurchasedIds(prev => [...prev, plan.id]);
+            // 타입 일치를 위해 모두 문자열로 저장
+            setPurchasedIds(prev => [...prev, String(plan.id)]);
             setIsModalOpen(false);
             
             // 바로 결제한 템플릿 상세 페이지로 이동
@@ -252,7 +259,11 @@ const Marketplace = () => {
     };
 
     const handleCardClick = (template) => {
-        if (purchasedIds.includes(template.id)) {
+        const templateIdStr = String(template.id);
+        const isOwned = purchasedIds.includes(templateIdStr);
+        const isCreator = user && template.creatorUid === user.uid;
+
+        if (isOwned || isCreator) {
             navigate(`/template/${template.id}`, { state: { template } });
         } else {
             handleBuyClick(template);
@@ -436,7 +447,12 @@ const Marketplace = () => {
                                                             ${template.price}
                                                         </div>
                                                         
-                                                        {purchasedIds.includes(template.id) ? (
+                                                        {/* 자신이 만든 템플릿: MY TEMPLATE 배지 */}
+                                                        {user && template.creatorUid === user.uid ? (
+                                                            <div className="px-4 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-400/20 font-bold text-xs uppercase tracking-wider rounded-lg flex items-center gap-1">
+                                                                <CheckCircle2 size={14} /> My Template
+                                                            </div>
+                                                        ) : purchasedIds.includes(String(template.id)) ? (
                                                             <div className="px-4 py-1.5 bg-[#FF8A71]/10 text-[#FF8A71] border border-[#FF8A71]/20 font-bold text-xs uppercase tracking-wider rounded-lg flex items-center gap-1">
                                                                 <CheckCircle2 size={14} /> {t('marketplace.owned')}
                                                             </div>
@@ -482,6 +498,7 @@ const Marketplace = () => {
                     onClose={() => setIsModalOpen(false)} 
                     plan={selectedPlan}
                     onSuccess={handlePurchaseSuccess}
+                    user={user}
                 />
             )}
         </div>

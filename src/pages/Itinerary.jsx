@@ -300,6 +300,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     const [publishing, setPublishing] = useState(false);
     const [success, setSuccess] = useState(false);
     const [publishError, setPublishError] = useState('');
+    const [countdown, setCountdown] = useState(3);
 
     // 일정에서 대표 이미지 후보 자동 추출
     const thumbnailCandidates = useMemo(() => {
@@ -369,6 +370,17 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
             
             await publishToMarketplace(cleanData);
             setSuccess(true);
+            // 카운트다운 후 마켓플레이스로 자동 이동
+            let count = 3;
+            setCountdown(count);
+            const timer = setInterval(() => {
+                count -= 1;
+                setCountdown(count);
+                if (count <= 0) {
+                    clearInterval(timer);
+                    navigate('/marketplace');
+                }
+            }, 1000);
         } catch (err) {
             console.error('Publish error:', err);
             setPublishError(err.message || 'Failed to publish. Please try again.');
@@ -419,10 +431,10 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                         </motion.div>
                         <h2 className="text-2xl font-black text-secondary">{t('itinerary.publishSuccess')}</h2>
                         <p className="text-gray-500">{t('itinerary.publishSuccessDesc')}</p>
+                        <p className="text-sm font-bold text-primary">
+                            {countdown}초 후 마켓플레이스로 이동합니다...
+                        </p>
                         <div className="flex gap-3 justify-center">
-                            <button onClick={onClose} className="px-6 py-3 bg-gray-100 rounded-xl font-bold text-gray-600 hover:bg-gray-200 transition-colors">
-                                {t('itinerary.btnCancel')}
-                            </button>
                             <button onClick={() => navigate('/marketplace')} className="px-6 py-3 bg-secondary text-white rounded-xl font-bold hover:bg-secondary/90 transition-colors">
                                 {t('itinerary.publishViewMarket')}
                             </button>

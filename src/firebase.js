@@ -123,8 +123,12 @@ export const recordPurchase = async (uid, plan) => {
     try {
         const docRef = await addDoc(collection(db, "My_Library"), {
             uid: uid,
-            templateId: plan.id, // MOCKED 데이터의 ID도 그대로 저장
-            planData: plan, // MOCK 데이터라도 전체 객체를 저장하여 상세 페이지에서 쉽게 렌더링
+            templateId: String(plan.id),      // 항상 문자열로 저장 (타입 통일)
+            paymentId: plan.paymentId || null, // 포트원 V2 결제 ID
+            orderId: plan.orderId || null,     // 내부 주문 ID
+            paidAmount: plan.paidAmount || plan.price,
+            paidCurrency: plan.paidCurrency || 'USD',
+            planData: plan,
             purchasedAt: serverTimestamp(),
         });
         
