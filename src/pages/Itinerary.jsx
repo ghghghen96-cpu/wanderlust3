@@ -70,15 +70,24 @@ const calcDist = (la1, lo1, la2, lo2) => {
 
 const getDayMapUrl = (items, dest) => {
     if (!items || items.length === 0) return '#';
-    const valid = items.filter(a => a.latitude && a.longitude);
-    if (valid.length === 0) {
-        const q = encodeURIComponent(items.map(a => a.name).join(' to ') + ' ' + (dest || ''));
-        return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
+    
+    // 각 아이템을 좌표가 있으면 좌표로, 없으면 이름+목적지로 변환
+    const spots = items.map(a => 
+        (a.latitude && a.longitude) 
+            ? `${a.latitude},${a.longitude}` 
+            : `${a.name} ${dest || ''}`
+    );
+    
+    const origin = encodeURIComponent(spots[0]);
+    const destination = encodeURIComponent(spots[spots.length - 1]);
+    
+    // 중간 경유지 설정
+    let waypoints = '';
+    if (spots.length > 2) {
+        waypoints = `&waypoints=${encodeURIComponent(spots.slice(1, -1).join('|'))}`;
     }
-    const origin = `${valid[0].latitude},${valid[0].longitude}`;
-    const destination = `${valid[valid.length - 1].latitude},${valid[valid.length - 1].longitude}`;
-    const waypoints = valid.slice(1, -1).map(a => `${a.latitude},${a.longitude}`).join('|');
-    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving`;
+    
+    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}&travelmode=driving`;
 };
 
 // ─── ACTIVITY CARD ────────────────────────────────────────────────────────────
@@ -1127,7 +1136,7 @@ const Itinerary = () => {
                                                                         >
                                                                             <MapPin size={18} />
                                                                         </a>
-                                                                        <span className="text-[9px] font-black text-primary/40 uppercase tracking-tighter">{t('itinerary.route')}</span>
+                                                                        <span className="text-[9px] font-black text-secondary uppercase tracking-tighter">{t('itinerary.route')}</span>
                                                                     </div>
                                                                 </td>
                                                             )}

@@ -66,8 +66,17 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
     if (!isOpen) return null;
 
     const handlePay = async () => {
-        if (!STORE_ID || !selectedMethod.channelKey) {
-            setErrorMsg('결제 설정이 올바르지 않습니다. 관리자에게 문의하세요.');
+        // ─── 디버깅: 어떤 키가 누락되었는지 콘솔에서 확인 가능 ─────────────────────
+        console.log('[PortOne Debug] Store ID:', STORE_ID ? 'OK' : 'MISSING');
+        console.log('[PortOne Debug] Channel Key:', selectedMethod.channelKey ? 'OK' : 'MISSING');
+        console.log('[PortOne Debug] Selected Method:', selectedMethod.id);
+
+        if (!STORE_ID) {
+            setErrorMsg('VITE_PORTONE_STORE_ID 환경 변수가 설정되지 않았습니다. 서버를 재시작해 보세요.');
+            return;
+        }
+        if (!selectedMethod.channelKey) {
+            setErrorMsg(`${selectedMethod.label}용 채널 키(VITE_KR_CHANNEL_KEY 등)가 누락되었습니다.`);
             return;
         }
 
