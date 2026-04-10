@@ -339,69 +339,90 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
         setPublishing(true);
         setPublishError('');
         try {
-            // 전체 일정 데이터를 구성
-            const templateData = {
-                // 판매자 정보
-                creatorUid: user.uid,
-                creatorName: user.displayName || 'Anonymous',
-                creatorEmail: user.email,
-                creatorAvatar: user.photoURL || '',
-                // 상품 정보
-                title: description,
-                price: parseFloat(price),
+            // 1. 기본 메타데이터 구성 (순환 참조 및 undefined 방지)
+            const templateBase = {
+                creatorUid: user?.uid || 'anonymous',
+                creatorName: user?.displayName || 'Traveler',
+                creatorEmail: user?.email || '',
+                creatorAvatar: user?.photoURL || '',
+                title: String(description),
+                price: parseFloat(price) || 0,
                 thumbnail: thumbnailCandidates[selectedThumb] || '',
-                destination: data.destination,
+                destination: String(data.destination || ''),
                 region: detectRegion(data.destination),
-                category: data.travelWith || 'Solo',
-                budget: data.pace || 'Moderate',
-                // 일정 데이터 (장소, 시간, 메모 등)
-                days: itinerary.map(day => ({
-                    dayNum: day.dayNum,
-                    date: day.date?.toISOString?.() || day.date,
-                    theme: day.theme,
-                    items: day.items.map(item => ({
-                        name: item.name,
-                        desc: item.desc,
-                        type: item.type,
-                        time: item.time,
-                        img: item.img,
-                        latitude: item.latitude || null,
-                        longitude: item.longitude || null,
-                        rating: item.rating || null,
-                    }))
-                })),
-                // 항공편 및 숙소 데이터
-                flights: flights.map(f => ({ type: f.type, from: f.from, to: f.to, number: f.number, time: f.time, notes: f.notes })),
-                hotels: hotels.map(h => ({ name: h.name, address: h.address, confirmation: h.confirmation, checkin: h.checkin, checkout: h.checkout })),
-                // 여행 메타 정보
-                startDate: data.startDate,
-                endDate: data.endDate,
-                totalDays: itinerary.length,
-                totalSpots: itinerary.reduce((s, d) => s + d.items.length, 0),
-                focus: data.focus || [],
-                pace: data.pace || 'Moderate',
-                vibe: data.vibe || '',
+                category: String(data.travelWith || 'Solo'),
+                budget: String(data.pace || 'Moderate'),
+                startDate: data.startDate ? new Date(data.startDate).toISOString() : new Date().toISOString(),
+                endDate: data.endDate ? new Date(data.endDate).toISOString() : new Date().toISOString(),
+                totalDays: parseInt(itinerary.length) || 0,
+                totalSpots: itinerary.reduce((s, d) => s + (d.items?.length || 0), 0),
+                focus: Array.isArray(data.focus) ? data.focus : [],
+                pace: String(data.pace || 'Moderate'),
+                vibe: String(data.vibe || ''),
             };
+
+            // 2. 일정 데이터 직렬화 (Nested objects)
+            const days = itinerary.map(day => ({
+                dayNum: parseInt(day.dayNum),
+                date: day.date instanceof Date ? day.date.toISOString() : String(day.date),
+                theme: String(day.theme || ''),
+                items: (day.items || []).map(item => ({
+                    name: String(item.name || ''),
+                    desc: String(item.desc || ''),
+                    type: String(item.type || ''),
+                    time: String(item.time || ''),
+                    img: String(item.img || ''),
+                    latitude: item.latitude ? parseFloat(item.latitude) : null,
+                    longitude: item.longitude ? parseFloat(item.longitude) : null,
+                    rating: item.rating ? parseFloat(item.rating) : null,
+                }))
+            }));
+
+            // 3. 항공/숙소 데이터 직렬화
+            const flightData = (flights || []).map(f => ({
+                type: String(f.type || 'Outbound'),
+                from: String(f.from || ''),
+                to: String(f.to || ''),
+                number: String(f.number || ''),
+                time: String(f.time || ''),
+                notes: String(f.notes || '')
+            }));
+
+            const hotelData = (hotels || []).map(h => ({
+                name: String(h.name || ''),
+                address: String(h.address || ''),
+                confirmation: String(h.confirmation || ''),
+                checkin: String(h.checkin || ''),
+                checkout: String(h.checkout || '')
+            }));
+
+            // 최종 데이터 조립
+            const finalData = {
+                ...templateBase,
+                days,
+                flights: flightData,
+                hotels: hotelData
+            };
+
+            console.log('Publishing template data:', finalData);
             
-            // undefined 값이나 중첩된 참조 에러 방지를 위해 완전한 Plain Object 로 직렬화
-            const cleanData = JSON.parse(JSON.stringify(templateData));
-            
-            await publishToMarketplace(cleanData);
+            await publishToMarketplace(finalData);
             setSuccess(true);
+
             // 카운트다운 후 마켓플레이스로 자동 이동
             let count = 3;
             setCountdown(count);
             const timer = setInterval(() => {
                 count -= 1;
-                setCountdown(count);
+                if (count >= 0) setCountdown(count);
                 if (count <= 0) {
                     clearInterval(timer);
                     navigate('/marketplace');
                 }
             }, 1000);
         } catch (err) {
-            console.error('Publish error:', err);
-            setPublishError(err.message || 'Failed to publish. Please try again.');
+            console.error('Publish error details:', err);
+            setPublishError(err.message || 'Failed to publish. Connection error or invalid data.');
         } finally {
             setPublishing(false);
         }
@@ -449,8 +470,10 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                         </motion.div>
                         <h2 className="text-2xl font-black text-secondary">{t('itinerary.publishSuccess')}</h2>
                         <p className="text-gray-500">{t('itinerary.publishSuccessDesc')}</p>
-                        <p className="text-sm font-bold text-primary">
-                            {countdown}초 후 마켓플레이스로 이동합니다...
+                        <p className="text-sm font-bold text-primary bg-primary/10 py-2 rounded-full">
+                            {i18n.language === 'ko' 
+                                ? `${countdown}초 후 마켓플레이스로 이동합니다...` 
+                                : `Redirecting to marketplace in ${countdown}s...`}
                         </p>
                         <div className="flex gap-3 justify-center">
                             <button onClick={() => navigate('/marketplace')} className="px-6 py-3 bg-secondary text-white rounded-xl font-bold hover:bg-secondary/90 transition-colors">

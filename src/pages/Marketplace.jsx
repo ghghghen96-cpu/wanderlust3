@@ -121,40 +121,35 @@ const Marketplace = () => {
         setIsModalOpen(true);
     };
 
-    const handlePurchaseSuccess = async (plan) => {
-        if (!user || processingRef.current) return;
-        processingRef.current = true;
+    const handlePurchaseSuccess = async (purchasedPlan) => {
+        if (!user || !purchasedPlan || processingRef.current) return;
         
-        const targetId = plan.id;
-        console.log("Processing purchase success for:", targetId);
+        processingRef.current = true;
+        const targetId = purchasedPlan.id;
+        
+        console.log("Purchase process started for:", targetId);
         
         try {
-            // 결제 성공 기록 (Firebase)
-            // 비동기로 실행하되, 사용자에게는 즉시 피드백을 주기 위해 navigate를 우선시하거나 병렬 처리 고려
-            // 하지만 기록 누락 방지를 위해 await를 유지하되 에러 처리를 확실히 함
-            await recordPurchase(user.uid, plan);
-            
+            // 1. 상태 업데이트 (즉시)
             setPurchasedIds(prev => [...prev, String(targetId)]);
-            setIsModalOpen(false);
             
-            // 상세 페이지로 이동
-            navigate(`/template/${targetId}`, { 
-                state: { template: plan },
-                replace: true 
-            });
-        } catch (error) {
-            console.error('Error recording purchase:', error);
-            // 기록 실패하더라도 사용자는 결제를 완료했으므로 일단 이동시켜줌 (나중에 CS 대응 가능하도록 로그는 남김)
-            setIsModalOpen(false);
-            navigate(`/template/${targetId}`, { 
-                state: { template: plan },
-                replace: true 
-            });
-        } finally {
-            // 페이지 이동 후에도 잠깐 동안은 중복 호출 방지
+            // 2. DB 기록 진행 (완료 대기)
+            const docId = await recordPurchase(user.uid, purchasedPlan);
+            console.log("DB Record success, docId:", docId);
+
+            // 3. 자동 이동 (2초 뒤) - 성공 메시지 확인 시간 부여
             setTimeout(() => {
+                setIsModalOpen(false);
+                // TemplateDetail은 템플릿의 고유 ID를 사용하므로 targetId로 이동
+                navigate(`/template/${targetId}`, { 
+                    state: { template: purchasedPlan },
+                    replace: true 
+                });
                 processingRef.current = false;
             }, 2000);
+        } catch (err) {
+            console.error('Error in handlePurchaseSuccess:', err);
+            processingRef.current = false;
         }
     };
 

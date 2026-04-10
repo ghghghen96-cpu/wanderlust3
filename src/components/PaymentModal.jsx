@@ -126,28 +126,21 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
             }
 
             // ─── 결제 성공 → DB 기록 및 상태 업데이트 ───────────────────────
-            // 클라이언트 검증: paymentId가 응답에 포함되었는지 확인
             if (response.paymentId) {
+                // 부모(Marketplace)로 성공 이벤트 전달 → DB 기록 & 구매 상태 업데이트
+                const responseData = {
+                    ...plan,
+                    paymentId: response.paymentId,
+                    orderId,
+                    paidAmount: amount,
+                    paidCurrency: currency,
+                };
+                onSuccess(responseData);
+
+                // 성공 화면 표시
                 setIsSuccess(true);
-                // 1초 뒤 부모(Marketplace)로 성공 이벤트 전달 → OWNED 상태 업데이트 + 페이지 이동
-                setTimeout(async () => {
-                    try {
-                        // onSuccess가 실행되는 동안에도 사용자가 수동으로 버튼을 누를 수 있도록 함
-                        onSuccess({
-                            ...plan,
-                            paymentId: response.paymentId,
-                            orderId,
-                            paidAmount: amount,
-                            paidCurrency: currency,
-                        });
-                    } catch (callbackErr) {
-                        console.error('onSuccess callback failed:', callbackErr);
-                        // 에러가 나더라도 성공 화면은 유지하되 메시지만 변경
-                        setErrorMsg('데이터 기록 중 지연이 발생했습니다. 버튼을 눌러 이동해주세요.');
-                    }
-                }, 1000);
             } else {
-                setErrorMsg('결제 응답이 올바르지 않습니다. 고객센터에 문의해주세요.');
+                setErrorMsg(t('payment.invalidResponse'));
                 setIsProcessing(false);
             }
 
@@ -200,25 +193,25 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                             <div className="w-24 h-24 bg-gradient-to-tr from-[#34d399]/20 to-[#10b981]/20 text-[#10b981] rounded-full flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(16,185,129,0.3)] border border-[#10b981]/30">
                                 <CheckCircle size={48} />
                             </div>
-                            <h3 className="text-2xl font-serif mb-2 text-white">결제 완료!</h3>
-                            <p className="text-slate-400 text-sm mb-6">일정이 내 라이브러리에 추가되었습니다.</p>
+                            <h3 className="text-2xl font-serif mb-2 text-white">{t('payment.successTitle')}</h3>
+                            <p className="text-slate-400 text-sm mb-6">{t('payment.successSubtitle')}</p>
                             
                             <button
-                                onClick={() => onSuccess(plan)}
+                                onClick={onClose}
                                 className="px-8 py-3 bg-gradient-to-r from-[#FF8A71] to-[#FF6B9B] text-white font-bold rounded-xl shadow-lg hover:shadow-[#FF8A71]/20 transition-all active:scale-95 cursor-pointer"
                             >
-                                상세 일정 확인하기
+                                {t('payment.viewDetails')}
                             </button>
                             
-                            <p className="text-xs text-slate-500 mt-6 animate-pulse">잠시 후 자동으로 이동됩니다...</p>
+                            <p className="text-xs text-slate-500 mt-6 animate-pulse">{t('payment.autoRedirect')}</p>
                         </motion.div>
                     ) : (
                         /* ─── 결제 폼 ───────────────────────────────────── */
                         <div className="p-8 relative z-10">
                             {/* 헤더 */}
                             <div className="mb-6 pr-8">
-                                <h2 className="text-2xl font-serif text-white mb-1">결제하기</h2>
-                                <p className="text-slate-400 text-sm">일정의 전체 상세 내용을 잠금 해제합니다.</p>
+                                <h2 className="text-2xl font-serif text-white mb-1">{t('payment.title')}</h2>
+                                <p className="text-slate-400 text-sm">{t('payment.subtitle')}</p>
                             </div>
 
                             {/* 상품 요약 */}
@@ -232,7 +225,7 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h4 className="font-bold text-slate-200 truncate">{plan.title}</h4>
-                                    <p className="text-xs text-slate-500">by {plan.creator || plan.creatorName}</p>
+                                    <p className="text-xs text-slate-500">{t('payment.creator', { name: plan.creator || plan.creatorName })}</p>
                                 </div>
                                 <div className="text-right shrink-0">
                                     <div className="font-bold text-lg bg-gradient-to-r from-[#FF8A71] to-[#FF6B9B] bg-clip-text text-transparent">
@@ -241,7 +234,7 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                                     <div className="text-xs text-slate-500 mt-0.5">
                                         {selectedMethod.currency === 'KRW'
                                             ? `≈ ₩${getAmount(plan.price, 'KRW').toLocaleString()}`
-                                            : 'USD'}
+                                            : '$'}
                                     </div>
                                 </div>
                             </div>
@@ -249,7 +242,7 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                             {/* 결제 수단 선택 */}
                             <div className="mb-6">
                                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
-                                    결제 수단 선택
+                                    {t('payment.methodTitle')}
                                 </label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {PAYMENT_METHODS.map((method) => (
@@ -273,17 +266,17 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                             {/* 결제 정보 요약 */}
                             <div className="bg-[#1E293B]/30 rounded-xl p-4 mb-5 border border-[#334155]/50 space-y-2">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-400">결제 수단</span>
+                                    <span className="text-slate-400">{t('payment.methodTitle')}</span>
                                     <span className="text-white font-medium">
                                         {selectedMethod.icon} {selectedMethod.label}
                                     </span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-400">통화</span>
+                                    <span className="text-slate-400">{t('marketplace.budget')}</span>
                                     <span className="text-white font-medium">{selectedMethod.currency}</span>
                                 </div>
                                 <div className="border-t border-[#334155]/50 pt-2 flex justify-between">
-                                    <span className="text-slate-300 font-bold">최종 결제 금액</span>
+                                    <span className="text-slate-300 font-bold">{t('payment.finalAmount')}</span>
                                     <span className="font-bold bg-gradient-to-r from-[#FF8A71] to-[#FF6B9B] bg-clip-text text-transparent text-base">
                                         {selectedMethod.currency === 'KRW'
                                             ? `₩${getAmount(plan.price, 'KRW').toLocaleString()}`
@@ -321,12 +314,12 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                         </svg>
-                                        결제 처리 중...
+                                        {t('payment.processing')}
                                     </span>
                                 ) : (
                                     <span className="flex items-center justify-center gap-2">
                                         {selectedMethod.id === 'paypal' ? <Globe size={18} /> : <CreditCard size={18} />}
-                                        {selectedMethod.label}로 결제하기
+                                        {t('payment.payWith', { method: selectedMethod.label })}
                                         <span className="opacity-60">•</span>
                                         {selectedMethod.currency === 'KRW'
                                             ? `₩${getAmount(plan.price, 'KRW').toLocaleString()}`
@@ -338,7 +331,7 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                             {/* 보안 뱃지 */}
                             <div className="flex items-center justify-center gap-2 mt-5 text-slate-500 text-xs font-medium">
                                 <ShieldCheck size={13} />
-                                <span>포트원 V2 · TLS 256-bit 암호화 결제</span>
+                                <span>{t('payment.security')}</span>
                             </div>
                         </div>
                     )}

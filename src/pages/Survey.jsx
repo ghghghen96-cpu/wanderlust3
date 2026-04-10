@@ -303,45 +303,45 @@ const Survey = () => {
                                 {/* 목적지 목록 - 항상 표시, 검색 시 필터링 */}
                                 {(() => {
                                     const ALL_DESTINATIONS = [
-                                        { label: '일본 (도쿄)', country: '일본', city: '도쿄', emoji: '🇯🇵' },
-                                        { label: '일본 (교토)', country: '일본', city: '교토', emoji: '🇯🇵' },
-                                        { label: '일본 (오사카)', country: '일본', city: '오사카', emoji: '🇯🇵' },
-                                        { label: '한국 (서울)', country: '한국', city: '서울', emoji: '🇰🇷' },
-                                        { label: '한국 (부산)', country: '한국', city: '부산', emoji: '🇰🇷' },
-                                        { label: '프랑스 (파리)', country: '프랑스', city: '파리', emoji: '🇫🇷' },
-                                        { label: '프랑스 (니스)', country: '프랑스', city: '니스', emoji: '🇫🇷' },
-                                        { label: '이탈리아 (로마)', country: '이탈리아', city: '로마', emoji: '🇮🇹' },
-                                        { label: '이탈리아 (피렌체)', country: '이탈리아', city: '피렌체', emoji: '🇮🇹' },
-                                        { label: '스페인 (바르셀로나)', country: '스페인', city: '바르셀로나', emoji: '🇪🇸' },
-                                        { label: '그리스 (산토리니)', country: '그리스', city: '산토리니', emoji: '🇬🇷' },
-                                        { label: '태국 (방콕)', country: '태국', city: '방콕', emoji: '🇹🇭' },
-                                        { label: '태국 (푸켓)', country: '태국', city: '푸켓', emoji: '🇹🇭' },
-                                        { label: '인도네시아 (발리)', country: '인도네시아', city: '발리', emoji: '🇮🇩' },
-                                        { label: '베트남 (하노이)', country: '베트남', city: '하노이', emoji: '🇻🇳' },
-                                        { label: '베트남 (호치민)', country: '베트남', city: '호치민', emoji: '🇻🇳' },
-                                        { label: '싱가포르', country: '싱가포르', city: '싱가포르', emoji: '🇸🇬' },
-                                        { label: '미국 (뉴욕)', country: '미국', city: '뉴욕', emoji: '🇺🇸' },
-                                        { label: '미국 (로스앤젤레스)', country: '미국', city: '로스앤젤레스', emoji: '🇺🇸' },
-                                        { label: '아랍에미리트 (두바이)', country: '아랍에미리트', city: '두바이', emoji: '🇦🇪' },
-                                        { label: '스위스 (인터라켄)', country: '스위스', city: '인터라켄', emoji: '🇨🇭' },
-                                        { label: '뉴질랜드 (퀸즈타운)', country: '뉴질랜드', city: '퀸즈타운', emoji: '🇳🇿' },
-                                        { label: '호주 (시드니)', country: '호주', city: '시드니', emoji: '🇦🇺' },
-                                        { label: '영국 (런던)', country: '영국', city: '런던', emoji: '🇬🇧' },
-                                        { label: '중국 (상하이)', country: '중국', city: '상하이', emoji: '🇨🇳' },
-                                        { label: '대만 (타이베이)', country: '대만', city: '타이베이', emoji: '🇹🇼' },
-                                        { label: '캐나다 (밴쿠버)', country: '캐나다', city: '밴쿠버', emoji: '🇨🇦' },
-                                        { label: '터키 (이스탄불)', country: '터키', city: '이스탄불', emoji: '🇹🇷' },
-                                        { label: '모로코 (마라케시)', country: '모로코', city: '마라케시', emoji: '🇲🇦' },
-                                        { label: '멕시코 (칸쿤)', country: '멕시코', city: '칸쿤', emoji: '🇲🇽' },
+                                        { countryKey: 'japan', cityKey: 'tokyo', emoji: '🇯🇵' },
+                                        { countryKey: 'japan', cityKey: 'kyoto', emoji: '🇯🇵' },
+                                        { countryKey: 'japan', cityKey: 'osaka', emoji: '🇯🇵' },
+                                        { countryKey: 'korea', cityKey: 'seoul', emoji: '🇰🇷' },
+                                        { countryKey: 'korea', cityKey: 'busan', emoji: '🇰🇷' },
+                                        { countryKey: 'france', cityKey: 'paris', emoji: '🇫🇷' },
+                                        { countryKey: 'france', cityKey: 'nice', emoji: '🇫🇷' },
+                                        { countryKey: 'italy', cityKey: 'rome', emoji: '🇮🇹' },
+                                        { countryKey: 'italy', cityKey: 'florence', emoji: '🇮🇹' },
+                                        { countryKey: 'spain', cityKey: 'barcelona', emoji: '🇪🇸' },
+                                        { countryKey: 'greece', cityKey: 'santorini', emoji: '🇬🇷' },
+                                        { countryKey: 'thailand', cityKey: 'bangkok', emoji: '🇹🇭' },
+                                        { countryKey: 'thailand', cityKey: 'phuket', emoji: '🇹🇭' },
+                                        { countryKey: 'indonesia', cityKey: 'bali', emoji: '🇮🇩' },
+                                        { countryKey: 'vietnam', cityKey: 'hanoi', emoji: '🇻🇳' },
+                                        { countryKey: 'vietnam', cityKey: 'hochiminh', emoji: '🇻🇳' },
+                                        { countryKey: 'singapore', cityKey: 'singapore', emoji: '🇸🇬' },
+                                        { countryKey: 'usa', cityKey: 'newyork', emoji: '🇺🇸' },
+                                        { countryKey: 'usa', cityKey: 'losangeles', emoji: '🇺🇸' },
+                                        { countryKey: 'uae', cityKey: 'dubai', emoji: '🇦🇪' },
+                                        { countryKey: 'switzerland', cityKey: 'interlaken', emoji: '🇨🇭' },
+                                        { countryKey: 'newzealand', cityKey: 'queenstown', emoji: '🇳🇿' },
+                                        { countryKey: 'australia', cityKey: 'sydney', emoji: '🇦🇺' },
+                                        { countryKey: 'uk', cityKey: 'london', emoji: '🇬🇧' },
+                                        { countryKey: 'china', cityKey: 'shanghai', emoji: '🇨🇳' },
+                                        { countryKey: 'taiwan', cityKey: 'taipei', emoji: '🇹🇼' },
+                                        { countryKey: 'canada', cityKey: 'vancouver', emoji: '🇨🇦' },
+                                        { countryKey: 'turkey', cityKey: 'istanbul', emoji: '🇹🇷' },
+                                        { countryKey: 'morocco', cityKey: 'marrakesh', emoji: '🇲🇦' },
+                                        { countryKey: 'mexico', cityKey: 'cancun', emoji: '🇲🇽' },
                                     ];
 
                                     const q = formData.destination.toLowerCase();
                                     const filtered = q
-                                        ? ALL_DESTINATIONS.filter(d =>
-                                            d.label.toLowerCase().includes(q) ||
-                                            d.country.toLowerCase().includes(q) ||
-                                            d.city.toLowerCase().includes(q)
-                                        )
+                                        ? ALL_DESTINATIONS.filter(d => {
+                                            const country = t(`survey.destinations.${d.countryKey}`).toLowerCase();
+                                            const city = t(`survey.destinations.${d.cityKey}`).toLowerCase();
+                                            return country.includes(q) || city.includes(q);
+                                        })
                                         : ALL_DESTINATIONS;
 
                                     if (filtered.length === 0) return (
@@ -361,11 +361,14 @@ const Survey = () => {
                                     return (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
                                             {filtered.map((dest) => {
-                                                const isSelected = formData.destination === dest.label;
+                                                const country = t(`survey.destinations.${dest.countryKey}`);
+                                                const city = t(`survey.destinations.${dest.cityKey}`);
+                                                const label = `${country} (${city})`;
+                                                const isSelected = formData.destination === label;
                                                 return (
                                                     <button
-                                                        key={dest.label}
-                                                        onClick={() => updateData('destination', dest.label)}
+                                                        key={`${dest.countryKey}-${dest.cityKey}`}
+                                                        onClick={() => updateData('destination', label)}
                                                         className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all font-medium text-sm w-full
                                                             ${isSelected
                                                                 ? 'border-primary bg-primary/10 text-secondary shadow-sm'
@@ -374,8 +377,8 @@ const Survey = () => {
                                                     >
                                                         <span className="text-xl flex-shrink-0">{dest.emoji}</span>
                                                         <div className="min-w-0">
-                                                            <div className={`font-bold truncate ${isSelected ? 'text-primary' : 'text-secondary'}`}>{dest.city}</div>
-                                                            <div className="text-xs text-gray-400">{dest.country}</div>
+                                                            <div className={`font-bold truncate ${isSelected ? 'text-primary' : 'text-secondary'}`}>{city}</div>
+                                                            <div className="text-xs text-gray-400">{country}</div>
                                                         </div>
                                                         {isSelected && <div className="ml-auto w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                                                     </button>
@@ -395,20 +398,20 @@ const Survey = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {(() => {
                                         const allDests = [
-                                            { city: '교토', country: '일본', img: 'kyoto,japan', climates: ['Urban', 'Mediterranean'] },
-                                            { city: '발리', country: '인도네시아', img: 'bali,indonesia', climates: ['Tropical', 'Oceanic'] },
-                                            { city: '홋카이도', country: '일본', img: 'hokkaido,winter', climates: ['Alpine'] },
-                                            { city: '니스', country: '프랑스', img: 'nice,france', climates: ['Mediterranean', 'Oceanic'] },
-                                            { city: '뉴욕', country: '미국', img: 'newyork,city', climates: ['Urban'] },
-                                            { city: '서울', country: '한국', img: 'seoul,korea', climates: ['Urban'] },
-                                            { city: '산토리니', country: '그리스', img: 'santorini,greece', climates: ['Mediterranean', 'Oceanic'] },
-                                            { city: '푸켓', country: '태국', img: 'phuket,thailand', climates: ['Tropical'] },
-                                            { city: '인터라켄', country: '스위스', img: 'switzerland,alps', climates: ['Alpine'] },
-                                            { city: '바르셀로나', country: '스페인', img: 'barcelona,spain', climates: ['Mediterranean', 'Oceanic'] },
-                                            { city: '파리', country: '프랑스', img: 'paris,city', climates: ['Urban'] },
-                                            { city: '퀸즈타운', country: '뉴질랜드', img: 'queenstown,nature', climates: ['Alpine', 'Oceanic'] },
-                                            { city: '생모리츠', country: '스위스', img: 'switzerland,alps', climates: ['Alpine'] },
-                                            { city: '두바이', country: '아랍에미리트', img: 'dubai,desert', climates: ['Desert', 'Urban'] }
+                                            { cityKey: 'kyoto', countryKey: 'japan', img: 'kyoto,japan', climates: ['Urban', 'Mediterranean'] },
+                                            { cityKey: 'bali', countryKey: 'indonesia', img: 'bali,indonesia', climates: ['Tropical', 'Oceanic'] },
+                                            { cityKey: 'hokkaido', countryKey: 'japan', img: 'hokkaido,winter', climates: ['Alpine'] },
+                                            { cityKey: 'nice', countryKey: 'france', img: 'nice,france', climates: ['Mediterranean', 'Oceanic'] },
+                                            { cityKey: 'newyork', countryKey: 'usa', img: 'newyork,city', climates: ['Urban'] },
+                                            { cityKey: 'seoul', countryKey: 'korea', img: 'seoul,korea', climates: ['Urban'] },
+                                            { cityKey: 'santorini', countryKey: 'greece', img: 'santorini,greece', climates: ['Mediterranean', 'Oceanic'] },
+                                            { cityKey: 'phuket', countryKey: 'thailand', img: 'phuket,thailand', climates: ['Tropical'] },
+                                            { cityKey: 'interlaken', countryKey: 'switzerland', img: 'switzerland,alps', climates: ['Alpine'] },
+                                            { cityKey: 'barcelona', countryKey: 'spain', img: 'barcelona,spain', climates: ['Mediterranean', 'Oceanic'] },
+                                            { cityKey: 'paris', countryKey: 'france', img: 'paris,city', climates: ['Urban'] },
+                                            { cityKey: 'queenstown', countryKey: 'newzealand', img: 'queenstown,nature', climates: ['Alpine', 'Oceanic'] },
+                                            { cityKey: 'stmoritz', countryKey: 'switzerland', img: 'switzerland,alps', climates: ['Alpine'] },
+                                            { cityKey: 'dubai', countryKey: 'uae', img: 'dubai,desert', climates: ['Desert', 'Urban'] }
                                         ];
                                         const filtered = allDests.filter(dest =>
                                             formData.climate.length === 0 ||
@@ -417,34 +420,40 @@ const Survey = () => {
                                         // If filtered is less than 8, add from the remaining to make it at least 8
                                         const results = [...filtered];
                                         if (results.length < 8) {
-                                            const remaining = allDests.filter(d => !results.some(r => r.city === d.city));
+                                            const remaining = allDests.filter(d => !results.some(r => r.cityKey === d.cityKey));
                                             results.push(...remaining.slice(0, 8 - results.length));
                                         }
-                                        return results.slice(0, 12).map((dest) => (
-                                            <div
-                                                key={dest.city}
-                                                onClick={() => updateData('destination', `${dest.country} (${dest.city})`)}
-                                                className={`
-                                                p-3 rounded-xl border-2 cursor-pointer flex items-center gap-4 transition-all hover:shadow-md
-                                                ${formData.destination === `${dest.country} (${dest.city})` ? 'border-primary bg-primary/5' : 'border-gray-100 bg-white hover:border-primary/50'}
-                                            `}
-                                            >
-                                                <div className="w-16 h-16 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
-                                                    <img
-                                                        src={`https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&q=80&w=200&h=200&q=${dest.img}`}
-                                                        alt={dest.city}
-                                                        className="w-full h-full object-cover"
-                                                    />
+                                        return results.slice(0, 12).map((dest) => {
+                                            const country = t(`survey.destinations.${dest.countryKey}`);
+                                            const city = t(`survey.destinations.${dest.cityKey}`);
+                                            const label = `${country} (${city})`;
+                                            const isSelected = formData.destination === label;
+                                            return (
+                                                <div
+                                                    key={dest.cityKey}
+                                                    onClick={() => updateData('destination', label)}
+                                                    className={`
+                                                    p-3 rounded-xl border-2 cursor-pointer flex items-center gap-4 transition-all hover:shadow-md
+                                                    ${isSelected ? 'border-primary bg-primary/5' : 'border-gray-100 bg-white hover:border-primary/50'}
+                                                `}
+                                                >
+                                                    <div className="w-16 h-16 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
+                                                        <img
+                                                            src={`https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&q=80&w=200&h=200&q=${dest.img}`}
+                                                            alt={city}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    </div>
+                                                    <div className="flex-grow">
+                                                        <h4 className="font-bold text-secondary text-base">{country}</h4>
+                                                        <p className="text-sm text-gray-500">{city}</p>
+                                                    </div>
+                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-primary' : 'border-gray-300'}`}>
+                                                        {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                                                    </div>
                                                 </div>
-                                                <div className="flex-grow">
-                                                    <h4 className="font-bold text-secondary text-base">{dest.country}</h4>
-                                                    <p className="text-sm text-gray-500">{dest.city}</p>
-                                                </div>
-                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${formData.destination === `${dest.country} (${dest.city})` ? 'border-primary' : 'border-gray-300'}`}>
-                                                    {formData.destination === `${dest.country} (${dest.city})` && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
-                                                </div>
-                                            </div>
-                                        ));
+                                            );
+                                        });
                                     })()}
                                 </div>
                             </section>
@@ -492,14 +501,14 @@ const Survey = () => {
                         <section>
                             <label className="block text-base font-bold text-gray-600 mb-3 uppercase tracking-wider">{t('survey.budgetTitle')}</label>
                             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                                <p className="text-sm text-gray-400 mb-3">{t('survey.budgetSub')}</p>
+                                <p className="text-sm text-gray-400 mb-3">{t('survey.budgetSub', { code: t('nav.currencyCode') })}</p>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-primary">$</span>
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-primary">{t('nav.currency')}</span>
                                     <input
                                         type="number"
                                         min="0"
                                         step="100"
-                                        placeholder="e.g. 2000"
+                                        placeholder={`e.g. ${t('nav.currencyCode') === 'USD' ? '2000' : '2000000'}`}
                                         value={formData.budget === 0 ? '' : formData.budget}
                                         onChange={(e) => {
                                             const val = e.target.value;
@@ -510,7 +519,7 @@ const Survey = () => {
                                 </div>
                                 {formData.budget > 0 && (
                                     <p className="text-center text-sm font-semibold text-primary mt-3">
-                                        {t('survey.budgetFormat')} <span className="text-xl font-black">${Number(formData.budget).toLocaleString()}</span>
+                                        {t('survey.budgetFormat')} <span className="text-xl font-black">{t('nav.currency')}{Number(formData.budget).toLocaleString()}</span>
                                     </p>
                                 )}
                             </div>

@@ -65,7 +65,7 @@ const TemplateDetail = () => {
         return (
             <div className="min-h-screen bg-[#111111] flex flex-col items-center justify-center gap-4">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FF8A71]"></div>
-                <p className="text-slate-400 animate-pulse">템플릿 정보를 불러오는 중입니다...</p>
+                <p className="text-slate-400 animate-pulse">{t('marketplace.loading') || 'Loading template...'}</p>
             </div>
         );
     }
@@ -167,13 +167,23 @@ const TemplateDetail = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : (
-                        <div className="text-center py-12">
-                            <Compass size={48} className="mx-auto text-[#d6d3d1] mb-4" />
-                            <h3 className="text-xl font-serif italic text-[#44403c] mb-2">No structured itinerary available</h3>
-                            <p className="text-[#a8a29e] max-w-md mx-auto">This template does not contain a day-by-day plan.</p>
-                        </div>
                     )}
+                </div>
+
+                {/* 하단 CTA 섹션 */}
+                <div className="mt-16 text-center">
+                    <h3 className="text-2xl font-serif italic mb-4 text-[#1c1917]">
+                        {t('itinerary.readyToWander') || 'Ready to start your own journey?'}
+                    </h3>
+                    <p className="text-[#44403c]/60 max-w-lg mx-auto mb-8 text-sm">
+                        {t('itinerary.readySubtitle') || 'Create a personalized travel plan designed just for you with our AI.'}
+                    </p>
+                    <button 
+                        onClick={() => navigate('/survey')}
+                        className="px-8 py-3 bg-[#1c1917] text-white font-bold rounded-xl hover:bg-[#FF8A71] transition-all transform hover:-translate-y-1 shadow-lg hover:shadow-[#FF8A71]/20"
+                    >
+                        {t('landing.heroButton') || t('nav.createTrip')}
+                    </button>
                 </div>
             </div>
         </div>
