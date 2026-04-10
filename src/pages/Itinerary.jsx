@@ -152,46 +152,55 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
 
                 {/* info */}
                 <div className="flex-1 min-w-0 w-full">
-                    <h3 className="font-black text-secondary text-xl truncate group-hover:text-primary transition-colors">{activity.name}</h3>
+                    <h3 className="font-black text-[#006400] text-2xl truncate group-hover:opacity-80 transition-opacity mb-2">{activity.name}</h3>
 
-                    {/* ── INLINE TIME ── */}
-                    <div className="mt-1">
+                    {/* ── INLINE TIME (New Line) ── */}
+                    <div className="mb-3">
                         {timeEdit ? (
-                            <input
-                                ref={timeRef}
-                                type="time"
-                                defaultValue={activity.time}
-                                autoFocus
-                                onBlur={e => commitTime(e.target.value)}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter') commitTime(e.target.value);
-                                    if (e.key === 'Escape') setTimeEdit(false);
-                                }}
-                                className="text-sm font-bold text-primary bg-primary/5 border border-primary/30 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-primary/30"
-                            />
+                            <div className="flex items-center gap-2 bg-primary/5 p-2 rounded-xl border border-primary/20">
+                                <Clock size={16} className="text-primary" />
+                                <input
+                                    ref={timeRef}
+                                    type="time"
+                                    defaultValue={activity.time}
+                                    autoFocus
+                                    onBlur={e => commitTime(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') commitTime(e.target.value);
+                                        if (e.key === 'Escape') setTimeEdit(false);
+                                    }}
+                                    className="text-base font-bold text-primary bg-transparent outline-none"
+                                />
+                            </div>
                         ) : (
                             <button
                                 onClick={() => setTimeEdit(true)}
                                 title={t('itinerary.setTime')}
-                                className="inline-flex items-center gap-1.5 text-primary font-bold text-xs px-2 py-1 rounded-lg hover:bg-primary/10 transition-colors border border-transparent hover:border-primary/20"
+                                className="group/time flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-primary border border-gray-100 rounded-full hover:bg-primary/10 hover:border-primary/20 transition-all"
                             >
-                                <Clock size={12} />
-                                {fmtTime(activity.time) || t('itinerary.setTime')}
-                                <span className="text-[9px] text-primary/40 opacity-0 group-hover:opacity-100 transition-opacity ml-0.5">✎</span>
+                                <Clock size={14} className="group-hover/time:scale-110 transition-transform" />
+                                <span className="font-bold text-sm tracking-tight">
+                                    {fmtTime(activity.time) || t('itinerary.setTime')}
+                                </span>
+                                <Edit2 size={10} className="opacity-0 group-hover/time:opacity-50 transition-opacity" />
                             </button>
                         )}
                     </div>
 
-                    <div className="flex items-center gap-3 mt-1">
-                        <p className="text-sm text-gray-500 truncate">{activity.desc}</p>
-                        <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${activity.latitude && activity.longitude ? `${activity.latitude},${activity.longitude}` : encodeURIComponent(activity.name + ' ' + (destination || ''))}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-shrink-0 flex items-center gap-1 text-[10px] font-bold text-gray-400 hover:text-primary transition-colors bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100"
-                        >
-                            <MapPin size={10} /> {t('itinerary.maps')}
-                        </a>
+                    <div className="space-y-3">
+                        <p className="text-base font-semibold text-[#4A4A4A] leading-relaxed">{activity.desc}</p>
+                        
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${activity.latitude && activity.longitude ? `${activity.latitude},${activity.longitude}` : encodeURIComponent(activity.name + ' ' + (destination || ''))}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary/10 text-primary text-xs font-black rounded-xl hover:bg-primary transition-all hover:text-white border border-primary/10"
+                            >
+                                <MapPin size={14} /> 
+                                {t('itinerary.maps')}
+                            </a>
+                        </div>
                     </div>
                 </div>
 
@@ -974,30 +983,33 @@ const Itinerary = () => {
             <Navbar />
 
             {/* ── HEADER ── */}
-            {/* NAV */}
-            <nav className="h-20 px-8 md:px-14 flex items-center justify-between bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
+            {/* NAV - Mobile Optimized */}
+            <nav className="h-auto px-6 md:px-14 py-4 md:py-0 md:h-20 flex flex-col md:flex-row items-stretch md:items-center justify-between bg-white border-b border-gray-200 shadow-sm sticky top-[80px] z-40 gap-4 md:gap-0">
                 <Link to="/survey" className="flex items-center gap-3 group">
-                    <div className="p-2 bg-gray-50 rounded-xl group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                        <ChevronLeft size={22} />
+                    <div className="p-2.5 bg-gray-50 rounded-xl group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                        <ChevronLeft size={24} />
                     </div>
                     <div>
-                        <h1 className="font-black text-2xl text-secondary leading-none">{data.destination}</h1>
-                        <p className="text-xs font-bold text-gray-400 mt-0.5 flex items-center gap-1">
-                            <Calendar size={12} />
+                        <h1 className="font-extrabold text-xl md:text-2xl text-secondary leading-tight truncate max-w-[200px] md:max-w-none">{data.destination}</h1>
+                        <p className="text-[11px] md:text-xs font-bold text-gray-500 flex items-center gap-1.5 mt-0.5">
+                            <Calendar size={13} className="text-primary" />
                             {format(new Date(data.startDate), 'MMM dd')} – {format(new Date(data.endDate), 'MMM dd')} · {t('itinerary.days', { count: itinerary.length })}
                         </p>
                     </div>
                 </Link>
-                <div className="flex items-center gap-3">
-                    <div className="flex bg-gray-100 p-1.5 rounded-2xl">
+
+                <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
+                    {/* Tabs */}
+                    <div className="flex bg-gray-100 p-1.5 rounded-2xl w-full sm:w-auto">
                         {['itinerary', 'summary'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)}
-                                className={`px-7 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-400 hover:text-gray-600'}`}>
+                                className={`flex-1 sm:flex-none px-6 md:px-7 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-500 hover:text-secondary'}`}>
                                 {t(`itinerary.tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
                             </button>
                         ))}
                     </div>
-                    {/* Publish 버튼 */}
+
+                    {/* Publish Button - Full width on mobile */}
                     <button
                         onClick={() => {
                             if (!currentUser) {
@@ -1008,9 +1020,9 @@ const Itinerary = () => {
                             }
                             setPublishOpen(true);
                         }}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-sm rounded-xl shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-105 active:scale-95 transition-all"
+                        className="w-full md:w-auto flex items-center justify-center gap-2.5 px-8 py-3.5 md:py-2.5 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-sm uppercase tracking-wider rounded-2xl md:rounded-xl shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
                     >
-                        <Upload size={16} />
+                        <Upload size={18} />
                         {t('itinerary.publishBtn')}
                     </button>
                 </div>
@@ -1042,17 +1054,17 @@ const Itinerary = () => {
                                                 <span className="text-4xl leading-none">{day.dayNum}</span>
                                             </div>
                                             <div>
-                                                <h2 className="text-3xl font-black text-secondary">{format(day.date, 'EEEE, MMM do')}</h2>
-                                                <div className="flex items-center gap-3 mt-1">
-                                                    <p className="text-sm text-gray-400 font-bold">{t('itinerary.activitiesCount', { count: day.items.length })}</p>
+                                                <h2 className="text-2xl md:text-3xl font-black text-secondary">{format(day.date, 'EEEE, MMM do')}</h2>
+                                                <div className="flex flex-wrap items-center gap-3 mt-2">
+                                                    <p className="text-sm text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">{t('itinerary.activitiesCount', { count: day.items.length })}</p>
                                                     {day.items.length > 0 && (
                                                         <a
                                                             href={getDayMapUrl(day.items, data.destination)}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="flex items-center gap-1.5 text-[11px] font-black text-primary hover:text-secondary hover:bg-primary transition-all bg-primary/10 px-3 py-1.5 rounded-full shadow-sm active:scale-95"
+                                                            className="flex items-center gap-1.5 text-xs font-black text-white bg-secondary hover:bg-primary transition-all px-4 py-1.5 rounded-full shadow-lg active:scale-95"
                                                         >
-                                                            <MapPin size={12} />
+                                                            <MapPin size={14} />
                                                             <span>{t('itinerary.routeMap')}</span>
                                                         </a>
                                                     )}

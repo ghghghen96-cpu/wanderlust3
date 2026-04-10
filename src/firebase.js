@@ -129,6 +129,7 @@ export const recordPurchase = async (uid, plan) => {
             paidAmount: plan.paidAmount || plan.price,
             paidCurrency: plan.paidCurrency || 'USD',
             planData: plan,
+            creatorUid: plan.creatorId || plan.creatorUid || null, // 판매 내역 조회를 위한 상위 필드 추가
             purchasedAt: serverTimestamp(),
         });
         
@@ -176,6 +177,24 @@ export const getUserPurchases = async (uid) => {
         return purchases;
     } catch (error) {
         console.error("Error fetching purchases:", error);
+        return [];
+    }
+};
+
+// 특정 사용자가 판매한 내역 조회 (판매자 관점)
+export const getSalesHistory = async (creatorUid) => {
+    if (!creatorUid) return [];
+    try {
+        const q = query(collection(db, "My_Library"), where("creatorUid", "==", creatorUid));
+        const querySnapshot = await getDocs(q);
+        const sales = [];
+        querySnapshot.forEach((doc) => {
+            sales.push({ docId: doc.id, ...doc.data() });
+        });
+        // 일시 기준 정렬 (클라이언트 단에서 정렬하거나 쿼리 인덱스 필요)
+        return sales.sort((a, b) => b.purchasedAt?.seconds - a.purchasedAt?.seconds);
+    } catch (error) {
+        console.error("Error fetching sales history:", error);
         return [];
     }
 };

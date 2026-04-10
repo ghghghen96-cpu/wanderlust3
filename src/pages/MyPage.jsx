@@ -3,10 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
     User, Mail, LogOut, MapPin, Calendar, Clock, ArrowRight,
-    Compass, Trash2, ChevronRight
+    Compass, Trash2, ChevronRight, TrendingUp, DollarSign, 
+    CreditCard, Download, ExternalLink, Receipt
 } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, logout, getUserPurchases } from '../firebase';
+import { auth, logout, getUserPurchases, listenToUserEarnings, getSalesHistory, requestPayout } from '../firebase';
 import Navbar from '../components/Navbar';
 import i18n from '../i18n';
 import { saveSearchHistory, getSearchHistory, deleteHistoryEntry, clearSearchHistory } from '../utils/history';
@@ -34,19 +35,38 @@ const MyPage = () => {
     const [user, setUser] = useState(null);
     const [history, setHistory] = useState([]);
     const [purchases, setPurchases] = useState([]);
+    const [earnings, setEarnings] = useState({ currentBalance: 0, totalEarnings: 0, templatesSold: 0 });
+    const [salesHistory, setSalesHistory] = useState([]);
+    const [toast, setToast] = useState({ show: false, message: '' });
     const navigate = useNavigate();
 
     useEffect(() => {
-        const unsub = onAuthStateChanged(auth, async (u) => {
+        let unsubEarnings = null;
+        const unsubAuth = onAuthStateChanged(auth, async (u) => {
             setUser(u);
             if (u) {
+                // 구매한 템플릿
                 const userPurchases = await getUserPurchases(u.uid);
                 setPurchases(userPurchases);
+
+                // 수익 실시간 구독
+                unsubEarnings = listenToUserEarnings(u.uid, (data) => {
+                    setEarnings(data);
+                });
+
+                // 판매 내역 조회
+                const sales = await getSalesHistory(u.uid);
+                setSalesHistory(sales);
             } else {
                 setPurchases([]);
+                setEarnings({ currentBalance: 0, totalEarnings: 0, templatesSold: 0 });
+                setSalesHistory([]);
             }
         });
-        return () => unsub();
+        return () => {
+            unsubAuth();
+            if (unsubEarnings) unsubEarnings();
+        };
     }, []);
 
     useEffect(() => {
@@ -90,6 +110,45 @@ const MyPage = () => {
 
     const goToTemplate = (templateId, template) => {
         navigate(`/template/${templateId}`, { state: { template } });
+    };
+
+    // 통화 포맷팅 (언어별 분기)
+    const formatMoney = (amount) => {
+        const lang = i18n.language;
+        if (lang === 'ko') {
+            // 원화 표시 (1달러당 1300원 가정하여 표시할수도 있으나, 데이터가 이미 구분되어 들어온다고 가정)
+            // 여기서는 요청사항대로 한국어일때 KRW(₩)로 표시함.
+            // 만약 amount가 USD 기준이라면 환율 적용이 필요하지만, 여기서는 단순 심볼 변경 및 천단위 콤마 처리
+            return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(amount * (lang === 'ko' ? 1300 : 1));
+        } else {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+        }
+    };
+
+    const handleWithdraw = async () => {
+        if (earnings.currentBalance <= 0) {
+            setToast({ show: true, message: i18n.language === 'ko' ? '출금 가능한 잔액이 없습니다.' : 'No balance available for payout.' });
+            setTimeout(() => setToast({ show: false, message: '' }), 3000);
+            return;
+        }
+
+        try {
+            await requestPayout(user.uid, earnings.currentBalance, {
+                bankName: 'Digital Wallet',
+                accountNumber: '**** **** 1234',
+                accountHolder: user.displayName
+            });
+            setToast({ 
+                show: true, 
+                message: i18n.language === 'ko' 
+                    ? '출금 신청이 완료되었습니다. 영업일 기준 3일 내에 정산됩니다.' 
+                    : 'Withdrawal requested. It will be settled within 3 business days.' 
+            });
+            setTimeout(() => setToast({ show: false, message: '' }), 4000);
+        } catch (error) {
+            setToast({ show: true, message: 'Payout failed. Please try again.' });
+            setTimeout(() => setToast({ show: false, message: '' }), 3000);
+        }
     };
 
     return (
@@ -328,6 +387,102 @@ const MyPage = () => {
                     </div>
                 )}
 
+                {/* ── 수익 대시보드 (Revenue Dashboard) ── */}
+                <div style={{ marginTop: '68px', marginBottom: '60px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '28px' }}>
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#6366f1', marginBottom: '8px' }}>
+                                <TrendingUp size={20} />
+                                <span style={{ fontFamily: 'sans-serif', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                    {i18n.language === 'ko' ? '수익 분석' : 'Revenue Analytics'}
+                                </span>
+                            </div>
+                            <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '32px', color: '#111111', fontWeight: 'bold' }}>
+                                {i18n.language === 'ko' ? '수익 대시보드' : 'Revenue Dashboard'}
+                            </h2>
+                        </div>
+                        <button
+                            onClick={handleWithdraw}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                padding: '12px 24px', background: '#6366f1', color: 'white',
+                                border: 'none', borderRadius: '12px', fontFamily: 'sans-serif',
+                                fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
+                                transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#4f46e5'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#6366f1'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                        >
+                            <Download size={16} /> {i18n.language === 'ko' ? '출금하기' : 'Withdraw'}
+                        </button>
+                    </div>
+
+                    {/* 스태츠 카드 그리드 */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+                        {[
+                            { label: i18n.language === 'ko' ? '판매된 템플릿' : 'Templates Sold', value: earnings.templatesSold, sub: 'Lifetime sales', icon: <Receipt size={22} />, color: '#f59e0b' },
+                            { label: i18n.language === 'ko' ? '총 누적 수익' : 'Total Earnings', value: formatMoney(earnings.totalEarnings), sub: 'Gross revenue', icon: <DollarSign size={22} />, color: '#10b981' },
+                            { label: i18n.language === 'ko' ? '출금 가능 금액' : 'Available for Payout', value: formatMoney(earnings.currentBalance), sub: 'Ready to withdraw', icon: <CreditCard size={22} />, color: '#6366f1' }
+                        ].map((card, idx) => (
+                            <div key={idx} style={{
+                                background: 'white', border: '1px solid #f1f5f9', borderRadius: '20px',
+                                padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                                display: 'flex', flexDirection: 'column', gap: '16px'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontFamily: 'sans-serif', fontSize: '14px', color: '#64748b', fontWeight: '500' }}>{card.label}</span>
+                                    <div style={{ color: card.color, background: `${card.color}10`, padding: '10px', borderRadius: '12px' }}>
+                                        {card.icon}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', fontFamily: 'sans-serif', marginBottom: '4px' }}>
+                                        {card.value}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'sans-serif' }}>{card.sub}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* 판매 내역 리스트 */}
+                    <div style={{ background: 'white', border: '1px solid #f1f5f9', borderRadius: '24px', padding: '32px', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+                        <h3 style={{ fontFamily: 'sans-serif', fontSize: '18px', fontWeight: '700', color: '#1e293b', marginBottom: '24px' }}>
+                            {i18n.language === 'ko' ? '최근 판매 내역' : 'Recent Sales History'}
+                        </h3>
+                        
+                        {salesHistory.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+                                <ExternalLink size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                                <p style={{ fontSize: '14px' }}>{i18n.language === 'ko' ? '아직 판매 내역이 없습니다.' : 'No sales records yet.'}</p>
+                            </div>
+                        ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'sans-serif' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>{i18n.language === 'ko' ? '구매일' : 'Date'}</th>
+                                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>{i18n.language === 'ko' ? '템플릿' : 'Template'}</th>
+                                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>{i18n.language === 'ko' ? '구매자 ID' : 'Buyer ID'}</th>
+                                            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>{i18n.language === 'ko' ? '가격' : 'Price'}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {salesHistory.slice(0, 5).map((sale, i) => (
+                                            <tr key={i} style={{ borderBottom: i === salesHistory.length - 1 ? 'none' : '1px solid #f8fafc' }}>
+                                                <td style={{ padding: '16px', fontSize: '14px', color: '#334155' }}>{formatDate(sale.purchasedAt?.toDate?.() || new Date())}</td>
+                                                <td style={{ padding: '16px', fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>{sale.planData?.title || 'Itinerary'}</td>
+                                                <td style={{ padding: '16px', fontSize: '13px', color: '#64748b' }}>{sale.uid?.substring(0, 8)}...</td>
+                                                <td style={{ padding: '16px', textAlign: 'right', fontSize: '14px', fontWeight: 'bold', color: '#10b981' }}>+{formatMoney(sale.planData?.price || 0)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* ── 구매한 템플릿 섹션 ── */}
                 <div style={{ marginTop: '60px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
@@ -422,6 +577,29 @@ const MyPage = () => {
                     )}
                 </div>
             </div>
+
+            {/* 토스트 알림 */}
+            {toast.show && (
+                <div style={{
+                    position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)',
+                    background: '#1e293b', color: 'white', padding: '16px 32px',
+                    borderRadius: '50px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+                    zIndex: 2000, display: 'flex', alignItems: 'center', gap: '12px',
+                    fontFamily: 'sans-serif', fontSize: '14px', fontWeight: 'bold',
+                    animation: 'slideUp 0.3s ease-out'
+                }}>
+                    <div style={{ background: '#10b981', borderRadius: '50%', padding: '4px' }}>
+                        <ChevronRight size={14} color="white" />
+                    </div>
+                    {toast.message}
+                    <style>{`
+                        @keyframes slideUp {
+                            from { transform: translate(-50%, 20px); opacity: 0; }
+                            to { transform: translate(-50%, 0); opacity: 1; }
+                        }
+                    `}</style>
+                </div>
+            )}
         </div>
     );
 };

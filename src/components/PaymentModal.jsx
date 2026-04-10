@@ -7,6 +7,7 @@ import * as PortOne from '@portone/browser-sdk/v2';
 // ─── 환경 변수 (Vite: import.meta.env.VITE_*) ────────────────────────────────
 const STORE_ID = import.meta.env.VITE_PORTONE_STORE_ID;
 const KR_CHANNEL_KEY = import.meta.env.VITE_KR_CHANNEL_KEY;
+const CARD_CHANNEL_KEY = import.meta.env.VITE_CARD_CHANNEL_KEY || KR_CHANNEL_KEY; // 카드 전용 키가 없으면 기본 키 사용
 const GLOBAL_CHANNEL_KEY = import.meta.env.VITE_GLOBAL_CHANNEL_KEY;
 
 // ─── 결제 수단 옵션 ────────────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ const PAYMENT_METHODS = [
         label: '신용/체크카드',
         icon: '💳',
         currency: 'KRW',
-        channelKey: KR_CHANNEL_KEY,
+        channelKey: CARD_CHANNEL_KEY,
         method: { type: 'CARD' },
     },
     {
@@ -38,18 +39,17 @@ const PAYMENT_METHODS = [
 ];
 
 // ─── 금액 변환 ────────────────────────────────────────────────────────────────
-// KRW: 소수점 없이 정수 (Math.round 필수)
-// USD: 소수점 2자리 고정 (parseFloat + toFixed(2))
+// KRW, USD 공통: 포트원 V2 일부 PG는 소수점을 허용하지 않으므로 안전하게 정수화 (Math.round)
 // 환율: 1 USD ≈ 1,400 KRW (실서비스 시 실시간 환율 API 연동 권장)
 const EXCHANGE_RATE_KRW = 1400;
 
 const getAmount = (priceUSD, currency) => {
-    if (currency === 'KRW') {
-        // KRW는 반드시 정수여야 함 (소수점 있으면 포트원 에러)
-        return Math.round(Number(priceUSD) * EXCHANGE_RATE_KRW);
-    }
-    // USD는 소수점 2자리까지 허용
-    return parseFloat(Number(priceUSD).toFixed(2));
+    const baseAmount = currency === 'KRW' 
+        ? Number(priceUSD) * EXCHANGE_RATE_KRW 
+        : Number(priceUSD);
+    
+    // 모든 통화에 대해 Math.round를 적용하여 PG사 소수점 오류 방지
+    return Math.round(baseAmount);
 };
 
 // ─── 고유한 주문 ID 생성 ────────────────────────────────────────────────────
@@ -85,6 +85,9 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
 
         const orderId = generateOrderId();
         const currency = selectedMethod.currency;
+        // 포트원 V2의 일부 PG는 USD인 경우에도 소수점을 허용하지 않을 수 있으므로 정수화 고려
+        // 만약 $9.99 같은 소수점이 꼭 필요하다면 PG 설정을 확인해야 합니다.
+        // 여기서는 안전하게 Math.round를 적용합니다.
         const amount = getAmount(plan.price, currency);
 
         try {
@@ -95,7 +98,7 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                 paymentId: orderId,
                 orderName: plan.title,
                 totalAmount: amount,
-                currency: `CURRENCY_${currency}`,
+                currency: currency, // CURRENCY_ 제거 (V2 표준)
                 payMethod: selectedMethod.method.type,
                 ...(selectedMethod.method.easyPayProvider && {
                     easyPay: { easyPayProvider: selectedMethod.method.easyPayProvider },
