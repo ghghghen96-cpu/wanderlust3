@@ -131,14 +131,21 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                 setIsSuccess(true);
                 // 1초 뒤 부모(Marketplace)로 성공 이벤트 전달 → OWNED 상태 업데이트 + 페이지 이동
                 setTimeout(async () => {
-                    await onSuccess({
-                        ...plan,
-                        paymentId: response.paymentId,    // 포트원 결제 ID
-                        orderId,                           // 내부 주문 ID
-                        paidAmount: amount,
-                        paidCurrency: currency,
-                    });
-                }, 1200);
+                    try {
+                        await onSuccess({
+                            ...plan,
+                            paymentId: response.paymentId,    // 포트원 결제 ID
+                            orderId,                           // 내부 주문 ID
+                            paidAmount: amount,
+                            paidCurrency: currency,
+                        });
+                    } catch (callbackErr) {
+                        console.error('onSuccess callback failed:', callbackErr);
+                        setErrorMsg('데이터 처리 중 오류가 발생했습니다.');
+                        setIsProcessing(false);
+                        setIsSuccess(false);
+                    }
+                }, 1000);
             } else {
                 setErrorMsg('결제 응답이 올바르지 않습니다. 고객센터에 문의해주세요.');
                 setIsProcessing(false);

@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeft, MapPin, Star, Calendar, Clock, Compass, Tag, BedDouble, Plane } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { motion } from 'framer-motion';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 const TemplateDetail = () => {
     const { id } = useParams();
@@ -12,21 +14,47 @@ const TemplateDetail = () => {
     const { t } = useTranslation();
 
     const [template, setTemplate] = useState(null);
+    const [isFetching, setIsFetching] = useState(false);
 
     useEffect(() => {
-        if (location.state && location.state.template) {
-            setTemplate(location.state.template);
-        } else {
-            // Ideally fetch from Firestore by ID if not in state
-            // For now, redirect back to marketplace or mypage
-            navigate('/mypage');
-        }
-    }, [location.state, navigate]);
+        const loadTemplate = async () => {
+            if (location.state && location.state.template) {
+                setTemplate(location.state.template);
+            } else if (id) {
+                // state가 없는 경우 Firestore에서 직접 조회 (새로고침 대응)
+                setIsFetching(true);
+                try {
+                    // 1. Marketplace_Templates에서 조회
+                    const docRef = doc(db, "Marketplace_Templates", id);
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        setTemplate({ id: docSnap.id, ...docSnap.data() });
+                    } else {
+                        // 2. 만약 Marketplace에 없다면 My_Library 등 다른 곳을 찾아야 할 수도 있음
+                        // (여기서는 일단 마켓플레이스 데이터가 메인이라고 가정)
+                        console.warn("No such template in Marketplace!");
+                        navigate('/marketplace');
+                    }
+                } catch (error) {
+                    console.error("Error fetching template from DB:", error);
+                    navigate('/marketplace');
+                } finally {
+                    setIsFetching(false);
+                }
+            } else {
+                navigate('/marketplace');
+            }
+        };
 
-    if (!template) {
+        loadTemplate();
+    }, [id, location.state, navigate]);
+
+    if (isFetching || !template) {
         return (
-            <div className="min-h-screen bg-[#111111] flex items-center justify-center">
+            <div className="min-h-screen bg-[#111111] flex flex-col items-center justify-center gap-4">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FF8A71]"></div>
+                <p className="text-slate-400 animate-pulse">템플릿 정보를 불러오는 중입니다...</p>
             </div>
         );
     }

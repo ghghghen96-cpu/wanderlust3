@@ -245,16 +245,25 @@ const Marketplace = () => {
     const handlePurchaseSuccess = async (plan) => {
         if (!user) return;
         try {
+            // 결제 성공 기록 (Firebase)
             await recordPurchase(user.uid, plan);
+            
             // 타입 일치를 위해 모두 문자열로 저장
             setPurchasedIds(prev => [...prev, String(plan.id)]);
+            
+            // 모달을 성공적으로 닫고 상세 페이지로 이동
             setIsModalOpen(false);
             
-            // 바로 결제한 템플릿 상세 페이지로 이동
-            navigate(`/template/${plan.id}`, { state: { template: plan } });
+            // 데이터 무결성을 위해 plan 객체를 다시 한번 체크하여 navigate
+            const templateData = { ...plan };
+            navigate(`/template/${plan.id}`, { 
+                state: { template: templateData },
+                replace: true // 뒤로 가기 시 결제 페이지가 아닌 목록으로 오도록 replace 사용 고려
+            });
         } catch (error) {
-            console.error("Purchase failed", error);
+            console.error("Purchase recording failed", error);
             alert(t('marketplace.purchaseError'));
+            setIsModalOpen(false); // 에러 발생 시에도 일단 모달은 닫음
         }
     };
 
