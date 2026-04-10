@@ -335,9 +335,27 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
 
     // 등록 핸들러
     const handlePublish = async () => {
-        if (!price || !description) return;
+        console.log("--- Publish Process Started ---");
+        
+        // 1. 유효성 검사 (Validation)
+        if (!price) {
+            setPublishError(t('itinerary.publishErrorNoPrice') || 'Please enter a price.');
+            return;
+        }
+        if (!description) {
+            setPublishError(t('itinerary.publishErrorNoDesc') || 'Please enter a description.');
+            return;
+        }
+        if (thumbnailCandidates.length === 0 || selectedThumb < 0 || !thumbnailCandidates[selectedThumb]) {
+            console.warn("Thumbnail validation failed:", { len: thumbnailCandidates.length, idx: selectedThumb });
+            setPublishError(t('itinerary.publishErrorNoThumb') || 'Please select a thumbnail image.');
+            return;
+        }
+
+        console.log("Validation passed. Data assembly starting...");
         setPublishing(true);
         setPublishError('');
+        
         try {
             // 1. 기본 메타데이터 구성 (순환 참조 및 undefined 방지)
             const templateBase = {
@@ -361,7 +379,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 vibe: String(data.vibe || ''),
             };
 
-            // 2. 일정 데이터 직렬화 (Nested objects)
+            // 2. 일정 데이터 직렬화
             const days = itinerary.map(day => ({
                 dayNum: parseInt(day.dayNum),
                 date: day.date instanceof Date ? day.date.toISOString() : String(day.date),
@@ -396,7 +414,6 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 checkout: String(h.checkout || '')
             }));
 
-            // 최종 데이터 조립
             const finalData = {
                 ...templateBase,
                 days,
@@ -404,26 +421,35 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 hotels: hotelData
             };
 
-            console.log('Publishing template data:', finalData);
+            console.log("Final data assembled successfully:", finalData);
             
-            await publishToMarketplace(finalData);
+            // 4. API 호출
+            console.log("Calling publishToMarketplace API...");
+            const docId = await publishToMarketplace(finalData);
+            console.log("Publish success! Received docId:", docId);
+            
             setSuccess(true);
 
-            // 카운트다운 후 마켓플레이스로 자동 이동
+            // 5. 카운트다운 후 리다이렉트
             let count = 3;
             setCountdown(count);
             const timer = setInterval(() => {
                 count -= 1;
+                console.log(`Redirecting to marketplace in ${count}s...`);
                 if (count >= 0) setCountdown(count);
                 if (count <= 0) {
                     clearInterval(timer);
                     navigate('/marketplace');
                 }
             }, 1000);
+            
         } catch (err) {
-            console.error('Publish error details:', err);
+            console.error('CRITICAL: Publish process failed at some step:', err);
             setPublishError(err.message || 'Failed to publish. Connection error or invalid data.');
+            // 사용자에게 즉각 알림
+            alert(`Error: ${err.message || 'Unknown error occurred during publishing'}`);
         } finally {
+            console.log("Publishing state reset to false.");
             setPublishing(false);
         }
     };

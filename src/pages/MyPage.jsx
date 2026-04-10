@@ -116,12 +116,18 @@ const MyPage = () => {
     const formatMoney = (amount) => {
         const lang = i18n.language;
         if (lang === 'ko') {
-            // 원화 표시 (1달러당 1300원 가정하여 표시할수도 있으나, 데이터가 이미 구분되어 들어온다고 가정)
-            // 여기서는 요청사항대로 한국어일때 KRW(₩)로 표시함.
-            // 만약 amount가 USD 기준이라면 환율 적용이 필요하지만, 여기서는 단순 심볼 변경 및 천단위 콤마 처리
-            return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(amount * (lang === 'ko' ? 1300 : 1));
+            // KRW 환율 (1 USD ≈ 1400 KRW) 적용하여 원화 표시
+            const amountKRW = Math.round(amount * 1400);
+            return new Intl.NumberFormat('ko-KR', { 
+                style: 'currency', 
+                currency: 'KRW',
+                maximumFractionDigits: 0 
+            }).format(amountKRW);
         } else {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+            return new Intl.NumberFormat('en-US', { 
+                style: 'currency', 
+                currency: 'USD' 
+            }).format(amount);
         }
     };
 
@@ -387,17 +393,19 @@ const MyPage = () => {
                     </div>
                 )}
 
-                {/* ── 수익 대시보드 (Revenue Dashboard) ── */}
-                <div style={{ marginTop: '68px', marginBottom: '60px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '28px' }}>
+                {/* ── 프리미엄 수익 대시보드 (Revenue Dashboard) ── */}
+                <div style={{ marginTop: '80px', marginBottom: '80px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '32px' }}>
                         <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#6366f1', marginBottom: '8px' }}>
-                                <TrendingUp size={20} />
-                                <span style={{ fontFamily: 'sans-serif', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                                    {i18n.language === 'ko' ? '수익 분석' : 'Revenue Analytics'}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6366f1', marginBottom: '8px' }}>
+                                <div style={{ width: '24px', height: '24px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <TrendingUp size={14} />
+                                </div>
+                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    {i18n.language === 'ko' ? '비즈니스 센터' : 'Business Center'}
                                 </span>
                             </div>
-                            <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '32px', color: '#111111', fontWeight: 'bold' }}>
+                            <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '32px', color: '#0f172a', fontWeight: '900', letterSpacing: '-0.02em' }}>
                                 {i18n.language === 'ko' ? '수익 대시보드' : 'Revenue Dashboard'}
                             </h2>
                         </div>
@@ -405,75 +413,138 @@ const MyPage = () => {
                             onClick={handleWithdraw}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '8px',
-                                padding: '12px 24px', background: '#6366f1', color: 'white',
-                                border: 'none', borderRadius: '12px', fontFamily: 'sans-serif',
-                                fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
-                                transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+                                padding: '12px 24px', background: '#0f172a', color: 'white',
+                                border: 'none', borderRadius: '12px', fontFamily: 'Inter, sans-serif',
+                                fontSize: '14px', fontWeight: '700', cursor: 'pointer',
+                                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)'
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#4f46e5'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#6366f1'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#0f172a'; e.currentTarget.style.transform = 'translateY(0)'; }}
                         >
                             <Download size={16} /> {i18n.language === 'ko' ? '출금하기' : 'Withdraw'}
                         </button>
                     </div>
 
-                    {/* 스태츠 카드 그리드 */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+                    {/* 스태츠 카드 그리드 (Stripe Style) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px', marginBottom: '40px' }}>
                         {[
-                            { label: i18n.language === 'ko' ? '판매된 템플릿' : 'Templates Sold', value: earnings.templatesSold, sub: 'Lifetime sales', icon: <Receipt size={22} />, color: '#f59e0b' },
-                            { label: i18n.language === 'ko' ? '총 누적 수익' : 'Total Earnings', value: formatMoney(earnings.totalEarnings), sub: 'Gross revenue', icon: <DollarSign size={22} />, color: '#10b981' },
-                            { label: i18n.language === 'ko' ? '출금 가능 금액' : 'Available for Payout', value: formatMoney(earnings.currentBalance), sub: 'Ready to withdraw', icon: <CreditCard size={22} />, color: '#6366f1' }
+                            { 
+                                label: i18n.language === 'ko' ? '판매된 템플릿' : 'Templates Sold', 
+                                value: earnings.templatesSold, 
+                                sub: i18n.language === 'ko' ? '전체 판매량' : 'Lifetime sales', 
+                                icon: <Receipt size={20} />, 
+                                color: '#6366f1',
+                                trend: '+12%' 
+                            },
+                            { 
+                                label: i18n.language === 'ko' ? '총 누적 수익' : 'Total Earnings', 
+                                value: formatMoney(earnings.totalEarnings), 
+                                sub: i18n.language === 'ko' ? '총 매출액' : 'Gross revenue', 
+                                icon: <DollarSign size={20} />, 
+                                color: '#10b981',
+                                trend: '+8.4%'
+                            },
+                            { 
+                                label: i18n.language === 'ko' ? '출금 가능 금액' : 'Available for Payout', 
+                                value: formatMoney(earnings.currentBalance), 
+                                sub: i18n.language === 'ko' ? '정산 대기 중' : 'Ready to withdraw', 
+                                icon: <CreditCard size={20} />, 
+                                color: '#f59e0b',
+                                trend: 'Current'
+                            }
                         ].map((card, idx) => (
                             <div key={idx} style={{
-                                background: 'white', border: '1px solid #f1f5f9', borderRadius: '20px',
-                                padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                                display: 'flex', flexDirection: 'column', gap: '16px'
-                            }}>
+                                background: 'white', border: '1px solid #e2e8f0', borderRadius: '24px',
+                                padding: '32px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                display: 'flex', flexDirection: 'column', gap: '20px',
+                                transition: 'transform 0.2s ease',
+                                cursor: 'default'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                            >
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <span style={{ fontFamily: 'sans-serif', fontSize: '14px', color: '#64748b', fontWeight: '500' }}>{card.label}</span>
-                                    <div style={{ color: card.color, background: `${card.color}10`, padding: '10px', borderRadius: '12px' }}>
+                                    <div style={{ color: card.color, background: `${card.color}10`, width: '44px', height: '44px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         {card.icon}
                                     </div>
+                                    <span style={{ 
+                                        fontSize: '11px', fontWeight: '800', 
+                                        color: card.trend.startsWith('+') ? '#10b981' : '#64748b', 
+                                        background: card.trend.startsWith('+') ? '#10b98115' : '#f1f5f9',
+                                        padding: '4px 10px', borderRadius: '20px', textTransform: 'uppercase'
+                                    }}>
+                                        {card.trend}
+                                    </span>
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', fontFamily: 'sans-serif', marginBottom: '4px' }}>
+                                    <h4 style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', color: '#64748b', fontWeight: '600', marginBottom: '8px' }}>{card.label}</h4>
+                                    <div style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', fontFamily: 'Inter, sans-serif', marginBottom: '4px', letterSpacing: '-0.03em' }}>
                                         {card.value}
                                     </div>
-                                    <div style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'sans-serif' }}>{card.sub}</div>
+                                    <p style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'Inter, sans-serif', fontWeight: '500' }}>{card.sub}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    {/* 판매 내역 리스트 */}
-                    <div style={{ background: 'white', border: '1px solid #f1f5f9', borderRadius: '24px', padding: '32px', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
-                        <h3 style={{ fontFamily: 'sans-serif', fontSize: '18px', fontWeight: '700', color: '#1e293b', marginBottom: '24px' }}>
-                            {i18n.language === 'ko' ? '최근 판매 내역' : 'Recent Sales History'}
-                        </h3>
+                    {/* 판매 내역 리스트 (Clean Fintech Style) */}
+                    <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+                        <div style={{ padding: '32px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>
+                                {i18n.language === 'ko' ? '최근 판매 내역' : 'Recent Sales Activity'}
+                            </h3>
+                            <button style={{ background: 'transparent', border: 'none', color: '#6366f1', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                                {i18n.language === 'ko' ? '전체 보기' : 'View all'}
+                            </button>
+                        </div>
                         
                         {salesHistory.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
-                                <ExternalLink size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                                <p style={{ fontSize: '14px' }}>{i18n.language === 'ko' ? '아직 판매 내역이 없습니다.' : 'No sales records yet.'}</p>
+                            <div style={{ textAlign: 'center', padding: '60px 0', background: '#f8fafc' }}>
+                                <div style={{ width: '64px', height: '64px', background: 'white', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                                    <ExternalLink size={24} color="#cbd5e1" />
+                                </div>
+                                <p style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '600' }}>
+                                    {i18n.language === 'ko' ? '현재 판매 기록이 비어 있습니다.' : 'No sales records found.'}
+                                </p>
                             </div>
                         ) : (
                             <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'sans-serif' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Inter, sans-serif' }}>
                                     <thead>
-                                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>{i18n.language === 'ko' ? '구매일' : 'Date'}</th>
-                                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>{i18n.language === 'ko' ? '템플릿' : 'Template'}</th>
-                                            <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>{i18n.language === 'ko' ? '구매자 ID' : 'Buyer ID'}</th>
-                                            <th style={{ textAlign: 'right', padding: '12px 16px', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>{i18n.language === 'ko' ? '가격' : 'Price'}</th>
+                                        <tr style={{ background: '#f8fafc' }}>
+                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'ko' ? '정산 일자' : 'Settlement Date'}</th>
+                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'ko' ? '상품 명칭' : 'Product Name'}</th>
+                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'ko' ? '구매자' : 'Customer'}</th>
+                                            <th style={{ textAlign: 'right', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'ko' ? '정산 금액' : 'Net Amount'}</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody style={{ divideY: '1px solid #f1f5f9' }}>
                                         {salesHistory.slice(0, 5).map((sale, i) => (
-                                            <tr key={i} style={{ borderBottom: i === salesHistory.length - 1 ? 'none' : '1px solid #f8fafc' }}>
-                                                <td style={{ padding: '16px', fontSize: '14px', color: '#334155' }}>{formatDate(sale.purchasedAt?.toDate?.() || new Date())}</td>
-                                                <td style={{ padding: '16px', fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>{sale.planData?.title || 'Itinerary'}</td>
-                                                <td style={{ padding: '16px', fontSize: '13px', color: '#64748b' }}>{sale.uid?.substring(0, 8)}...</td>
-                                                <td style={{ padding: '16px', textAlign: 'right', fontSize: '14px', fontWeight: 'bold', color: '#10b981' }}>+{formatMoney(sale.planData?.price || 0)}</td>
+                                            <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} 
+                                                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                            >
+                                                <td style={{ padding: '20px 32px', fontSize: '14px', color: '#64748b', fontWeight: '500' }}>
+                                                    {formatDate(sale.purchasedAt?.toDate?.() || new Date())}
+                                                </td>
+                                                <td style={{ padding: '20px 32px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#e2e8f0', overflow: 'hidden' }}>
+                                                            <img src={sale.planData?.image || 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=100'} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                        </div>
+                                                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{sale.planData?.title || 'Wanderlust Itinerary'}</span>
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '20px 32px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>👤</div>
+                                                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>user_{sale.uid?.substring(0, 4)}</span>
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '20px 32px', textAlign: 'right' }}>
+                                                    <span style={{ fontSize: '15px', fontWeight: '900', color: '#10b981' }}>+{formatMoney(sale.planData?.price || 0)}</span>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>

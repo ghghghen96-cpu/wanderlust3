@@ -134,21 +134,25 @@ const Marketplace = () => {
             setPurchasedIds(prev => [...prev, String(targetId)]);
             
             // 2. DB 기록 진행 (완료 대기)
-            const docId = await recordPurchase(user.uid, purchasedPlan);
-            console.log("DB Record success, docId:", docId);
+            await recordPurchase(user.uid, purchasedPlan);
+            console.log("DB Record success");
 
-            // 3. 자동 이동 (2초 뒤) - 성공 메시지 확인 시간 부여
-            setTimeout(() => {
+            // 3. 성공 알림 및 리다이렉트
+            // 2.5초 후 자동 이동 (사용자가 버튼을 안 눌러도 이동)
+            const redirectTimer = setTimeout(() => {
                 setIsModalOpen(false);
-                // TemplateDetail은 템플릿의 고유 ID를 사용하므로 targetId로 이동
                 navigate(`/template/${targetId}`, { 
                     state: { template: purchasedPlan },
                     replace: true 
                 });
-                processingRef.current = false;
-            }, 2000);
+            }, 2500);
+
+            // 성공 시 onClose 핸들러를 임시로 교체하여 수동 클릭 시 즉시 이동하게 함
+            // (이 로직은 handlePurchaseSuccess 내부에서만 유효하게 처리하거나, Modal props를 통해 주입)
         } catch (err) {
             console.error('Error in handlePurchaseSuccess:', err);
+            alert(t('payment.errorOccurred') || "An error occurred during purchase processing.");
+        } finally {
             processingRef.current = false;
         }
     };
@@ -387,13 +391,24 @@ const Marketplace = () => {
                 </div>
             </div>
 
-            {isModalOpen && selectedPlan && (
-                <PaymentModal 
-                    isOpen={isModalOpen} 
-                    onClose={() => setIsModalOpen(false)} 
+            {/* 결제 모달 */}
+            {selectedPlan && (
+                <PaymentModal
+                    isOpen={isModalOpen}
+                    onClose={() => {
+                        // 만약 결제가 성공한 상태에서 닫기를 누르면(버튼 클릭 포함), 리다이렉트 타이머를 기다리지 않고 즉시 이동
+                        const isPaid = purchasedIds.includes(String(selectedPlan.id));
+                        if (isPaid) {
+                            navigate(`/template/${selectedPlan.id}`, { 
+                                state: { template: selectedPlan },
+                                replace: true 
+                            });
+                        }
+                        setIsModalOpen(false);
+                    }}
                     plan={selectedPlan}
-                    onSuccess={handlePurchaseSuccess}
                     user={user}
+                    onSuccess={handlePurchaseSuccess}
                 />
             )}
         </div>

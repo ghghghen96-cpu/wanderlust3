@@ -38,7 +38,19 @@ export const logout = async () => {
 
 // 마켓플레이스에 일정 템플릿 등록
 export const publishToMarketplace = async (templateData) => {
+    console.log("[Firebase] Starting publishToMarketplace with data:", templateData);
+    
     try {
+        // 필수 필드 체크 (Backend-side validation)
+        const requiredFields = ['creatorUid', 'title', 'price', 'thumbnail', 'days'];
+        for (const field of requiredFields) {
+            if (!templateData[field]) {
+                const errMsg = `Missing required field: ${field}`;
+                console.error("[Firebase] Validation failed:", errMsg);
+                throw new Error(errMsg);
+            }
+        }
+
         const docRef = await addDoc(collection(db, "Marketplace_Templates"), {
             ...templateData,
             createdAt: serverTimestamp(),
@@ -48,9 +60,11 @@ export const publishToMarketplace = async (templateData) => {
             rating: 0,
             purchaseCount: 0,
         });
+
+        console.log("[Firebase] Template successfully added. ID:", docRef.id);
         return docRef.id;
     } catch (error) {
-        console.error("Error publishing to marketplace:", error);
+        console.error("[Firebase] Critical error in publishToMarketplace:", error);
         throw error;
     }
 };

@@ -65,6 +65,16 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
 
     if (!isOpen) return null;
 
+    // ─── 리다이렉션 로직 ──────────────────────────────────────────────────────────
+    React.useEffect(() => {
+        if (isSuccess) {
+            const timer = setTimeout(() => {
+                onClose();
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [isSuccess, onClose]);
+
     const handlePay = async () => {
         // ─── 디버깅: 어떤 키가 누락되었는지 콘솔에서 확인 가능 ─────────────────────
         console.log('[PortOne Debug] Store ID:', STORE_ID ? 'OK' : 'MISSING');
