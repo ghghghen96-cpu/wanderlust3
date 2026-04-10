@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Navbar from '../components/Navbar';
@@ -8,129 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { auth, getUserPurchases, recordPurchase, getMarketplaceTemplates } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
-// Mock Data
-const MOCK_TEMPLATES = [
-    {
-        id: 1,
-        title: "Santorini 4 Days Romance & Wine",
-        creator: "@wanderlust_sarah",
-        avatar: "https://i.pravatar.cc/150?u=sarah",
-        rating: 4.9,
-        reviews: 128,
-        price: 9.99,
-        region: "Europe",
-        budget: "Luxury",
-        category: "Couple",
-        image: "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?q=80&w=800&auto=format&fit=crop",
-        tags: ["Best Seller", "Couple"],
-        itinerary: [
-            { dayNum: 1, theme: "Arrival & Sunset Wine", items: [{ name: "Oia Sunset View", desc: "Enjoy the world-famous sunset.", time: "18:00", type: "Sightseeing" }] },
-            { dayNum: 2, theme: "Volcano Tour", items: [{ name: "Nea Kameni", desc: "Hike up the active volcano.", time: "10:00", type: "Activity" }] }
-        ]
-    },
-    {
-        id: 2,
-        title: "Tokyo Local Food & Neon Lights",
-        creator: "@foodie_jinny",
-        avatar: "https://i.pravatar.cc/150?u=jinny",
-        rating: 4.8,
-        reviews: 94,
-        price: 4.99,
-        region: "Asia",
-        budget: "Moderate",
-        category: "Solo",
-        image: "https://images.unsplash.com/photo-1536098561742-ca998e48cbcc?q=80&w=800&auto=format&fit=crop",
-        tags: ["Foodie"],
-        itinerary: [
-            { dayNum: 1, theme: "Neon Lights", items: [{ name: "Shinjuku Station", desc: "Explore the bustling station area.", time: "19:00", type: "Sightseeing" }] },
-            { dayNum: 2, theme: "Local Food", items: [{ name: "Tsukiji Outer Market", desc: "Fresh sushi and street food.", time: "08:00", type: "Dining" }] }
-        ]
-    },
-    {
-        id: 3,
-        title: "Bali Hidden Gems & Ocean Villas",
-        creator: "@bali_vibes",
-        avatar: "https://i.pravatar.cc/150?u=bali",
-        rating: 4.7,
-        reviews: 210,
-        price: 12.50,
-        region: "Asia",
-        budget: "Budget",
-        category: "Family",
-        image: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=800&auto=format&fit=crop",
-        tags: ["Family", "Hot"]
-    },
-    {
-        id: 4,
-        title: "Swiss Alps Solo Hiking Routes",
-        creator: "@mountain_hiker",
-        avatar: "https://i.pravatar.cc/150?u=hiker",
-        rating: 5.0,
-        reviews: 45,
-        price: 15.00,
-        region: "Europe",
-        budget: "Luxury",
-        category: "Solo",
-        image: "https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?q=80&w=800&auto=format&fit=crop",
-        tags: ["Adventure"]
-    },
-    {
-        id: 5,
-        title: "NYC Weekend Architecture Getaway",
-        creator: "@urban_traveler",
-        avatar: "https://i.pravatar.cc/150?u=urban",
-        rating: 4.6,
-        reviews: 312,
-        price: 7.99,
-        region: "Americas",
-        budget: "Moderate",
-        category: "Couple",
-        image: "https://images.unsplash.com/photo-1490644658840-3f2e3f8c5625?q=80&w=800&auto=format&fit=crop",
-        tags: ["City"]
-    },
-    {
-        id: 6,
-        title: "Costa Rica Deep Nature Retreat",
-        creator: "@eco_tours",
-        avatar: "https://i.pravatar.cc/150?u=eco",
-        rating: 4.9,
-        reviews: 87,
-        price: 11.99,
-        region: "Americas",
-        budget: "Moderate",
-        category: "Family",
-        image: "https://images.unsplash.com/photo-1518182170546-076616fdcd87?q=80&w=800&auto=format&fit=crop",
-        tags: ["Nature", "Eco"]
-    },
-    {
-        id: 7,
-        title: "Kyoto Autumn Leaves & Temples",
-        creator: "@zen_master",
-        avatar: "https://i.pravatar.cc/150?u=zen",
-        rating: 4.9,
-        reviews: 145,
-        price: 6.50,
-        region: "Asia",
-        budget: "Moderate",
-        category: "Solo",
-        image: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=800&auto=format&fit=crop",
-        tags: ["Culture"]
-    },
-    {
-        id: 8,
-        title: "Maldives Honeymoon Overwater Cabin",
-        creator: "@luxury_escapes",
-        avatar: "https://i.pravatar.cc/150?u=lux",
-        rating: 5.0,
-        reviews: 212,
-        price: 29.99,
-        region: "Asia",
-        budget: "Luxury",
-        category: "Couple",
-        image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop",
-        tags: ["Honeymoon", "Best Seller"]
-    }
-];
+import { MOCK_TEMPLATES } from '../data/marketplaceData';
 
 const SkeletonCard = () => (
     <div className="bg-[#1E293B] rounded-2xl overflow-hidden border border-[#334155] flex flex-col h-[380px] animate-pulse">
@@ -162,6 +40,7 @@ const Marketplace = () => {
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [purchasedIds, setPurchasedIds] = useState([]);
+    const processingRef = useRef(false);
     
     // User & Auth State
     const [user, setUser] = useState(null);
@@ -243,27 +122,39 @@ const Marketplace = () => {
     };
 
     const handlePurchaseSuccess = async (plan) => {
-        if (!user) return;
+        if (!user || processingRef.current) return;
+        processingRef.current = true;
+        
+        const targetId = plan.id;
+        console.log("Processing purchase success for:", targetId);
+        
         try {
             // 결제 성공 기록 (Firebase)
+            // 비동기로 실행하되, 사용자에게는 즉시 피드백을 주기 위해 navigate를 우선시하거나 병렬 처리 고려
+            // 하지만 기록 누락 방지를 위해 await를 유지하되 에러 처리를 확실히 함
             await recordPurchase(user.uid, plan);
             
-            // 타입 일치를 위해 모두 문자열로 저장
-            setPurchasedIds(prev => [...prev, String(plan.id)]);
-            
-            // 모달을 성공적으로 닫고 상세 페이지로 이동
+            setPurchasedIds(prev => [...prev, String(targetId)]);
             setIsModalOpen(false);
             
-            // 데이터 무결성을 위해 plan 객체를 다시 한번 체크하여 navigate
-            const templateData = { ...plan };
-            navigate(`/template/${plan.id}`, { 
-                state: { template: templateData },
-                replace: true // 뒤로 가기 시 결제 페이지가 아닌 목록으로 오도록 replace 사용 고려
+            // 상세 페이지로 이동
+            navigate(`/template/${targetId}`, { 
+                state: { template: plan },
+                replace: true 
             });
         } catch (error) {
-            console.error("Purchase recording failed", error);
-            alert(t('marketplace.purchaseError'));
-            setIsModalOpen(false); // 에러 발생 시에도 일단 모달은 닫음
+            console.error('Error recording purchase:', error);
+            // 기록 실패하더라도 사용자는 결제를 완료했으므로 일단 이동시켜줌 (나중에 CS 대응 가능하도록 로그는 남김)
+            setIsModalOpen(false);
+            navigate(`/template/${targetId}`, { 
+                state: { template: plan },
+                replace: true 
+            });
+        } finally {
+            // 페이지 이동 후에도 잠깐 동안은 중복 호출 방지
+            setTimeout(() => {
+                processingRef.current = false;
+            }, 2000);
         }
     };
 

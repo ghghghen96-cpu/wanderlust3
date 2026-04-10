@@ -132,18 +132,18 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                 // 1초 뒤 부모(Marketplace)로 성공 이벤트 전달 → OWNED 상태 업데이트 + 페이지 이동
                 setTimeout(async () => {
                     try {
-                        await onSuccess({
+                        // onSuccess가 실행되는 동안에도 사용자가 수동으로 버튼을 누를 수 있도록 함
+                        onSuccess({
                             ...plan,
-                            paymentId: response.paymentId,    // 포트원 결제 ID
-                            orderId,                           // 내부 주문 ID
+                            paymentId: response.paymentId,
+                            orderId,
                             paidAmount: amount,
                             paidCurrency: currency,
                         });
                     } catch (callbackErr) {
                         console.error('onSuccess callback failed:', callbackErr);
-                        setErrorMsg('데이터 처리 중 오류가 발생했습니다.');
-                        setIsProcessing(false);
-                        setIsSuccess(false);
+                        // 에러가 나더라도 성공 화면은 유지하되 메시지만 변경
+                        setErrorMsg('데이터 기록 중 지연이 발생했습니다. 버튼을 눌러 이동해주세요.');
                     }
                 }, 1000);
             } else {
@@ -201,8 +201,16 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                                 <CheckCircle size={48} />
                             </div>
                             <h3 className="text-2xl font-serif mb-2 text-white">결제 완료!</h3>
-                            <p className="text-slate-400 text-sm">일정이 내 라이브러리에 추가되었습니다.</p>
-                            <p className="text-xs text-slate-500 mt-2">잠시 후 자동으로 이동됩니다...</p>
+                            <p className="text-slate-400 text-sm mb-6">일정이 내 라이브러리에 추가되었습니다.</p>
+                            
+                            <button
+                                onClick={() => onSuccess(plan)}
+                                className="px-8 py-3 bg-gradient-to-r from-[#FF8A71] to-[#FF6B9B] text-white font-bold rounded-xl shadow-lg hover:shadow-[#FF8A71]/20 transition-all active:scale-95 cursor-pointer"
+                            >
+                                상세 일정 확인하기
+                            </button>
+                            
+                            <p className="text-xs text-slate-500 mt-6 animate-pulse">잠시 후 자동으로 이동됩니다...</p>
                         </motion.div>
                     ) : (
                         /* ─── 결제 폼 ───────────────────────────────────── */

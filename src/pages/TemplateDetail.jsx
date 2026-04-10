@@ -6,6 +6,7 @@ import Navbar from '../components/Navbar';
 import { motion } from 'framer-motion';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { MOCK_TEMPLATES } from '../data/marketplaceData';
 
 const TemplateDetail = () => {
     const { id } = useParams();
@@ -31,14 +32,24 @@ const TemplateDetail = () => {
                     if (docSnap.exists()) {
                         setTemplate({ id: docSnap.id, ...docSnap.data() });
                     } else {
-                        // 2. 만약 Marketplace에 없다면 My_Library 등 다른 곳을 찾아야 할 수도 있음
-                        // (여기서는 일단 마켓플레이스 데이터가 메인이라고 가정)
-                        console.warn("No such template in Marketplace!");
-                        navigate('/marketplace');
+                        // 2. Firestore에 없다면 로컬 MOCK_TEMPLATES에서 검색 (테스트용 템플릿 대응)
+                        const mockItem = MOCK_TEMPLATES.find(t => t.id.toString() === id.toString());
+                        if (mockItem) {
+                            setTemplate(mockItem);
+                        } else {
+                            console.warn("No such template in Marketplace or MOCK data!");
+                            navigate('/marketplace');
+                        }
                     }
                 } catch (error) {
-                    console.error("Error fetching template from DB:", error);
-                    navigate('/marketplace');
+                    console.error("Error fetching template:", error);
+                    // 에러 발생 시에도 일단 목업에서 찾아봄
+                    const mockItem = MOCK_TEMPLATES.find(t => t.id.toString() === id.toString());
+                    if (mockItem) {
+                        setTemplate(mockItem);
+                    } else {
+                        navigate('/marketplace');
+                    }
                 } finally {
                     setIsFetching(false);
                 }
