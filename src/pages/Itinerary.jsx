@@ -108,7 +108,7 @@ const getDayMapUrl = (items, dest) => {
 
 // ─── ACTIVITY CARD ────────────────────────────────────────────────────────────
 const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [editing, setEditing] = useState(activity.isNew || false);
     const [ed, setEd] = useState(activity);
     const [timeEdit, setTimeEdit] = useState(false);
@@ -232,7 +232,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
 
 // ─── AI CHAT MODAL ────────────────────────────────────────────────────────────
 const AIChatModal = ({ isOpen, onClose, destination }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [msgs, setMsgs] = useState([{ role: 'assistant', text: t('itinerary.chatBotGreeting', { destination }) }]);
     const [inp, setInp] = useState('');
     const [loading, setLoading] = useState(false);
@@ -326,7 +326,7 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
 
 // ─── PUBLISH MODAL ────────────────────────────────────────────────────────────
 const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const [price, setPrice] = useState('');
     const [description, setDescription] = useState('');

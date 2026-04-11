@@ -31,7 +31,7 @@ const getDays = (start, end, t) => {
 
 // ─── 마이페이지 ────────────────────────────────────────────────────
 const MyPage = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [user, setUser] = useState(null);
     const [history, setHistory] = useState([]);
     const [purchases, setPurchases] = useState([]);
