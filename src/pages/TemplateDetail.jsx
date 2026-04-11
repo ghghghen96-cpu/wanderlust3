@@ -128,7 +128,7 @@ const TemplateDetail = () => {
                         <h2 className="text-2xl font-serif italic text-[#1c1917]">{t('itinerary.journeyOverview')}</h2>
                     </div>
                     
-                    {template.itinerary && template.itinerary.length > 0 ? (
+                    {template.itinerary && template.itinerary.length > 0 && (
                         <div className="space-y-12">
                             {template.itinerary.map((dayPlan, index) => (
                                 <div key={index} className="relative">

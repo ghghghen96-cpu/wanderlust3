@@ -25,5 +25,6 @@ export const DESTINATION_DATA = {
     ...destChunk10,
     ...destChunk11,
     ...destChunk12,
-    ...destChunk13
+    ...destChunk13,
+    'default': destChunk1['south korea']
 };

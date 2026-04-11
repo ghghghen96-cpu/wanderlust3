@@ -492,6 +492,7 @@ const resources = {
         categoryPlaceholder: "-- Category --",
         copyright: "&copy; 2026 WanderLust AI. Crafted with Soul."
       },
+      marketplace: {
         theme: "Theme",
         budget: "Budget",
         owned: "Owned",

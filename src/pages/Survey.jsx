@@ -303,36 +303,36 @@ const Survey = () => {
                                 {/* 목적지 목록 - 항상 표시, 검색 시 필터링 */}
                                 {(() => {
                                     const ALL_DESTINATIONS = [
-                                        { countryKey: 'japan', cityKey: 'tokyo', emoji: '🇯🇵' },
-                                        { countryKey: 'japan', cityKey: 'kyoto', emoji: '🇯🇵' },
-                                        { countryKey: 'japan', cityKey: 'osaka', emoji: '🇯🇵' },
-                                        { countryKey: 'korea', cityKey: 'seoul', emoji: '🇰🇷' },
-                                        { countryKey: 'korea', cityKey: 'busan', emoji: '🇰🇷' },
-                                        { countryKey: 'france', cityKey: 'paris', emoji: '🇫🇷' },
-                                        { countryKey: 'france', cityKey: 'nice', emoji: '🇫🇷' },
-                                        { countryKey: 'italy', cityKey: 'rome', emoji: '🇮🇹' },
-                                        { countryKey: 'italy', cityKey: 'florence', emoji: '🇮🇹' },
-                                        { countryKey: 'spain', cityKey: 'barcelona', emoji: '🇪🇸' },
-                                        { countryKey: 'greece', cityKey: 'santorini', emoji: '🇬🇷' },
-                                        { countryKey: 'thailand', cityKey: 'bangkok', emoji: '🇹🇭' },
-                                        { countryKey: 'thailand', cityKey: 'phuket', emoji: '🇹🇭' },
-                                        { countryKey: 'indonesia', cityKey: 'bali', emoji: '🇮🇩' },
-                                        { countryKey: 'vietnam', cityKey: 'hanoi', emoji: '🇻🇳' },
-                                        { countryKey: 'vietnam', cityKey: 'hochiminh', emoji: '🇻🇳' },
-                                        { countryKey: 'singapore', cityKey: 'singapore', emoji: '🇸🇬' },
-                                        { countryKey: 'usa', cityKey: 'newyork', emoji: '🇺🇸' },
-                                        { countryKey: 'usa', cityKey: 'losangeles', emoji: '🇺🇸' },
-                                        { countryKey: 'uae', cityKey: 'dubai', emoji: '🇦🇪' },
-                                        { countryKey: 'switzerland', cityKey: 'interlaken', emoji: '🇨🇭' },
-                                        { countryKey: 'newzealand', cityKey: 'queenstown', emoji: '🇳🇿' },
-                                        { countryKey: 'australia', cityKey: 'sydney', emoji: '🇦🇺' },
-                                        { countryKey: 'uk', cityKey: 'london', emoji: '🇬🇧' },
-                                        { countryKey: 'china', cityKey: 'shanghai', emoji: '🇨🇳' },
-                                        { countryKey: 'taiwan', cityKey: 'taipei', emoji: '🇹🇼' },
-                                        { countryKey: 'canada', cityKey: 'vancouver', emoji: '🇨🇦' },
-                                        { countryKey: 'turkey', cityKey: 'istanbul', emoji: '🇹🇷' },
-                                        { countryKey: 'morocco', cityKey: 'marrakesh', emoji: '🇲🇦' },
-                                        { countryKey: 'mexico', cityKey: 'cancun', emoji: '🇲🇽' },
+                                        { countryKey: 'japan', cityKey: 'tokyo', emoji: '🇯🇵', dbKey: 'japan' },
+                                        { countryKey: 'japan', cityKey: 'kyoto', emoji: '🇯🇵', dbKey: 'japan' },
+                                        { countryKey: 'japan', cityKey: 'osaka', emoji: '🇯🇵', dbKey: 'japan' },
+                                        { countryKey: 'korea', cityKey: 'seoul', emoji: '🇰🇷', dbKey: 'south korea' },
+                                        { countryKey: 'korea', cityKey: 'busan', emoji: '🇰🇷', dbKey: 'south korea' },
+                                        { countryKey: 'france', cityKey: 'paris', emoji: '🇫🇷', dbKey: 'france' },
+                                        { countryKey: 'france', cityKey: 'nice', emoji: '🇫🇷', dbKey: 'france' },
+                                        { countryKey: 'italy', cityKey: 'rome', emoji: '🇮🇹', dbKey: 'italy' },
+                                        { countryKey: 'italy', cityKey: 'florence', emoji: '🇮🇹', dbKey: 'italy' },
+                                        { countryKey: 'spain', cityKey: 'barcelona', emoji: '🇪🇸', dbKey: 'spain' },
+                                        { countryKey: 'greece', cityKey: 'santorini', emoji: '🇬🇷', dbKey: 'greece' },
+                                        { countryKey: 'thailand', cityKey: 'bangkok', emoji: '🇹🇭', dbKey: 'thailand' },
+                                        { countryKey: 'thailand', cityKey: 'phuket', emoji: '🇹🇭', dbKey: 'thailand' },
+                                        { countryKey: 'indonesia', cityKey: 'bali', emoji: '🇮🇩', dbKey: 'indonesia' },
+                                        { countryKey: 'vietnam', cityKey: 'hanoi', emoji: '🇻🇳', dbKey: 'vietnam' },
+                                        { countryKey: 'vietnam', cityKey: 'hochiminh', emoji: '🇻🇳', dbKey: 'vietnam' },
+                                        { countryKey: 'singapore', cityKey: 'singapore', emoji: '🇸🇬', dbKey: 'singapore' },
+                                        { countryKey: 'usa', cityKey: 'newyork', emoji: '🇺🇸', dbKey: 'usa' },
+                                        { countryKey: 'usa', cityKey: 'losangeles', emoji: '🇺🇸', dbKey: 'usa' },
+                                        { countryKey: 'uae', cityKey: 'dubai', emoji: '🇦🇪', dbKey: 'uae' },
+                                        { countryKey: 'switzerland', cityKey: 'interlaken', emoji: '🇨🇭', dbKey: 'switzerland' },
+                                        { countryKey: 'newzealand', cityKey: 'queenstown', emoji: '🇳🇿', dbKey: 'new zealand' },
+                                        { countryKey: 'australia', cityKey: 'sydney', emoji: '🇦🇺', dbKey: 'australia' },
+                                        { countryKey: 'uk', cityKey: 'london', emoji: '🇬🇧', dbKey: 'united kingdom' },
+                                        { countryKey: 'china', cityKey: 'shanghai', emoji: '🇨🇳', dbKey: 'china' },
+                                        { countryKey: 'taiwan', cityKey: 'taipei', emoji: '🇹🇼', dbKey: 'taiwan' },
+                                        { countryKey: 'canada', cityKey: 'vancouver', emoji: '🇨🇦', dbKey: 'canada' },
+                                        { countryKey: 'turkey', cityKey: 'istanbul', emoji: '🇹🇷', dbKey: 'turkey' },
+                                        { countryKey: 'morocco', cityKey: 'marrakesh', emoji: '🇲🇦', dbKey: 'morocco' },
+                                        { countryKey: 'mexico', cityKey: 'cancun', emoji: '🇲🇽', dbKey: 'mexico' },
                                     ];
 
                                     const q = formData.destination.toLowerCase();
@@ -372,7 +372,13 @@ const Survey = () => {
                                                 return (
                                                     <button
                                                         key={`${dest.countryKey}-${dest.cityKey}`}
-                                                        onClick={() => updateData('destination', label)}
+                                                        onClick={() => {
+                                                            setFormData(prev => ({ 
+                                                                ...prev, 
+                                                                destination: label,
+                                                                destinationKey: dest.dbKey 
+                                                            }));
+                                                        }}
                                                         className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all font-medium text-sm w-full
                                                             ${isSelected
                                                                 ? 'border-primary bg-primary/10 text-secondary shadow-sm'
@@ -402,20 +408,20 @@ const Survey = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {(() => {
                                         const allDests = [
-                                            { cityKey: 'kyoto', countryKey: 'japan', img: 'kyoto,japan', climates: ['Urban', 'Mediterranean'] },
-                                            { cityKey: 'bali', countryKey: 'indonesia', img: 'bali,indonesia', climates: ['Tropical', 'Oceanic'] },
-                                            { cityKey: 'hokkaido', countryKey: 'japan', img: 'hokkaido,winter', climates: ['Alpine'] },
-                                            { cityKey: 'nice', countryKey: 'france', img: 'nice,france', climates: ['Mediterranean', 'Oceanic'] },
-                                            { cityKey: 'newyork', countryKey: 'usa', img: 'newyork,city', climates: ['Urban'] },
-                                            { cityKey: 'seoul', countryKey: 'korea', img: 'seoul,korea', climates: ['Urban'] },
-                                            { cityKey: 'santorini', countryKey: 'greece', img: 'santorini,greece', climates: ['Mediterranean', 'Oceanic'] },
-                                            { cityKey: 'phuket', countryKey: 'thailand', img: 'phuket,thailand', climates: ['Tropical'] },
-                                            { cityKey: 'interlaken', countryKey: 'switzerland', img: 'switzerland,alps', climates: ['Alpine'] },
-                                            { cityKey: 'barcelona', countryKey: 'spain', img: 'barcelona,spain', climates: ['Mediterranean', 'Oceanic'] },
-                                            { cityKey: 'paris', countryKey: 'france', img: 'paris,city', climates: ['Urban'] },
-                                            { cityKey: 'queenstown', countryKey: 'newzealand', img: 'queenstown,nature', climates: ['Alpine', 'Oceanic'] },
-                                            { cityKey: 'stmoritz', countryKey: 'switzerland', img: 'switzerland,alps', climates: ['Alpine'] },
-                                            { cityKey: 'dubai', countryKey: 'uae', img: 'dubai,desert', climates: ['Desert', 'Urban'] }
+                                            { cityKey: 'kyoto', countryKey: 'japan', dbKey: 'japan', img: 'kyoto,japan', climates: ['Urban', 'Mediterranean'] },
+                                            { cityKey: 'bali', countryKey: 'indonesia', dbKey: 'indonesia', img: 'bali,indonesia', climates: ['Tropical', 'Oceanic'] },
+                                            { cityKey: 'hokkaido', countryKey: 'japan', dbKey: 'japan', img: 'hokkaido,winter', climates: ['Alpine'] },
+                                            { cityKey: 'nice', countryKey: 'france', dbKey: 'france', img: 'nice,france', climates: ['Mediterranean', 'Oceanic'] },
+                                            { cityKey: 'newyork', countryKey: 'usa', dbKey: 'usa', img: 'newyork,city', climates: ['Urban'] },
+                                            { cityKey: 'seoul', countryKey: 'korea', dbKey: 'south korea', img: 'seoul,korea', climates: ['Urban'] },
+                                            { cityKey: 'santorini', countryKey: 'greece', dbKey: 'greece', img: 'santorini,greece', climates: ['Mediterranean', 'Oceanic'] },
+                                            { cityKey: 'phuket', countryKey: 'thailand', dbKey: 'thailand', img: 'phuket,thailand', climates: ['Tropical'] },
+                                            { cityKey: 'interlaken', countryKey: 'switzerland', dbKey: 'switzerland', img: 'switzerland,alps', climates: ['Alpine'] },
+                                            { cityKey: 'barcelona', countryKey: 'spain', dbKey: 'spain', img: 'barcelona,spain', climates: ['Mediterranean', 'Oceanic'] },
+                                            { cityKey: 'paris', countryKey: 'france', dbKey: 'france', img: 'paris,city', climates: ['Urban'] },
+                                            { cityKey: 'queenstown', countryKey: 'newzealand', dbKey: 'new zealand', img: 'queenstown,nature', climates: ['Alpine', 'Oceanic'] },
+                                            { cityKey: 'stmoritz', countryKey: 'switzerland', dbKey: 'switzerland', img: 'switzerland,alps', climates: ['Alpine'] },
+                                            { cityKey: 'dubai', countryKey: 'uae', dbKey: 'uae', img: 'dubai,desert', climates: ['Desert', 'Urban'] }
                                         ];
                                         const filtered = allDests.filter(dest =>
                                             formData.climate.length === 0 ||
@@ -435,7 +441,13 @@ const Survey = () => {
                                             return (
                                                 <div
                                                     key={dest.cityKey}
-                                                    onClick={() => updateData('destination', label)}
+                                                    onClick={() => {
+                                                        setFormData(prev => ({ 
+                                                            ...prev, 
+                                                            destination: label,
+                                                            destinationKey: dest.dbKey 
+                                                        }));
+                                                    }}
                                                     className={`
                                                     p-3 rounded-xl border-2 cursor-pointer flex items-center gap-4 transition-all hover:shadow-md
                                                     ${isSelected ? 'border-primary bg-primary/5' : 'border-gray-100 bg-white hover:border-primary/50'}

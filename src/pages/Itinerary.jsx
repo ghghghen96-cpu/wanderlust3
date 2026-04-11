@@ -896,7 +896,35 @@ const Itinerary = () => {
         const raw = (data.destination || '').toLowerCase().trim();
 
         // ── Multi-step fuzzy destination matching ──────────────────────────────
-        let matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && raw === k);
+        // Priority 1: Use explicit destinationKey from survey
+        let matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && data.destinationKey === k);
+
+        // Priority 2: Hardcoded Korean mapping for manual input or legacy data
+        if (!matchKey) {
+            const koMapping = {
+                '한국': 'south korea', '대한민국': 'south korea', '서울': 'south korea',
+                '일본': 'japan', '도쿄': 'japan', '오사카': 'japan', '교토': 'japan',
+                '프랑스': 'france', '파리': 'france',
+                '이탈리아': 'italy', '로마': 'italy',
+                '스페인': 'spain', '바르셀로나': 'spain',
+                '미국': 'usa', '뉴욕': 'usa',
+                '영국': 'united kingdom', '런던': 'united kingdom',
+                '태국': 'thailand', '방콕': 'thailand',
+                '베트남': 'vietnam', '하노이': 'vietnam',
+                '스위스': 'switzerland',
+            };
+            for (const [ko, en] of Object.entries(koMapping)) {
+                if (raw.includes(ko)) {
+                    matchKey = en;
+                    break;
+                }
+            }
+        }
+
+        // Priority 3: Fuzzy matching
+        if (!matchKey) {
+            matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && raw === k);
+        }
         if (!matchKey) {
             const rawBase = raw.split('(')[0].trim();
             matchKey = Object.keys(DESTINATION_DATA).find(k =>
@@ -910,12 +938,6 @@ const Itinerary = () => {
                 k !== 'default' && (k.includes(city) || city.includes(k.split('(')[0].trim()))
             );
         }
-        if (!matchKey) {
-            const words = raw.replace(/[()]/g, ' ').split(/\s+/).filter(w => w.length > 2);
-            matchKey = Object.keys(DESTINATION_DATA).find(k =>
-                k !== 'default' && words.some(w => k.includes(w))
-            );
-        }
 
         const sd = DESTINATION_DATA[matchKey || 'default'];
         setDestData(sd);
@@ -923,7 +945,7 @@ const Itinerary = () => {
         const start = new Date(data.startDate);
         const end = new Date(data.endDate);
         const dayCount = Math.max(differenceInDays(end, start) + 1, 1);
-        const allActivities = [...sd.activities];
+        const allActivities = sd && sd.activities ? [...sd.activities] : [];
 
         // ── [CONSTRAINT 1] Global No-Duplicate Set ──────────────────────────────
         const globalUsed = new Set(); // 전체 일정에서 동일 장소 중복 추천 절대 금지
