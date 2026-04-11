@@ -11,7 +11,8 @@ import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion
 import { useTranslation } from 'react-i18next';
 import { DESTINATION_DATA } from '../data';
 import { saveSearchHistory } from '../utils/history';
-import { auth, publishToMarketplace } from '../firebase';
+import { auth, publishToMarketplace, storage } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged } from 'firebase/auth';
 
 // ─── ADVERTISEMENT PLACEHOLDER ────────────────────────────────────────────────
@@ -318,10 +319,12 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     const [price, setPrice] = useState('');
     const [description, setDescription] = useState('');
     const [selectedThumb, setSelectedThumb] = useState(0);
-    const [publishing, setPublishing] = useState(false);
-    const [success, setSuccess] = useState(false);
+    const [customThumbUrl, setCustomThumbUrl] = useState('');
+    const [customThumbFile, setCustomThumbFile] = useState(null);
+    const [publishState, setPublishState] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
     const [publishError, setPublishError] = useState('');
     const [countdown, setCountdown] = useState(3);
+    const fileInputRef = useRef(null);
 
     // 일정에서 대표 이미지 후보 자동 추출
     const thumbnailCandidates = useMemo(() => {
@@ -336,31 +339,63 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
         return imgs.slice(0, 6); // 최대 6개까지 후보
     }, [itinerary]);
 
+    const handleCustomImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Preview
+        const previewUrl = URL.createObjectURL(file);
+        setCustomThumbFile(file);
+        setCustomThumbUrl(previewUrl);
+        setSelectedThumb(-1); // Deselect auto candidates
+    };
+
     // 등록 핸들러
     const handlePublish = async () => {
         console.log("--- Publish Process Started ---");
         
         // 1. 유효성 검사 (Validation)
         if (!price || isNaN(parseFloat(price))) {
+            setPublishState('error');
             setPublishError(t('itinerary.publishErrorNoPrice') || 'Please enter a valid price.');
             return;
         }
         if (!description || description.trim().length < 5) {
+            setPublishState('error');
             setPublishError(t('itinerary.publishErrorNoDesc') || 'Please enter a detailed description (min 5 chars).');
             return;
         }
-        if (thumbnailCandidates.length === 0 || selectedThumb < 0 || !thumbnailCandidates[selectedThumb]) {
-            console.warn("Thumbnail validation failed:", { len: thumbnailCandidates.length, idx: selectedThumb });
+        
+        let finalThumbnail = '';
+        if (selectedThumb === -1 && customThumbUrl) {
+            finalThumbnail = customThumbUrl; // Will be replaced by Firebase Storage URL
+        } else if (selectedThumb >= 0 && thumbnailCandidates[selectedThumb]) {
+            finalThumbnail = thumbnailCandidates[selectedThumb];
+        } else {
+            console.warn("Thumbnail validation failed:", { len: thumbnailCandidates.length, idx: selectedThumb, custom: customThumbUrl });
+            setPublishState('error');
             setPublishError(t('itinerary.publishErrorNoThumb') || 'Please select a thumbnail image.');
             alert(t('itinerary.publishErrorNoThumb') || 'Please select a thumbnail image.');
             return;
         }
 
         console.log("Validation passed. Data assembly starting...");
-        setPublishing(true);
+        setPublishState('loading');
         setPublishError('');
         
         try {
+            // Upload Custom Image if selected
+            if (selectedThumb === -1 && customThumbFile) {
+                console.log("Uploading custom thumbnail to Firebase Storage...");
+                const fileExtension = customThumbFile.name.split('.').pop();
+                const fileName = `thumbnails/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
+                const storageRef = ref(storage, fileName);
+                
+                await uploadBytes(storageRef, customThumbFile);
+                finalThumbnail = await getDownloadURL(storageRef);
+                console.log("Custom thumbnail uploaded successfully:", finalThumbnail);
+            }
+
             // 1. 기본 메타데이터 구성 (순환 참조 및 undefined 방지)
             const templateBase = {
                 creatorUid: user?.uid || 'anonymous',
@@ -369,7 +404,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 creatorAvatar: user?.photoURL || '',
                 title: String(description).trim(),
                 price: parseFloat(price),
-                thumbnail: thumbnailCandidates[selectedThumb],
+                thumbnail: finalThumbnail,
                 destination: String(data.destination || ''),
                 region: detectRegion(data.destination),
                 category: String(data.travelWith || 'Solo'),
@@ -429,11 +464,11 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
             console.log("Final data assembled successfully:", finalData);
             
             // 4. API 호출
-            console.log("Calling publishToMarketplace API...");
+            console.log("Calling publishToMarketplace API. Document details being sent before insert...");
             const docId = await publishToMarketplace(finalData);
             console.log("Publish success! Received docId:", docId);
             
-            setSuccess(true);
+            setPublishState('success');
 
             // 5. 카운트다운 후 리다이렉트 (강제 이동)
             let count = 3;
@@ -444,18 +479,16 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 if (count >= 0) setCountdown(count);
                 if (count <= 0) {
                     clearInterval(timer);
-                    window.location.href = '/marketplace';
+                    window.location.assign('/marketplace');
                 }
             }, 1000);
             
         } catch (err) {
             console.error('CRITICAL: Publish process failed:', err);
             const errorMsg = err.message || 'Failed to publish. Connection error or invalid data.';
+            setPublishState('error');
             setPublishError(errorMsg);
             alert(`Error: ${errorMsg}`);
-        } finally {
-            console.log("Publishing process reached finally block.");
-            setPublishing(false);
         }
     };
 
@@ -479,7 +512,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
             <motion.div
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={onClose}
+                onClick={publishState === 'loading' ? null : onClose}
             />
             {/* 모달 본체 */}
             <motion.div
@@ -490,7 +523,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 className="relative w-full max-w-lg mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
                 {/* 성공 화면 */}
-                {success ? (
+                {publishState === 'success' ? (
                     <div className="p-10 text-center space-y-6">
                         <motion.div
                             initial={{ scale: 0 }} animate={{ scale: 1 }}
@@ -505,7 +538,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                             {t('payment.autoRedirect')} ({countdown}s)
                         </p>
                         <div className="flex gap-3 justify-center">
-                            <button onClick={() => navigate('/marketplace')} className="px-6 py-3 bg-secondary text-white rounded-xl font-bold hover:bg-secondary/90 transition-colors">
+                            <button onClick={() => window.location.assign('/marketplace')} className="px-6 py-3 bg-secondary text-white rounded-xl font-bold hover:bg-secondary/90 transition-colors">
                                 {t('itinerary.publishViewMarket')}
                             </button>
                         </div>
@@ -514,7 +547,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                     <>
                         {/* 헤더 */}
                         <div className="relative bg-gradient-to-br from-secondary via-slate-800 to-slate-900 px-8 py-8 text-white">
-                            <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
+                            <button onClick={onClose} disabled={publishState === 'loading'} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                                 <X size={22} />
                             </button>
                             <div className="flex items-center gap-3 mb-2">
@@ -548,7 +581,8 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                     value={price}
                                     onChange={e => setPrice(e.target.value)}
                                     placeholder={t('itinerary.publishPricePlaceholder')}
-                                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-lg font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
+                                    disabled={publishState === 'loading'}
+                                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-lg font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300 disabled:opacity-50"
                                 />
                             </div>
 
@@ -562,25 +596,67 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                     value={description}
                                     onChange={e => setDescription(e.target.value)}
                                     placeholder={t('itinerary.publishDescPlaceholder')}
-                                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
+                                    disabled={publishState === 'loading'}
+                                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300 disabled:opacity-50"
                                 />
                             </div>
 
                             {/* 썸네일 선택 */}
                             <div className="space-y-2">
-                                <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Image size={14} className="text-primary" /> {t('itinerary.publishThumbnail')}
-                                </label>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                        <Image size={14} className="text-primary" /> {t('itinerary.publishThumbnail')}
+                                    </label>
+                                    <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={publishState === 'loading'}
+                                        className="text-xs font-bold text-primary hover:text-amber-600 transition-colors disabled:opacity-50"
+                                    >
+                                        + Upload Custom Image
+                                    </button>
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        onChange={handleCustomImageUpload} 
+                                        accept="image/*" 
+                                        className="hidden" 
+                                    />
+                                </div>
+
                                 <p className="text-[10px] text-gray-400 font-bold">{t('itinerary.publishThumbnailAuto')}</p>
+                                
+                                {/* Custom Image Preview (if any) */}
+                                {customThumbUrl && (
+                                    <div className="mb-4">
+                                        <button
+                                            onClick={() => setSelectedThumb(-1)}
+                                            disabled={publishState === 'loading'}
+                                            className={`relative w-full aspect-[2/1] rounded-xl overflow-hidden border-2 transition-all disabled:cursor-not-allowed ${
+                                                selectedThumb === -1
+                                                    ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30 scale-[1.02]'
+                                                    : 'border-gray-200 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            <img src={customThumbUrl} alt="custom-thumb" className="w-full h-full object-cover" />
+                                            {selectedThumb === -1 && (
+                                                <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                                    <CheckCircle2 size={32} className="text-white drop-shadow-lg" />
+                                                </div>
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
+
                                 {thumbnailCandidates.length > 0 ? (
                                     <div className="grid grid-cols-3 gap-3">
                                         {thumbnailCandidates.map((img, idx) => (
                                             <button
                                                 key={idx}
                                                 onClick={() => setSelectedThumb(idx)}
-                                                className={`relative aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all hover:scale-105 ${
+                                                disabled={publishState === 'loading'}
+                                                className={`relative aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all disabled:cursor-not-allowed ${
                                                     selectedThumb === idx
-                                                        ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30'
+                                                        ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30 scale-105'
                                                         : 'border-gray-200 hover:border-gray-300'
                                                 }`}
                                             >
@@ -594,13 +670,15 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="flex items-center justify-center h-24 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-sm">
-                                        {t('itinerary.publishNoImagesAvailable', { defaultValue: 'No images available' })}
-                                    </div>
+                                    !customThumbUrl && (
+                                        <div className="flex items-center justify-center h-24 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-sm">
+                                            {t('itinerary.publishNoImagesAvailable', { defaultValue: 'No images available' })}
+                                        </div>
+                                    )
                                 )}
                             </div>
 
-                            {publishError && (
+                            {publishState === 'error' && publishError && (
                                 <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-500 text-xs font-bold text-center">
                                     {publishError}
                                 </div>
@@ -609,10 +687,10 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                             {/* 등록 버튼 */}
                             <button
                                 onClick={handlePublish}
-                                disabled={publishing || !price || !description}
+                                disabled={publishState === 'loading' || !price || !description}
                                 className="w-full py-4 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-lg rounded-2xl shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-3"
                             >
-                                {publishing ? (
+                                {publishState === 'loading' ? (
                                     <>
                                         <div className="w-5 h-5 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />
                                         {t('itinerary.publishSubmitting')}
