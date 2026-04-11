@@ -1,7 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, setDoc, updateDoc, increment, onSnapshot, getDoc } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
 // Firebase configuration
 const firebaseConfig = {
@@ -16,7 +15,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
@@ -253,23 +251,5 @@ export const requestPayout = async (uid, amount, bankInfo) => {
     } catch (error) {
         console.error("Error requesting payout:", error);
         throw error;
-    }
-};
-
-// ─── 사용자가 마켓플레이스에 등록한 템플릿 조회 ──────────────────────────────────────
-export const getMyPublishedTemplates = async (uid) => {
-    if (!uid) return [];
-    try {
-        const q = query(collection(db, "Marketplace_Templates"), where("creatorUid", "==", uid));
-        const querySnapshot = await getDocs(q);
-        const templates = [];
-        querySnapshot.forEach((doc) => {
-            templates.push({ id: doc.id, ...doc.data() });
-        });
-        // 최신순 정렬
-        return templates.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    } catch (error) {
-        console.error("Error fetching my published templates:", error);
-        return [];
     }
 };

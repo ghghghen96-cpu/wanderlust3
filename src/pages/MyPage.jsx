@@ -7,7 +7,7 @@ import {
     CreditCard, Download, ExternalLink, Receipt
 } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, logout, getUserPurchases, listenToUserEarnings, getSalesHistory, requestPayout, getMyPublishedTemplates } from '../firebase';
+import { auth, logout, getUserPurchases, listenToUserEarnings, getSalesHistory, requestPayout } from '../firebase';
 import Navbar from '../components/Navbar';
 import i18n from '../i18n';
 import { saveSearchHistory, getSearchHistory, deleteHistoryEntry, clearSearchHistory } from '../utils/history';
@@ -35,7 +35,6 @@ const MyPage = () => {
     const [user, setUser] = useState(null);
     const [history, setHistory] = useState([]);
     const [purchases, setPurchases] = useState([]);
-    const [publishedTemplates, setPublishedTemplates] = useState([]);
     const [earnings, setEarnings] = useState({ currentBalance: 0, totalEarnings: 0, templatesSold: 0 });
     const [salesHistory, setSalesHistory] = useState([]);
     const [toast, setToast] = useState({ show: false, message: '' });
@@ -50,10 +49,6 @@ const MyPage = () => {
                 const userPurchases = await getUserPurchases(u.uid);
                 setPurchases(userPurchases);
 
-                // 내가 등록한 템플릿
-                const published = await getMyPublishedTemplates(u.uid);
-                setPublishedTemplates(published);
-
                 // 수익 실시간 구독
                 unsubEarnings = listenToUserEarnings(u.uid, (data) => {
                     setEarnings(data);
@@ -64,7 +59,6 @@ const MyPage = () => {
                 setSalesHistory(sales);
             } else {
                 setPurchases([]);
-                setPublishedTemplates([]);
                 setEarnings({ currentBalance: 0, totalEarnings: 0, templatesSold: 0 });
                 setSalesHistory([]);
             }
@@ -556,94 +550,6 @@ const MyPage = () => {
                             </div>
                         )}
                     </div>
-                </div>
-
-                {/* ── 내가 마켓플레이스에 등록한 템플릿 ── */}
-                <div style={{ marginTop: '60px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
-                        <div>
-                            <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '28px', color: '#1c1917', marginBottom: '4px' }}>
-                                {t('myPage.publishedTitle', '내가 등록한 일정')}
-                            </h2>
-                            <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '14px' }}>
-                                {t('myPage.publishedDesc', '마켓플레이스에 등록하여 판매 중인 내 일정들입니다.')}
-                            </p>
-                        </div>
-                    </div>
-
-                    {publishedTemplates.length === 0 ? (
-                        <div style={{
-                            background: 'white', border: '1px solid #e7e5e4', borderRadius: '20px',
-                            padding: '48px 32px', textAlign: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
-                        }}>
-                            <div style={{ display: 'inline-flex', padding: '16px', background: '#f5f5f4', borderRadius: '50%', marginBottom: '16px' }}>
-                                <ExternalLink size={36} color="#a8a29e" />
-                            </div>
-                            <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '22px', color: '#44403c', marginBottom: '8px' }}>
-                                {t('myPage.noPublishedTitle', '등록한 일정이 없습니다')}
-                            </h3>
-                            <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '15px', marginBottom: '24px' }}>
-                                {t('myPage.noPublishedDesc', '나만의 멋진 일정을 마켓플레이스에 올려 수익을 창출해 보세요!')}
-                            </p>
-                            <Link to="/" style={{
-                                display: 'inline-flex', alignItems: 'center', gap: '8px',
-                                padding: '14px 32px', background: '#1c1917', color: 'white',
-                                textDecoration: 'none', borderRadius: '50px',
-                                fontFamily: 'sans-serif', fontSize: '15px', fontWeight: 'bold'
-                            }}>
-                                {t('myPage.goHome', '홈으로 가기')} <ArrowRight size={16} />
-                            </Link>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-                            {publishedTemplates.map((template) => (
-                                <div key={template.id} style={{
-                                    background: 'white', border: '1px solid #e7e5e4', borderRadius: '16px',
-                                    overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-                                    display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s'
-                                }}
-                                    onClick={() => goToTemplate(template.id, template)}
-                                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.1)'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)'; }}
-                                >
-                                    <div style={{ width: '100%', height: '140px', background: '#e5e7eb', position: 'relative' }}>
-                                        {template.thumbnail || template.thumbnail_url || template.image ? (
-                                            <img src={template.thumbnail || template.thumbnail_url || template.image} alt={template.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        ) : (
-                                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
-                                                <Compass size={40} />
-                                            </div>
-                                        )}
-                                        <div style={{
-                                            position: 'absolute', top: '10px', right: '10px',
-                                            background: 'rgba(0,0,0,0.6)', color: 'white',
-                                            padding: '4px 10px', borderRadius: '12px',
-                                            fontSize: '12px', fontWeight: 'bold'
-                                        }}>
-                                            {template.status === 'Active' ? '판매 중' : '대기 중'}
-                                        </div>
-                                    </div>
-                                    <div style={{ padding: '16px' }}>
-                                        <h3 style={{ fontFamily: 'serif', fontSize: '18px', color: '#1c1917', fontStyle: 'italic', marginBottom: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {template.title}
-                                        </h3>
-                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                                            {template.region && <span style={{ fontSize: '11px', background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{template.region}</span>}
-                                            {template.days && <span style={{ fontSize: '11px', background: '#f3f4f6', color: '#4b5563', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{template.days}</span>}
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
-                                            <span style={{ fontSize: '16px', fontWeight: '800', color: '#10b981' }}>
-                                                ${parseFloat(template.price).toFixed(2)}
-                                            </span>
-                                            <span style={{ fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <Receipt size={12} /> {template.purchaseCount || 0}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
                 </div>
 
                 {/* ── 구매한 템플릿 섹션 ── */}
