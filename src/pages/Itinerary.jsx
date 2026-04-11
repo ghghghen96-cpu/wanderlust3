@@ -17,7 +17,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 
 // ─── ADVERTISEMENT PLACEHOLDER ────────────────────────────────────────────────
 const AdPlaceholder = ({ className = '', style = {} }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     return (
         <div className={`bg-gray-100 border border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 font-bold overflow-hidden relative ${className}`} style={style}>
             <span className="text-[10px] uppercase tracking-widest absolute top-2 right-3 text-gray-400">{t('itinerary.recommended')}</span>
@@ -777,7 +777,7 @@ const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 const Itinerary = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { state } = useLocation();
 
     useEffect(() => { if (state) sessionStorage.setItem('lastSurveyData', JSON.stringify(state)); }, [state]);
