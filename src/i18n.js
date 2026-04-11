@@ -492,17 +492,6 @@ const resources = {
         categoryPlaceholder: "-- Category --",
         copyright: "&copy; 2026 WanderLust AI. Crafted with Soul."
       },
-        theme: "Theme",
-        budget: "Budget",
-        owned: "Owned",
-        buyTemplate: "Buy Template",
-        loginRequired: "Login is required to purchase templates.",
-        noMatches: "No exact matches found",
-        noMatchesDesc: "Try adjusting your filters to discover more unique journeys.",
-        clearFilters: "Clear all filters",
-        resultsCount: "{{count}} curated gems found",
-        myTemplate: "My Template"
-      },
       payment: {
         title: "Checkout",
         subtitle: "Unlock the full details of this itinerary.",
@@ -523,7 +512,6 @@ const resources = {
         missingKey: "{{method}} channel key is missing.",
         invalidResponse: "Invalid payment response. Please contact support.",
         dbError: "Delay occurred during data sync. Click the button to proceed.",
-        cancelMsg: "Payment was cancelled. Please try again.",
         closeMsg: "You closed the payment window. Please try again.",
         methods: {
           kakaopay: "Kakao Pay",
@@ -1273,7 +1261,6 @@ const resources = {
         missingKey: "{{method}}용 채널 키가 누락되었습니다.",
         invalidResponse: "결제 응답이 올바르지 않습니다. 고객센터에 문의해주세요.",
         dbError: "데이터 기록 중 지연이 발생했습니다. 버튼을 눌러 이동해주세요.",
-        cancelMsg: "결제가 취소되었습니다. 다시 시도해주세요.",
         closeMsg: "결제창을 닫으셨습니다. 다시 시도해주세요.",
         methods: {
           kakaopay: "카카오페이",
