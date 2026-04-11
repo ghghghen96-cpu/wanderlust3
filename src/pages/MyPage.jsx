@@ -133,26 +133,24 @@ const MyPage = () => {
 
     const handleWithdraw = async () => {
         if (earnings.currentBalance <= 0) {
-            setToast({ show: true, message: i18n.language === 'ko' ? '출금 가능한 잔액이 없습니다.' : 'No balance available for payout.' });
+            setToast({ show: true, message: t('myPage.noBalance') });
             setTimeout(() => setToast({ show: false, message: '' }), 3000);
             return;
         }
 
         try {
             await requestPayout(user.uid, earnings.currentBalance, {
-                bankName: 'Digital Wallet',
+                bankName: t('myPage.walletName'),
                 accountNumber: '**** **** 1234',
-                accountHolder: user.displayName
+                accountHolder: user.displayName || t('myPage.anonymousUser')
             });
             setToast({ 
                 show: true, 
-                message: i18n.language === 'ko' 
-                    ? '출금 신청이 완료되었습니다. 영업일 기준 3일 내에 정산됩니다.' 
-                    : 'Withdrawal requested. It will be settled within 3 business days.' 
+                message: t('myPage.withdrawSuccess')
             });
             setTimeout(() => setToast({ show: false, message: '' }), 4000);
         } catch (error) {
-            setToast({ show: true, message: 'Payout failed. Please try again.' });
+            setToast({ show: true, message: t('myPage.payoutFail') });
             setTimeout(() => setToast({ show: false, message: '' }), 3000);
         }
     };
@@ -350,7 +348,7 @@ const MyPage = () => {
                                         }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#92400e'}
                                         onMouseLeave={e => e.currentTarget.style.background = '#1c1917'}
-                                        title="View this itinerary again"
+                                        title={t('myPage.viewItineraryTooltip')}
                                     >
                                         {t('myPage.viewPlan')} <ChevronRight size={14} />
                                     </button>
@@ -364,7 +362,7 @@ const MyPage = () => {
                                         }}
                                         onMouseEnter={e => { e.currentTarget.style.borderColor = '#fca5a5'; e.currentTarget.style.color = '#ef4444'; }}
                                         onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#78716c'; }}
-                                        title="Remove from history"
+                                        title={t('myPage.removeHistoryTooltip')}
                                     >
                                         <Trash2 size={15} />
                                     </button>
@@ -402,11 +400,11 @@ const MyPage = () => {
                                     <TrendingUp size={14} />
                                 </div>
                                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                    {i18n.language === 'ko' ? '비즈니스 센터' : 'Business Center'}
+                                    {t('myPage.businessCenter')}
                                 </span>
                             </div>
                             <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '32px', color: '#0f172a', fontWeight: '900', letterSpacing: '-0.02em' }}>
-                                {i18n.language === 'ko' ? '수익 대시보드' : 'Revenue Dashboard'}
+                                {t('myPage.revenueDashboard')}
                             </h2>
                         </div>
                         <button
@@ -422,7 +420,7 @@ const MyPage = () => {
                             onMouseEnter={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                             onMouseLeave={e => { e.currentTarget.style.background = '#0f172a'; e.currentTarget.style.transform = 'translateY(0)'; }}
                         >
-                            <Download size={16} /> {i18n.language === 'ko' ? '출금하기' : 'Withdraw'}
+                            <Download size={16} /> {t('myPage.withdraw')}
                         </button>
                     </div>
 
@@ -430,25 +428,25 @@ const MyPage = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px', marginBottom: '40px' }}>
                         {[
                             { 
-                                label: i18n.language === 'ko' ? '판매된 템플릿' : 'Templates Sold', 
+                                label: t('myPage.templatesSoldLabel'), 
                                 value: earnings.templatesSold, 
-                                sub: i18n.language === 'ko' ? '전체 판매량' : 'Lifetime sales', 
+                                sub: t('myPage.lifetimeSales'), 
                                 icon: <Receipt size={20} />, 
                                 color: '#6366f1',
                                 trend: '+12%' 
                             },
                             { 
-                                label: i18n.language === 'ko' ? '총 누적 수익' : 'Total Earnings', 
+                                label: t('myPage.totalEarningsLabel'), 
                                 value: formatMoney(earnings.totalEarnings), 
-                                sub: i18n.language === 'ko' ? '총 매출액' : 'Gross revenue', 
+                                sub: t('myPage.grossRevenue'), 
                                 icon: <DollarSign size={20} />, 
                                 color: '#10b981',
                                 trend: '+8.4%'
                             },
                             { 
-                                label: i18n.language === 'ko' ? '출금 가능 금액' : 'Available for Payout', 
+                                label: t('myPage.availablePayoutLabel'), 
                                 value: formatMoney(earnings.currentBalance), 
-                                sub: i18n.language === 'ko' ? '정산 대기 중' : 'Ready to withdraw', 
+                                sub: t('myPage.readyToWithdraw'), 
                                 icon: <CreditCard size={20} />, 
                                 color: '#f59e0b',
                                 trend: 'Current'
@@ -492,10 +490,10 @@ const MyPage = () => {
                     <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
                         <div style={{ padding: '32px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>
-                                {i18n.language === 'ko' ? '최근 판매 내역' : 'Recent Sales Activity'}
+                                {t('myPage.recentSales')}
                             </h3>
                             <button style={{ background: 'transparent', border: 'none', color: '#6366f1', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
-                                {i18n.language === 'ko' ? '전체 보기' : 'View all'}
+                                {t('myPage.viewAll')}
                             </button>
                         </div>
                         
@@ -505,7 +503,7 @@ const MyPage = () => {
                                     <ExternalLink size={24} color="#cbd5e1" />
                                 </div>
                                 <p style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '600' }}>
-                                    {i18n.language === 'ko' ? '현재 판매 기록이 비어 있습니다.' : 'No sales records found.'}
+                                    {t('myPage.noSales')}
                                 </p>
                             </div>
                         ) : (
@@ -513,10 +511,10 @@ const MyPage = () => {
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Inter, sans-serif' }}>
                                     <thead>
                                         <tr style={{ background: '#f8fafc' }}>
-                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'ko' ? '정산 일자' : 'Settlement Date'}</th>
-                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'ko' ? '상품 명칭' : 'Product Name'}</th>
-                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'ko' ? '구매자' : 'Customer'}</th>
-                                            <th style={{ textAlign: 'right', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'ko' ? '정산 금액' : 'Net Amount'}</th>
+                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('myPage.settlementDate')}</th>
+                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('myPage.productName')}</th>
+                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('myPage.customer')}</th>
+                                            <th style={{ textAlign: 'right', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('myPage.netAmount')}</th>
                                         </tr>
                                     </thead>
                                     <tbody style={{ divideY: '1px solid #f1f5f9' }}>
@@ -531,15 +529,15 @@ const MyPage = () => {
                                                 <td style={{ padding: '20px 32px' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                         <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#e2e8f0', overflow: 'hidden' }}>
-                                                            <img src={sale.planData?.image || 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=100'} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            <img src={sale.planData?.thumbnail_url || 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=100'} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                         </div>
-                                                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{sale.planData?.title || 'Wanderlust Itinerary'}</span>
+                                                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{sale.planData?.title || t('myPage.unknownTitle')}</span>
                                                     </div>
                                                 </td>
                                                 <td style={{ padding: '20px 32px' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                         <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>👤</div>
-                                                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>user_{sale.uid?.substring(0, 4)}</span>
+                                                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>{t('myPage.userPrefix')}{sale.uid?.substring(0, 4)}</span>
                                                     </div>
                                                 </td>
                                                 <td style={{ padding: '20px 32px', textAlign: 'right' }}>
@@ -619,7 +617,7 @@ const MyPage = () => {
                                                     fontFamily: 'serif', fontSize: '18px', color: '#1c1917', fontStyle: 'italic',
                                                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                                                 }}>
-                                                    {template.title || 'Unknown Title'}
+                                                    {template.title || t('myPage.unknownTitle')}
                                                 </h3>
                                                 {template.region && (
                                                     <span style={{ fontSize: '11px', background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
@@ -628,7 +626,7 @@ const MyPage = () => {
                                                 )}
                                             </div>
                                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontFamily: 'sans-serif', fontSize: '13px', color: '#78716c' }}>
-                                                <User size={12} /> {template.creator || 'Creator'}
+                                                <User size={12} /> {template.creator || t('myPage.creatorDefault', { defaultValue: 'Creator' })}
                                                 {template.budget && (
                                                     <>
                                                         <span>•</span>

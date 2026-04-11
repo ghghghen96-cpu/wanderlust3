@@ -54,10 +54,13 @@ const getImg = (name = '', type = '') => {
 
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-const fmtTime = (t) => {
+const fmtTime = (t, lang = 'en') => {
     if (!t) return '';
     const [h, m] = t.split(':').map(Number);
-    return `${h % 12 || 12}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+    const suffix = lang === 'ko' ? (h >= 12 ? '오후' : '오전') : (h >= 12 ? 'PM' : 'AM');
+    const displayH = h % 12 || 12;
+    const displayM = String(m || 0).padStart(2, '0');
+    return lang === 'ko' ? `${suffix} ${displayH}:${displayM}` : `${displayH}:${displayM} ${suffix}`;
 };
 
 const calcDist = (la1, lo1, la2, lo2) => {
@@ -180,7 +183,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
                             >
                                 <Clock size={14} className="group-hover/time:scale-110 transition-transform" />
                                 <span className="font-bold text-sm tracking-tight">
-                                    {fmtTime(activity.time) || t('itinerary.setTime')}
+                                    {fmtTime(activity.time, i18n.language) || t('itinerary.setTime')}
                                 </span>
                                 <Edit2 size={10} className="opacity-0 group-hover/time:opacity-50 transition-opacity" />
                             </button>
@@ -224,12 +227,12 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, isOpen]);
 
     const REPLIES = [
-        { keywords: ['food', 'eat', 'restaurant', 'dining'], reply: 'Check out the local markets and food streets in your itinerary! You can find more info at [Seoul Food Guide](https://www.visitseoul.net).' },
-        { keywords: ['hotel', 'stay', 'accommodation', 'sleep'], reply: 'You can find accommodation info in the Summary tab. For direct bookings, visit [Hotels.com](https://www.hotels.com) or [Airbnb](https://www.airbnb.com).' },
-        { keywords: ['weather', 'climate', 'temperature'], reply: 'I recommend checking [AccuWeather](https://www.accuweather.com) a week before your trip for the most accurate info.' },
-        { keywords: ['transport', 'bus', 'train', 'taxi', 'metro'], reply: 'Local transport options vary! Check [Google Maps](https://www.google.com/maps) or local transit sites like [T-Money](https://www.t-money.co.kr) for Seoul.' },
-        { keywords: ['budget', 'cost', 'money', 'price'], reply: 'Budgeting tips are available at [Lonely Planet](https://www.lonelyplanet.com). Street food and public transport save the most money!' },
-        { keywords: ['safe', 'safety', 'crime', 'danger'], reply: 'Most tourist areas are safe. See [Travel Advisories](https://travel.state.gov) for official safety information.' },
+        { keywords: ['food', 'eat', 'restaurant', 'dining', '맛집', '음식', '식사'], reply: t('itinerary.chatBotReplies.food') },
+        { keywords: ['hotel', 'stay', 'accommodation', 'sleep', '숙소', '호텔', '잠'], reply: t('itinerary.chatBotReplies.stay') },
+        { keywords: ['weather', 'climate', 'temperature', '날씨', '기온', '비'], reply: t('itinerary.chatBotReplies.weather') },
+        { keywords: ['transport', 'bus', 'train', 'taxi', 'metro', '교통', '버스', '지하철'], reply: t('itinerary.chatBotReplies.transport') },
+        { keywords: ['budget', 'cost', 'money', 'price', '예산', '비용', '돈'], reply: t('itinerary.chatBotReplies.budget') },
+        { keywords: ['safe', 'safety', 'crime', 'danger', '보안', '안전', '위험'], reply: t('itinerary.chatBotReplies.safety') },
     ];
 
     const send = () => {
@@ -247,10 +250,10 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
                     const matched = REPLIES.find(r => r.keywords.some(k => lower.includes(k)));
                     const reply = matched
                         ? matched.reply
-                        : `Great question about "${text}"! I suggest exploring local guides or asking your hotel concierge for the best tips on ${destination}.`;
+                        : t('itinerary.chatBotReplyDefault', { text, destination });
                     setMsgs(prev => [...prev, { role: 'assistant', text: reply }]);
                 } catch (err) {
-                    setMsgs(prev => [...prev, { role: 'assistant', text: 'Sorry, something went wrong. Please try again.' }]);
+                    setMsgs(prev => [...prev, { role: 'assistant', text: t('itinerary.chatBotError') }]);
                 } finally {
                     setLoading(false);
                 }
@@ -338,17 +341,18 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
         console.log("--- Publish Process Started ---");
         
         // 1. 유효성 검사 (Validation)
-        if (!price) {
-            setPublishError(t('itinerary.publishErrorNoPrice') || 'Please enter a price.');
+        if (!price || isNaN(parseFloat(price))) {
+            setPublishError(t('itinerary.publishErrorNoPrice') || 'Please enter a valid price.');
             return;
         }
-        if (!description) {
-            setPublishError(t('itinerary.publishErrorNoDesc') || 'Please enter a description.');
+        if (!description || description.trim().length < 5) {
+            setPublishError(t('itinerary.publishErrorNoDesc') || 'Please enter a detailed description (min 5 chars).');
             return;
         }
         if (thumbnailCandidates.length === 0 || selectedThumb < 0 || !thumbnailCandidates[selectedThumb]) {
             console.warn("Thumbnail validation failed:", { len: thumbnailCandidates.length, idx: selectedThumb });
             setPublishError(t('itinerary.publishErrorNoThumb') || 'Please select a thumbnail image.');
+            alert(t('itinerary.publishErrorNoThumb') || 'Please select a thumbnail image.');
             return;
         }
 
@@ -360,12 +364,12 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
             // 1. 기본 메타데이터 구성 (순환 참조 및 undefined 방지)
             const templateBase = {
                 creatorUid: user?.uid || 'anonymous',
-                creatorName: user?.displayName || 'Traveler',
+                creatorName: user?.displayName || t('nav.traveler', { defaultValue: 'Traveler' }),
                 creatorEmail: user?.email || '',
                 creatorAvatar: user?.photoURL || '',
-                title: String(description),
-                price: parseFloat(price) || 0,
-                thumbnail: thumbnailCandidates[selectedThumb] || '',
+                title: String(description).trim(),
+                price: parseFloat(price),
+                thumbnail: thumbnailCandidates[selectedThumb],
                 destination: String(data.destination || ''),
                 region: detectRegion(data.destination),
                 category: String(data.travelWith || 'Solo'),
@@ -377,6 +381,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 focus: Array.isArray(data.focus) ? data.focus : [],
                 pace: String(data.pace || 'Moderate'),
                 vibe: String(data.vibe || ''),
+                publishedAt: new Date().toISOString()
             };
 
             // 2. 일정 데이터 직렬화
@@ -430,7 +435,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
             
             setSuccess(true);
 
-            // 5. 카운트다운 후 리다이렉트
+            // 5. 카운트다운 후 리다이렉트 (강제 이동)
             let count = 3;
             setCountdown(count);
             const timer = setInterval(() => {
@@ -439,17 +444,17 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 if (count >= 0) setCountdown(count);
                 if (count <= 0) {
                     clearInterval(timer);
-                    navigate('/marketplace');
+                    window.location.href = '/marketplace';
                 }
             }, 1000);
             
         } catch (err) {
-            console.error('CRITICAL: Publish process failed at some step:', err);
-            setPublishError(err.message || 'Failed to publish. Connection error or invalid data.');
-            // 사용자에게 즉각 알림
-            alert(`Error: ${err.message || 'Unknown error occurred during publishing'}`);
+            console.error('CRITICAL: Publish process failed:', err);
+            const errorMsg = err.message || 'Failed to publish. Connection error or invalid data.';
+            setPublishError(errorMsg);
+            alert(`Error: ${errorMsg}`);
         } finally {
-            console.log("Publishing state reset to false.");
+            console.log("Publishing process reached finally block.");
             setPublishing(false);
         }
     };
@@ -497,9 +502,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                         <h2 className="text-2xl font-black text-secondary">{t('itinerary.publishSuccess')}</h2>
                         <p className="text-gray-500">{t('itinerary.publishSuccessDesc')}</p>
                         <p className="text-sm font-bold text-primary bg-primary/10 py-2 rounded-full">
-                            {i18n.language === 'ko' 
-                                ? `${countdown}초 후 마켓플레이스로 이동합니다...` 
-                                : `Redirecting to marketplace in ${countdown}s...`}
+                            {t('payment.autoRedirect')} ({countdown}s)
                         </p>
                         <div className="flex gap-3 justify-center">
                             <button onClick={() => navigate('/marketplace')} className="px-6 py-3 bg-secondary text-white rounded-xl font-bold hover:bg-secondary/90 transition-colors">
@@ -592,7 +595,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                     </div>
                                 ) : (
                                     <div className="flex items-center justify-center h-24 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-sm">
-                                        No images available
+                                        {t('itinerary.publishNoImagesAvailable', { defaultValue: 'No images available' })}
                                     </div>
                                 )}
                             </div>
@@ -1201,7 +1204,7 @@ const Itinerary = () => {
                                                                     </div>
                                                                 </td>
                                                             )}
-                                                            <td className="px-6 py-5 text-primary font-bold text-sm whitespace-nowrap">{fmtTime(item.time)}</td>
+                                                            <td className="px-6 py-5 text-primary font-bold text-sm whitespace-nowrap">{fmtTime(item.time, i18n.language)}</td>
                                                             <td className="px-6 py-5">
                                                                 <p className="font-black text-secondary text-sm">{item.name}</p>
                                                                 <p className="text-xs text-gray-400 truncate max-w-[200px]">{item.desc}</p>
@@ -1262,7 +1265,7 @@ const Itinerary = () => {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-black text-secondary truncate">{link.name}</p>
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Book now</p>
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{t('itinerary.bookNowLabel', { defaultValue: 'Book now' })}</p>
                                         </div>
                                         <ChevronRight size={14} className="text-gray-300 group-hover:text-primary transition-colors" />
                                     </a>
@@ -1275,9 +1278,9 @@ const Itinerary = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform duration-700">
                                 <Globe size={80} />
                             </div>
-                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">Travel Tip</p>
-                            <p className="text-sm font-bold leading-relaxed relative z-10">
-                                {data.destination} {t('itinerary.bookingShortcuts')}를 통해 최적의 가격으로 여행을 완성하세요!
+                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">{t('itinerary.tipLabel', { defaultValue: 'Travel Tip' })}</p>
+                             <p className="text-sm font-bold leading-relaxed relative z-10">
+                                {t('itinerary.tipText')}
                             </p>
                         </div>
                     </div>

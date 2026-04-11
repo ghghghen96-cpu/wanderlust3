@@ -338,9 +338,13 @@ const Survey = () => {
                                     const q = formData.destination.toLowerCase();
                                     const filtered = q
                                         ? ALL_DESTINATIONS.filter(d => {
-                                            const country = t(`survey.destinations.${d.countryKey}`).toLowerCase();
-                                            const city = t(`survey.destinations.${d.cityKey}`).toLowerCase();
-                                            return country.includes(q) || city.includes(q);
+                                            const countryKo = t(`survey.destinations.${d.countryKey}`, { lng: 'ko' }).toLowerCase();
+                                            const cityKo = t(`survey.destinations.${d.cityKey}`, { lng: 'ko' }).toLowerCase();
+                                            const countryEn = d.countryKey.toLowerCase();
+                                            const cityEn = d.cityKey.toLowerCase();
+                                            
+                                            return countryKo.includes(q) || cityKo.includes(q) || 
+                                                   countryEn.includes(q) || cityEn.includes(q);
                                         })
                                         : ALL_DESTINATIONS;
 
@@ -392,7 +396,7 @@ const Survey = () => {
                             <section>
                                 <label className="block text-sm font-medium text-gray-500 mb-4 uppercase tracking-wider">
                                     {formData.climate.length > 0 
-                                      ? t('survey.destMatches', { climates: formData.climate.join(' & ') }) 
+                                      ? t('survey.destMatches', { climates: formData.climate.map(c => t(`survey.climates.${c}`)).join(' & ') }) 
                                       : t('survey.destRecommend')}
                                 </label>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

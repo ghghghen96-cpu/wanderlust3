@@ -138,14 +138,13 @@ const Marketplace = () => {
             console.log("DB Record success");
 
             // 3. 성공 알림 및 리다이렉트
-            // 2.5초 후 자동 이동 (사용자가 버튼을 안 눌러도 이동)
-            const redirectTimer = setTimeout(() => {
-                setIsModalOpen(false);
-                navigate(`/template/${targetId}`, { 
-                    state: { template: purchasedPlan },
-                    replace: true 
-                });
-            }, 2500);
+            console.log('[Marketplace] Purchase success. Redirect timer started (3s fallback)...');
+            setTimeout(() => {
+                if (window.location.pathname !== '/mypage') {
+                    console.log('[Marketplace] Fallback redirect executing...');
+                    window.location.href = '/mypage';
+                }
+            }, 3000);
 
             // 성공 시 onClose 핸들러를 임시로 교체하여 수동 클릭 시 즉시 이동하게 함
             // (이 로직은 handlePurchaseSuccess 내부에서만 유효하게 처리하거나, Modal props를 통해 주입)

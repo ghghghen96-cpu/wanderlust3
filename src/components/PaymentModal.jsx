@@ -11,32 +11,7 @@ const CARD_CHANNEL_KEY = import.meta.env.VITE_CARD_CHANNEL_KEY || KR_CHANNEL_KEY
 const GLOBAL_CHANNEL_KEY = import.meta.env.VITE_GLOBAL_CHANNEL_KEY;
 
 // ─── 결제 수단 옵션 ────────────────────────────────────────────────────────────
-const PAYMENT_METHODS = [
-    {
-        id: 'kakaopay',
-        label: '카카오페이',
-        icon: '💛',
-        currency: 'KRW',
-        channelKey: KR_CHANNEL_KEY,
-        method: { type: 'EASY_PAY', easyPayProvider: 'KAKAOPAY' },
-    },
-    {
-        id: 'card',
-        label: '신용/체크카드',
-        icon: '💳',
-        currency: 'KRW',
-        channelKey: CARD_CHANNEL_KEY,
-        method: { type: 'CARD' },
-    },
-    {
-        id: 'paypal',
-        label: 'PayPal (USD)',
-        icon: '🌐',
-        currency: 'USD',
-        channelKey: GLOBAL_CHANNEL_KEY,
-        method: { type: 'PAYPAL' },
-    },
-];
+// (PAYMENT_METHODS는 컴포넌트 내부로 이동)
 
 // ─── 금액 변환 ────────────────────────────────────────────────────────────────
 // KRW, USD 공통: 포트원 V2 일부 PG는 소수점을 허용하지 않으므로 안전하게 정수화 (Math.round)
@@ -58,6 +33,35 @@ const generateOrderId = () => `wanderlust-${Date.now()}-${Math.random().toString
 // ─── PAYMENT MODAL COMPONENT ──────────────────────────────────────────────────
 const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
     const { t } = useTranslation();
+    
+    // ─── 결제 수단 옵션 (번역 적용을 위해 내부로 이동) ───────────────────────────
+    const PAYMENT_METHODS = [
+        {
+            id: 'kakaopay',
+            label: t('payment.methods.kakaopay'),
+            icon: '💛',
+            currency: 'KRW',
+            channelKey: KR_CHANNEL_KEY,
+            method: { type: 'EASY_PAY', easyPayProvider: 'KAKAOPAY' },
+        },
+        {
+            id: 'card',
+            label: t('payment.methods.card'),
+            icon: '💳',
+            currency: 'KRW',
+            channelKey: CARD_CHANNEL_KEY,
+            method: { type: 'CARD' },
+        },
+        {
+            id: 'paypal',
+            label: t('payment.methods.paypal'),
+            icon: '🌐',
+            currency: 'USD',
+            channelKey: GLOBAL_CHANNEL_KEY,
+            method: { type: 'PAYPAL' },
+        },
+    ];
+
     const [selectedMethod, setSelectedMethod] = useState(PAYMENT_METHODS[0]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
@@ -68,12 +72,14 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
     // ─── 리다이렉션 로직 ──────────────────────────────────────────────────────────
     React.useEffect(() => {
         if (isSuccess) {
+            console.log('[Payment] Success detected. Redirecting to /mypage in 3 seconds...');
             const timer = setTimeout(() => {
-                onClose();
+                console.log('[Payment] Forced redirect executing now...');
+                window.location.href = '/mypage';
             }, 3000);
             return () => clearTimeout(timer);
         }
-    }, [isSuccess, onClose]);
+    }, [isSuccess]);
 
     const handlePay = async () => {
         // ─── 디버깅: 어떤 키가 누락되었는지 콘솔에서 확인 가능 ─────────────────────
@@ -82,11 +88,11 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
         console.log('[PortOne Debug] Selected Method:', selectedMethod.id);
 
         if (!STORE_ID) {
-            setErrorMsg('VITE_PORTONE_STORE_ID 환경 변수가 설정되지 않았습니다. 서버를 재시작해 보세요.');
+            setErrorMsg(t('payment.connectionError'));
             return;
         }
         if (!selectedMethod.channelKey) {
-            setErrorMsg(`${selectedMethod.label}용 채널 키(VITE_KR_CHANNEL_KEY 등)가 누락되었습니다.`);
+            setErrorMsg(t('payment.missingKey', { method: selectedMethod.label }));
             return;
         }
 
@@ -127,9 +133,9 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
             if (!response || response.code) {
                 const errCode = response?.code || 'UNKNOWN';
                 if (errCode === 'PORTONE_ACCOUNT_NOT_CONNECTED' || errCode.includes('CANCEL')) {
-                    setErrorMsg('결제가 취소되었습니다. 다시 시도해주세요.');
+                    setErrorMsg(t('payment.cancelMsg'));
                 } else {
-                    setErrorMsg(`결제 실패: ${response?.message || '알 수 없는 오류'} (${errCode})`);
+                    setErrorMsg(`${t('payment.errorTitle')}: ${response?.message || 'Error'} (${errCode})`);
                 }
                 setIsProcessing(false);
                 return;
@@ -155,11 +161,11 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
             }
 
         } catch (err) {
-            console.error('[PortOne] 결제 오류:', err);
+            console.error('[PortOne] Error:', err);
             if (err?.message?.includes('cancel') || err?.message?.includes('닫')) {
-                setErrorMsg('결제창을 닫으셨습니다. 다시 시도해주세요.');
+                setErrorMsg(t('payment.closeMsg'));
             } else {
-                setErrorMsg(`결제 중 오류가 발생했습니다: ${err.message || '네트워크 오류'}`);
+                setErrorMsg(`${t('payment.errorTitle')}: ${err.message || 'Network Error'}`);
             }
             setIsProcessing(false);
         }
@@ -170,7 +176,7 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
             {/* 배경 오버레이 - 클릭 시 닫힘 */}
             <div
                 className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
-                onClick={!isProcessing ? onClose : undefined}
+                onClick={!isProcessing && !isSuccess ? onClose : undefined}
             >
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -204,16 +210,30 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                                 <CheckCircle size={48} />
                             </div>
                             <h3 className="text-2xl font-serif mb-2 text-white">{t('payment.successTitle')}</h3>
-                            <p className="text-slate-400 text-sm mb-6">{t('payment.successSubtitle')}</p>
+                            
+                            <a 
+                                href="/mypage" 
+                                className="text-slate-400 text-sm mb-8 hover:text-[#FF8A71] transition-colors underline underline-offset-4 decoration-[#FF8A71]/30 hover:decoration-[#FF8A71] font-medium block"
+                            >
+                                {t('payment.successSubtitle')}
+                            </a>
                             
                             <button
-                                onClick={onClose}
-                                className="px-8 py-3 bg-gradient-to-r from-[#FF8A71] to-[#FF6B9B] text-white font-bold rounded-xl shadow-lg hover:shadow-[#FF8A71]/20 transition-all active:scale-95 cursor-pointer"
+                                onClick={() => {
+                                    console.log('[Payment] Manual redirect triggered.');
+                                    window.location.href = '/mypage';
+                                }}
+                                className="w-full py-5 bg-gradient-to-r from-[#FF8A71] to-[#FF6B9B] text-white font-black text-xl rounded-2xl shadow-[0_15px_30px_-5px_rgba(255,138,113,0.4)] hover:shadow-[#FF8A71]/40 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
                             >
-                                {t('payment.viewDetails')}
+                                <span className="flex items-center justify-center gap-2">
+                                    {t('common.confirm') || 'OK'}
+                                    <ShieldCheck size={20} className="group-hover:rotate-12 transition-transform" />
+                                </span>
                             </button>
                             
-                            <p className="text-xs text-slate-500 mt-6 animate-pulse">{t('payment.autoRedirect')}</p>
+                            <p className="text-xs text-slate-500 mt-8 animate-pulse font-medium">
+                                {t('payment.autoRedirect')}
+                            </p>
                         </motion.div>
                     ) : (
                         /* ─── 결제 폼 ───────────────────────────────────── */
