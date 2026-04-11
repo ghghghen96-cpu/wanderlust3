@@ -255,3 +255,21 @@ export const requestPayout = async (uid, amount, bankInfo) => {
         throw error;
     }
 };
+
+// ─── 사용자가 마켓플레이스에 등록한 템플릿 조회 ──────────────────────────────────────
+export const getMyPublishedTemplates = async (uid) => {
+    if (!uid) return [];
+    try {
+        const q = query(collection(db, "Marketplace_Templates"), where("creatorUid", "==", uid));
+        const querySnapshot = await getDocs(q);
+        const templates = [];
+        querySnapshot.forEach((doc) => {
+            templates.push({ id: doc.id, ...doc.data() });
+        });
+        // 최신순 정렬
+        return templates.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    } catch (error) {
+        console.error("Error fetching my published templates:", error);
+        return [];
+    }
+};
