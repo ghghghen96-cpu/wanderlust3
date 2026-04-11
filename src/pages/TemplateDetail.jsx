@@ -167,6 +167,10 @@ const TemplateDetail = () => {
                                 </div>
                             ))}
                         </div>
+                    ) : (
+                        <div className="text-center py-12 text-slate-400 italic">
+                            {t('itinerary.emptyActs') || 'No itinerary data available for this template.'}
+                        </div>
                     )}
                 </div>
 

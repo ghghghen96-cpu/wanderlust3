@@ -6,6 +6,7 @@ import {
     Globe, ExternalLink, ChevronRight, Upload, CheckCircle2, DollarSign, Image, FileText, Tag
 } from 'lucide-react';
 import { format, addDays, differenceInDays } from 'date-fns';
+import { ko, enUS } from 'date-fns/locale';
 import Navbar from '../components/Navbar';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -54,6 +55,18 @@ const getImg = (name = '', type = '') => {
 
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
+const safeFormat = (date, formatStr, localeData) => {
+    try {
+        if (!date) return '---';
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return '---';
+        return format(d, formatStr, { locale: localeData });
+    } catch (e) {
+        console.error("Date formatting error:", e);
+        return '---';
+    }
+};
+
 const fmtTime = (t, lang = 'en') => {
     if (!t) return '';
     const [h, m] = t.split(':').map(Number);
@@ -530,7 +543,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                             <div className="flex gap-3 mt-4">
                                 <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{data.destination}</span>
                                 <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{itinerary.length} {t('itinerary.days')}</span>
-                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{itinerary.reduce((s, d) => s + d.items.length, 0)} {t('itinerary.spots')}</span>
+                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{(itinerary || []).reduce((s, d) => s + (d.items?.length || 0), 0)} {t('itinerary.spots')}</span>
                             </div>
                         </div>
 
@@ -771,9 +784,14 @@ const Itinerary = () => {
 
     const data = useMemo(() => {
         if (state) return state;
-        const saved = sessionStorage.getItem('lastSurveyData');
         const def = { destination: 'South Korea (Seoul)', startDate: new Date().toISOString(), endDate: new Date(Date.now() + 86400000 * 4).toISOString(), focus: ['Food', 'Nature'], pace: 'Moderate', vibe: 'Social' };
-        return saved ? { ...def, ...JSON.parse(saved) } : def;
+        try {
+            const saved = sessionStorage.getItem('lastSurveyData');
+            return saved ? { ...def, ...JSON.parse(saved) } : def;
+        } catch (e) {
+            console.error("Session storage parsing error:", e);
+            return def;
+        }
     }, [state]);
 
     const [itinerary, setItinerary] = useState([]);
@@ -1028,7 +1046,7 @@ const Itinerary = () => {
     );
 
     // ── SUMMARY TABLE (reads from itinerary state) ─────────────────────────────
-    const totalSpots = itinerary.reduce((s, d) => s + d.items.length, 0);
+    const totalSpots = (itinerary || []).reduce((s, d) => s + (d.items || []).length, 0);
 
     return (
         <div className="min-h-screen bg-slate-50 pb-20">
@@ -1045,7 +1063,7 @@ const Itinerary = () => {
                         <h1 className="font-extrabold text-xl md:text-2xl text-secondary leading-tight truncate max-w-[200px] md:max-w-none">{data.destination}</h1>
                         <p className="text-[11px] md:text-xs font-bold text-gray-500 flex items-center gap-1.5 mt-0.5">
                             <Calendar size={13} className="text-primary" />
-                            {format(new Date(data.startDate), 'MMM dd')} – {format(new Date(data.endDate), 'MMM dd')} · {t('itinerary.days', { count: itinerary.length })}
+                            {safeFormat(data.startDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} – {safeFormat(data.endDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} · {t('itinerary.days', { count: (itinerary || []).length })}
                         </p>
                     </div>
                 </Link>
@@ -1106,9 +1124,9 @@ const Itinerary = () => {
                                                 <span className="text-4xl leading-none">{day.dayNum}</span>
                                             </div>
                                             <div>
-                                                <h2 className="text-2xl md:text-3xl font-black text-secondary">{format(day.date, 'EEEE, MMM do')}</h2>
+                                                <h2 className="text-2xl md:text-3xl font-black text-secondary">{safeFormat(day.date, 'EEEE, MMM do', i18n.language === 'ko' ? ko : enUS)}</h2>
                                                 <div className="flex flex-wrap items-center gap-3 mt-2">
-                                                    <p className="text-sm text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">{t('itinerary.activitiesCount', { count: day.items.length })}</p>
+                                                    <p className="text-sm text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">{t('itinerary.activitiesCount', { count: (day.items || []).length })}</p>
                                                     {day.items.length > 0 && (
                                                         <a
                                                             href={getDayMapUrl(day.items, data.destination)}
@@ -1123,8 +1141,8 @@ const Itinerary = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <Reorder.Group axis="y" values={day.items} onReorder={items => setDayItems(di, items)} className="space-y-4">
-                                            {day.items.map(act => (
+                                        <Reorder.Group axis="y" values={day.items || []} onReorder={items => setDayItems(di, items)} className="space-y-4">
+                                            {(day.items || []).map(act => (
                                                 <ActivityCard key={act.id} activity={act}
                                                     onSave={a => updateAct(di, act.id, a)}
                                                     onDelete={() => deleteAct(di, act.id)} />
@@ -1144,8 +1162,8 @@ const Itinerary = () => {
                             <motion.div key="sum" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
 
                                 {/* FLIGHTS */}
-                                <Section title={t('itinerary.flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('itinerary.addFlight')}>
-                                    {flights.map(f => (
+                                <Section title={t('itinerary.flights')} icon={Plane} count={(flights || []).length} onAdd={addFlight} addLabel={t('itinerary.addFlight')}>
+                                    {(flights || []).map(f => (
                                         <FlightCard key={f.id} f={f}
                                             onChange={(k, v) => updateFlight(f.id, k, v)}
                                             onRemove={() => removeFlight(f.id)}
@@ -1154,8 +1172,8 @@ const Itinerary = () => {
                                 </Section>
 
                                 {/* HOTELS */}
-                                <Section title={t('itinerary.accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('itinerary.addStay')}>
-                                    {hotels.map((h, i) => (
+                                <Section title={t('itinerary.accommodation')} icon={BedDouble} count={(hotels || []).length} onAdd={addHotel} addLabel={t('itinerary.addStay')}>
+                                    {(hotels || []).map((h, i) => (
                                         <HotelCard key={h.id} h={h} index={i}
                                             onChange={(k, v) => updateHotel(h.id, k, v)}
                                             onRemove={() => removeHotel(h.id)}
@@ -1184,8 +1202,8 @@ const Itinerary = () => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
-                                                {itinerary.map(day =>
-                                                    day.items.length > 0 ? day.items.map((item, idx) => (
+                                                {(itinerary || []).map(day =>
+                                                    (day.items || []).length > 0 ? (day.items || []).map((item, idx) => (
                                                         <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                                                             {idx === 0 && (
                                                                 <td rowSpan={day.items.length} className="px-6 py-6 align-top border-r border-gray-50 bg-gray-50/30">
