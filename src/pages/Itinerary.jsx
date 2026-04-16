@@ -13,8 +13,9 @@ import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion
 import { useTranslation } from 'react-i18next';
 import { DESTINATION_DATA } from '../data';
 import { saveSearchHistory } from '../utils/history';
-import { auth, publishToMarketplace } from '../firebase';
+import { auth, publishToMarketplace, uploadThumbnailToStorage } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { fetchPlaceImage } from '../utils/imageApi';
 
 // ─── ADVERTISEMENT PLACEHOLDER ────────────────────────────────────────────────
 const AdPlaceholder = ({ className = '', style = {} }) => {
@@ -207,7 +208,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
                 </div>
 
                 {/* image */}
-                <div className="w-full sm:w-24 h-48 sm:h-24 rounded-2xl overflow-hidden flex-shrink-0 relative shadow-inner bg-gray-100">
+                <div className="w-full sm:w-40 xl:w-48 aspect-video rounded-2xl overflow-hidden flex-shrink-0 relative shadow-sm border border-gray-100 bg-gray-100 group-hover:shadow-md transition-shadow">
                     <img 
                         src={activity.img || getImg(activity.name, activity.type, destination, location.state?.destinationId)} 
                         alt={activity.name}
@@ -215,7 +216,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
                             e.target.onerror = null; 
                             e.target.src = IMAGE_LIBRARY.default; // 이미지 로딩 실패 시 기본 이미지로 교체
                         }}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                     />
                 </div>
 
@@ -429,16 +430,25 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     const [isDragOver, setIsDragOver] = useState(false);      // 드래그 오버 강조 표시
     const fileInputRef = useRef(null);                        // 숨김 파일 input 참조
 
-    // 일정에서 대표 이미지 후보 자동 추출
+    // 가장 평점이 높은 장소 우선으로 썸네일 자동 추천
     const thumbnailCandidates = useMemo(() => {
-        const imgs = [];
+        let allItems = [];
         itinerary.forEach(day => {
             day.items.forEach(item => {
-                if (item.img && !imgs.includes(item.img)) {
-                    imgs.push(item.img);
-                }
+                if (item.img) allItems.push(item);
             });
         });
+        
+        // 내림차순 정렬 (높은 평점 우선)
+        allItems.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        
+        const imgs = [];
+        allItems.forEach(item => {
+            if (!imgs.includes(item.img)) {
+                imgs.push(item.img);
+            }
+        });
+        
         return imgs.slice(0, 6); // 최대 6개까지 후보
     }, [itinerary]);
 
@@ -468,6 +478,10 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
         setPublishError('');
         
         try {
+            // 업로드된 이미지가 DataURL 형태일 경우 Firebase Storage에 업로드 (문서 크기 제한 1MB 방지)
+            console.log("Processing thumbnail...");
+            const safeThumbnail = await uploadThumbnailToStorage(finalThumbnail, user?.uid || 'anonymous');
+
             // 1. 기본 메타데이터 구성 (순환 참조 및 undefined 방지)
             const templateBase = {
                 creatorUid: user?.uid || 'anonymous',
@@ -476,7 +490,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 creatorAvatar: user?.photoURL || '',
                 title: String(description).trim(),
                 price: parseFloat(price),
-                thumbnail: finalThumbnail,
+                thumbnail: safeThumbnail,
                 destination: String(data.destination || ''),
                 region: detectRegion(data.destination),
                 category: String(data.travelWith || 'Solo'),
@@ -815,7 +829,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                                     key={idx}
                                                     type="button"
                                                     onClick={() => { setSelectedThumb(idx); setUploadedImage(null); }}
-                                                    className={`relative aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all hover:scale-105 ${
+                                                    className={`relative aspect-video rounded-xl overflow-hidden border-2 transition-all hover:scale-105 ${
                                                         !uploadedImage && selectedThumb === idx
                                                             ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30'
                                                             : 'border-gray-200 hover:border-primary/40'
@@ -1080,8 +1094,9 @@ const Itinerary = () => {
 
     // ── SMART TRAVEL ROUTE PLANNER ENGINE ──────────────────────────────────────
     useEffect(() => {
-        try {
-            const raw = (data.destination || '').toLowerCase().trim();
+        const generate = async () => {
+            try {
+                const raw = (data.destination || '').toLowerCase().trim();
             const idMatch = (data.destinationId || '').toLowerCase().trim();
 
             // ── Multi-step fuzzy destination matching ──────────────────────────────
@@ -1336,7 +1351,19 @@ const Itinerary = () => {
 
             days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme, items: timedItems });
         }
-            setItinerary(days);
+
+            // ── 백그라운드 이미지 비동기 동시 다발적 페칭 (API 활용) ──
+            const finalDays = await Promise.all(days.map(async (day) => {
+                const enhancedItems = await Promise.all(day.items.map(async (item) => {
+                    // Get city for the specific place (from item or from general data)
+                    const citySearch = data.destination.split('(')[0].trim() || data.destination;
+                    const placeImage = await fetchPlaceImage(citySearch, item.name);
+                    return { ...item, img: placeImage || item.img }; // Use fetched image, or fallback to the static getImg
+                }));
+                return { ...day, items: enhancedItems };
+            }));
+
+            setItinerary(finalDays);
             
             // 검색 이력 저장
             saveSearchHistory(data);
@@ -1345,6 +1372,9 @@ const Itinerary = () => {
             // 에러 발생 시 빈 일정으로 세팅하여 크래시 방지
             setItinerary([]);
         }
+        };
+
+        generate();
     }, [data]);
 
 

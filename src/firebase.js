@@ -2,6 +2,8 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, setDoc, updateDoc, increment, onSnapshot, getDoc } from "firebase/firestore";
 
+import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
+
 // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyBwR9DgMXq1Iwx8vnqiB3GYbD5ikJ5r4Uw",
@@ -15,6 +17,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
@@ -66,6 +69,23 @@ export const publishToMarketplace = async (templateData) => {
     } catch (error) {
         console.error("[Firebase] Critical error in publishToMarketplace:", error);
         throw error;
+    }
+};
+
+// 썸네일 이미지 Storage 업로드
+export const uploadThumbnailToStorage = async (dataUrl, uid) => {
+    if (!dataUrl || !dataUrl.startsWith("data:image")) return dataUrl;
+    try {
+        const uniqueName = `thumbnails/${uid}_${Date.now()}.jpg`;
+        const storageRef = ref(storage, uniqueName);
+        console.log("Uploading thumbnail to storage:", uniqueName);
+        await uploadString(storageRef, dataUrl, 'data_url');
+        const downloadUrl = await getDownloadURL(storageRef);
+        console.log("Thumbnail uploaded successfully:", downloadUrl);
+        return downloadUrl;
+    } catch (error) {
+        console.error("Error uploading thumbnail:", error);
+        throw new Error('이미지 업로드에 실패했습니다. (Storage Error)');
     }
 };
 
