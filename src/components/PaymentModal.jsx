@@ -67,9 +67,8 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
     const [isSuccess, setIsSuccess] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
 
-    if (!isOpen) return null;
-
     // ─── 리다이렉션 로직 ──────────────────────────────────────────────────────────
+    // ⚠️ React Hook 규칙: useEffect는 반드시 조건부 return(if !isOpen) 보다 앞에 있어야 함
     React.useEffect(() => {
         if (isSuccess) {
             console.log('[Payment] Success detected. Redirecting to /mypage in 3 seconds...');
@@ -80,6 +79,24 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
             return () => clearTimeout(timer);
         }
     }, [isSuccess]);
+
+    // ─── 모달이 닫힐 때 상태 초기화 ──────────────────────────────────────────────
+    React.useEffect(() => {
+        if (!isOpen) {
+            // 모달이 닫히면 내부 상태를 초기화하여 다음 번 열 때 깨끗한 상태로 시작
+            setIsProcessing(false);
+            setIsSuccess(false);
+            setErrorMsg('');
+        }
+    }, [isOpen]);
+
+    // ─── 닫기 핸들러: 결제 진행 중 또는 성공 후에는 닫기 방지 ─────────────────
+    const handleClose = () => {
+        if (isProcessing) return; // 결제 진행 중에는 닫기 차단
+        onClose();
+    };
+
+    if (!isOpen) return null;
 
     const handlePay = async () => {
         // ─── 디버깅: 어떤 키가 누락되었는지 콘솔에서 확인 가능 ─────────────────────
@@ -176,7 +193,7 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
             {/* 배경 오버레이 - 클릭 시 닫힘 */}
             <div
                 className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
-                onClick={!isProcessing && !isSuccess ? onClose : undefined}
+                onClick={handleClose}
             >
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -192,7 +209,7 @@ const PaymentModal = ({ isOpen, onClose, plan, onSuccess, user }) => {
                     {!isProcessing && !isSuccess && (
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="absolute top-5 right-5 text-slate-400 hover:text-white transition-colors z-50 p-2 hover:bg-[#1E293B] rounded-full cursor-pointer"
                         >
                             <X size={20} />

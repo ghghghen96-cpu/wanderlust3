@@ -3,7 +3,8 @@ import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
     ChevronLeft, Calendar, Send, MapPin, Star, Plus, Trash2, Edit2, List,
     Clock, MessageCircle, Sparkles, X, Plane, BedDouble, PlusCircle, ChevronDown, ChevronUp,
-    Globe, ExternalLink, ChevronRight, Upload, CheckCircle2, DollarSign, Image, FileText, Tag
+    Globe, ExternalLink, ChevronRight, Upload, CheckCircle2, DollarSign, Image, FileText, Tag,
+    Wallet, Bus, Info
 } from 'lucide-react';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
@@ -31,6 +32,7 @@ const AdPlaceholder = ({ className = '', style = {} }) => {
 };
 
 // ─── IMAGE LIBRARY ───────────────────────────────────────────────────────────
+// 카테고리별 기본 이미지 라이브러리
 const IMAGE_LIBRARY = {
     food: ["https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800", "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800", "https://images.unsplash.com/photo-1626804475297-411db142642a?q=80&w=800"],
     nature: ["https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=800", "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=800", "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=800"],
@@ -43,14 +45,59 @@ const IMAGE_LIBRARY = {
     default: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=800",
 };
 
-const getImg = (name = '', type = '') => {
+// 목적지별 대표 이미지 (Unsplash High-Quality)
+const DEST_IMAGES = {
+    seoul: "https://images.unsplash.com/photo-1517154421773-0529f29ea451?q=80&w=800",
+    tokyo: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=800", // 깨진 이미지 교체
+    osaka: "https://images.unsplash.com/photo-1590559899731-a382839e5549?q=80&w=800",
+    bangkok: "https://images.unsplash.com/photo-1504214208698-ea1919a23562?q=80&w=800",
+    bali: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=800",
+    singapore: "https://images.unsplash.com/photo-1525625232747-076121f17671?q=80&w=800",
+    paris: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=800",
+    london: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?q=80&w=800",
+    rome: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?q=80&w=800",
+    barcelona: "https://images.unsplash.com/photo-1583422409516-2895a77efded?q=80&w=800",
+    newyork: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?q=80&w=800",
+    sydney: "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?q=80&w=800",
+    taipei: "https://images.unsplash.com/photo-1552233319-39956247343e?q=80&w=800",
+    danang: "https://images.unsplash.com/photo-1559592442-7e182c9403db?q=80&w=800",
+    beijing: "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?q=80&w=800",
+    hongkong: "https://images.unsplash.com/photo-1506354666786-959d6d497f1a?q=80&w=800",
+    jeju: "https://images.unsplash.com/photo-1544483389-947833f2cfdf?q=80&w=800"
+};
+
+const getImg = (name = '', type = '', dest = '', destId = '') => {
     const n = name.toLowerCase();
+    const d = dest.toLowerCase();
+    
+    // 1. 목적지 ID가 있다면 최우선적으로 해당 도시 이미지 매칭
+    let destKey = destId ? destId.toLowerCase().trim() : null;
+    
+    // 만약 ID가 없다면 기존처럼 텍스트에서 유추
+    if (!destKey || !DEST_IMAGES[destKey]) {
+        const lowerDest = dest.toLowerCase();
+        destKey = Object.keys(DEST_IMAGES).find(k => 
+            lowerDest.includes(k) || 
+            lowerDest.includes(t(`survey.destinations.${k}`, { lng: 'ko' }).toLowerCase()) ||
+            lowerDest.includes(t(`survey.destinations.${k}`, { lng: 'en' }).toLowerCase())
+        );
+    }
+    
+    // 목적지 전용 이미지가 있다면 높은 확률로(90%) 사용
+    if (destKey && DEST_IMAGES[destKey] && (n.includes('landmark') || Math.random() > 0.1)) {
+        return DEST_IMAGES[destKey];
+    }
+
+    // 카테고리별 이미지 반환
     if (n.includes('market')) return IMAGE_LIBRARY.market[0];
-    if (n.includes('tower') || n.includes('tree')) return IMAGE_LIBRARY.tower[0];
+    if (n.includes('tower') || n.includes('tree') || n.includes('skytree') || n.includes('tower')) return IMAGE_LIBRARY.tower[0];
     if (n.includes('park') || n.includes('garden')) return IMAGE_LIBRARY.park[0];
+    
     const arr = IMAGE_LIBRARY[type.toLowerCase()];
     if (Array.isArray(arr)) return arr[Math.floor(Math.random() * arr.length)];
-    return IMAGE_LIBRARY.default;
+    
+    // 최종 Fallback
+    return (destKey && DEST_IMAGES[destKey]) || IMAGE_LIBRARY.default;
 };
 
 
@@ -115,7 +162,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
     const timeRef = useRef(null);
     const dc = useDragControls();
 
-    const save = () => { onSave({ ...ed, img: getImg(ed.name, ed.type), isNew: false }); setEditing(false); };
+    const save = () => { onSave({ ...ed, img: getImg(ed.name, ed.type, destination), isNew: false }); setEditing(false); };
 
     // commit inline time change → triggers auto-sort in parent
     const commitTime = (val) => {
@@ -160,10 +207,16 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
                 </div>
 
                 {/* image */}
-                <div className="w-full sm:w-24 h-48 sm:h-24 rounded-2xl overflow-hidden flex-shrink-0 relative shadow-inner">
-                    <img src={activity.img || getImg(activity.name, activity.type)} alt={activity.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                    {/* Removed Rating Overlay */}
+                <div className="w-full sm:w-24 h-48 sm:h-24 rounded-2xl overflow-hidden flex-shrink-0 relative shadow-inner bg-gray-100">
+                    <img 
+                        src={activity.img || getImg(activity.name, activity.type, destination, location.state?.destinationId)} 
+                        alt={activity.name}
+                        onError={(e) => {
+                            e.target.onerror = null; 
+                            e.target.src = IMAGE_LIBRARY.default; // 이미지 로딩 실패 시 기본 이미지로 교체
+                        }}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                    />
                 </div>
 
                 {/* info */}
@@ -206,6 +259,41 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
                     <div className="space-y-3">
                         <p className="text-base font-semibold text-[#4A4A4A] leading-relaxed">{activity.desc}</p>
                         
+                        {/* ── NEW DATA DENSITY BLOCKS ── */}
+                        {(activity.recommendationReason || activity.costEstimate || activity.transportHint || activity.localTip) && (
+                            <div className="flex flex-col gap-2 mt-3 bg-gray-50/80 p-4 rounded-2xl border border-gray-100">
+                                {activity.recommendationReason && (
+                                    <div className="flex items-start gap-2">
+                                        <Sparkles size={16} className="text-primary mt-1 flex-shrink-0" />
+                                        <p className="text-sm font-semibold text-gray-700">
+                                            <span className="font-bold text-primary">{t('itinerary.whySelected', { defaultValue: 'Why we recommend this:' })} </span>
+                                            {activity.recommendationReason}
+                                        </p>
+                                    </div>
+                                )}
+                                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-1">
+                                    {activity.costEstimate && (
+                                        <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                            <Wallet size={14} className="text-emerald-500" />
+                                            <span className="font-bold">{activity.costEstimate}</span>
+                                        </div>
+                                    )}
+                                    {activity.transportHint && (
+                                        <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                            <Bus size={14} className="text-blue-500" />
+                                            <span>{activity.transportHint}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                {activity.localTip && (
+                                    <div className="flex items-start gap-1.5 text-sm mt-1 bg-amber-50 rounded-xl p-2.5 border border-amber-100/50">
+                                        <Info size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                                        <span className="text-amber-800 italic leading-snug"><span className="font-bold">{t('itinerary.localTip', { defaultValue: 'Local Tip:' })}</span> {activity.localTip}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                             <a
                                 href={`https://www.google.com/maps/search/?api=1&query=${activity.latitude && activity.longitude ? `${activity.latitude},${activity.longitude}` : encodeURIComponent(activity.name + ' ' + (destination || ''))}`}
@@ -335,6 +423,11 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     const [success, setSuccess] = useState(false);
     const [publishError, setPublishError] = useState('');
     const [countdown, setCountdown] = useState(3);
+    // ─── 이미지 업로드 관련 상태 ─────────────────────────────────────────────────
+    const [uploadedImage, setUploadedImage] = useState(null); // 사용자가 업로드한 이미지 DataURL
+    const [isUploading, setIsUploading] = useState(false);    // 파일 읽기 중 로딩 상태
+    const [isDragOver, setIsDragOver] = useState(false);      // 드래그 오버 강조 표시
+    const fileInputRef = useRef(null);                        // 숨김 파일 input 참조
 
     // 일정에서 대표 이미지 후보 자동 추출
     const thumbnailCandidates = useMemo(() => {
@@ -352,6 +445,9 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     // 등록 핸들러
     const handlePublish = async () => {
         console.log("--- Publish Process Started ---");
+
+        // 최종 썸네일: 업로드 이미지 우선, 없으면 자동 추천 이미지 사용
+        const finalThumbnail = uploadedImage || thumbnailCandidates[selectedThumb] || '';
         
         // 1. 유효성 검사 (Validation)
         if (!price || isNaN(parseFloat(price))) {
@@ -362,10 +458,8 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
             setPublishError(t('itinerary.publishErrorNoDesc') || 'Please enter a detailed description (min 5 chars).');
             return;
         }
-        if (thumbnailCandidates.length === 0 || selectedThumb < 0 || !thumbnailCandidates[selectedThumb]) {
-            console.warn("Thumbnail validation failed:", { len: thumbnailCandidates.length, idx: selectedThumb });
-            setPublishError(t('itinerary.publishErrorNoThumb') || 'Please select a thumbnail image.');
-            alert(t('itinerary.publishErrorNoThumb') || 'Please select a thumbnail image.');
+        if (!finalThumbnail) {
+            setPublishError(t('itinerary.publishErrorNoThumb') || '썸네일 이미지를 업로드하거나 선택해 주세요.');
             return;
         }
 
@@ -382,7 +476,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 creatorAvatar: user?.photoURL || '',
                 title: String(description).trim(),
                 price: parseFloat(price),
-                thumbnail: thumbnailCandidates[selectedThumb],
+                thumbnail: finalThumbnail,
                 destination: String(data.destination || ''),
                 region: detectRegion(data.destination),
                 category: String(data.travelWith || 'Solo'),
@@ -475,14 +569,60 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     // 지역 자동 감지 (간단 매핑)
     const detectRegion = (dest) => {
         const d = (dest || '').toLowerCase();
-        if (['japan', 'korea', 'seoul', 'tokyo', 'osaka', 'bangkok', 'bali', 'singapore', 'vietnam', 'china', 'beijing', 'shanghai', 'taipei', 'hong kong'].some(k => d.includes(k))) return 'Asia';
-        if (['paris', 'london', 'rome', 'barcelona', 'amsterdam', 'berlin', 'zurich', 'switzerland', 'interlaken', 'santorini', 'greece', 'italy', 'spain', 'france', 'germany', 'portugal'].some(k => d.includes(k))) return 'Europe';
-        if (['new york', 'los angeles', 'san francisco', 'miami', 'hawaii', 'usa', 'canada', 'mexico'].some(k => d.includes(k))) return 'Americas';
-        if (['maldives', 'dubai', 'qatar', 'turkey', 'istanbul'].some(k => d.includes(k))) return 'Middle East';
-        if (['sydney', 'melbourne', 'australia', 'new zealand', 'fiji'].some(k => d.includes(k))) return 'Oceania';
-        if (['cape town', 'morocco', 'kenya', 'egypt', 'africa'].some(k => d.includes(k))) return 'Africa';
+        // 한글 키워드도 포함하여 매핑
+        if (['japan', 'korea', 'seoul', 'tokyo', 'osaka', 'bangkok', 'bali', 'singapore', 'vietnam', 'china', 'beijing', 'shanghai', 'taipei', 'hong kong', '서울', '부산', '도쿄', '오사카', '방콕', '다낭', '하노이', '타이베이', '상하이', '베이징'].some(k => d.includes(k))) return 'Asia';
+        if (['paris', 'london', 'rome', 'barcelona', 'amsterdam', 'berlin', 'zurich', 'switzerland', 'interlaken', 'santorini', 'greece', 'italy', 'spain', 'france', 'germany', 'portugal', '파리', '런던', '로마', '피렌체', '바르셀로나', '산토리니', '프라하', '빈', '뮌헨', '베네치아', '밀라노', '리스본'].some(k => d.includes(k))) return 'Europe';
+        if (['new york', 'los angeles', 'san francisco', 'miami', 'hawaii', 'usa', 'canada', 'mexico', '뉴욕', '로스앤젤레스', '밴쿠버', '칸쿤'].some(k => d.includes(k))) return 'Americas';
+        if (['maldives', 'dubai', 'qatar', 'turkey', 'istanbul', '두바이', '이스탄불'].some(k => d.includes(k))) return 'Middle East';
+        if (['sydney', 'melbourne', 'australia', 'new zealand', 'fiji', '시드니', '멜버른', '퀸즈타운'].some(k => d.includes(k))) return 'Oceania';
+        if (['cape town', 'morocco', 'kenya', 'egypt', 'africa', '카이로', '케이프타운', '마라케시'].some(k => d.includes(k))) return 'Africa';
         return 'Other';
     };
+
+    // ─── 이미지 업로드 핸들러 ─────────────────────────────────────────────────────
+    // FileReader로 이미지를 DataURL로 변환하여 상태에 저장
+    const processFile = (file) => {
+        if (!file) return;
+        if (!file.type.match(/image\/(jpeg|png|gif|webp)/)) {
+            setPublishError('JPG, PNG, GIF, WEBP 파일만 업로드 가능합니다.');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) { // 10MB 제한
+            setPublishError('파일 크기가 10MB를 초과합니다.');
+            return;
+        }
+        setIsUploading(true);
+        setPublishError('');
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setUploadedImage(e.target.result); // DataURL 저장
+            setSelectedThumb(-1);              // 자동 추천 선택 해제
+            setIsUploading(false);
+        };
+        reader.onerror = () => {
+            setPublishError('이미지를 불러오는 중 오류가 발생했습니다.');
+            setIsUploading(false);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // 파일 input change 핸들러
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (file) processFile(file);
+        // 같은 파일 재선택을 위해 값 초기화
+        e.target.value = '';
+    };
+
+    // 드래그 앤 드롭 핸들러
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) processFile(file);
+    };
+    const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
+    const handleDragLeave = () => setIsDragOver(false);
 
     if (!isOpen) return null;
 
@@ -580,35 +720,120 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                             </div>
 
                             {/* 썸네일 선택 */}
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Image size={14} className="text-primary" /> {t('itinerary.publishThumbnail')}
+                                    <Image size={14} className="text-primary" /> SELECT THUMBNAIL
                                 </label>
-                                <p className="text-[10px] text-gray-400 font-bold">{t('itinerary.publishThumbnailAuto')}</p>
-                                {thumbnailCandidates.length > 0 ? (
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {thumbnailCandidates.map((img, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => setSelectedThumb(idx)}
-                                                className={`relative aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all hover:scale-105 ${
-                                                    selectedThumb === idx
-                                                        ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30'
-                                                        : 'border-gray-200 hover:border-gray-300'
-                                                }`}
-                                            >
-                                                <img src={img} alt={`thumb-${idx}`} className="w-full h-full object-cover" />
-                                                {selectedThumb === idx && (
-                                                    <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                                                        <CheckCircle2 size={24} className="text-white drop-shadow-lg" />
-                                                    </div>
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-center h-24 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-sm">
-                                        {t('itinerary.publishNoImagesAvailable', { defaultValue: 'No images available' })}
+
+                                {/* ── 숨김 파일 input ── */}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/gif,image/webp"
+                                    className="hidden"
+                                    onChange={handleFileSelect}
+                                />
+
+                                {/* ── 드래그 앤 드롭 업로드 존 ── */}
+                                <div
+                                    onDrop={handleDrop}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                                    className={`relative rounded-2xl border-2 border-dashed transition-all cursor-pointer ${
+                                        isDragOver
+                                            ? 'border-primary bg-primary/5 scale-[1.01] shadow-md shadow-primary/10'
+                                            : uploadedImage
+                                                ? 'border-green-400 bg-green-50/50'
+                                                : 'border-gray-200 hover:border-primary/50 hover:bg-gray-50/60'
+                                    }`}
+                                >
+                                    {isUploading ? (
+                                        /* 업로드 로딩 */
+                                        <div className="flex flex-col items-center gap-2 py-5">
+                                            <div className="w-7 h-7 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                                            <span className="text-xs text-gray-400 font-bold">이미지 불러오는 중...</span>
+                                        </div>
+                                    ) : uploadedImage ? (
+                                        /* 업로드 완료 미리보기 */
+                                        <div className="flex items-center gap-4 px-4 py-3">
+                                            <div className="relative shrink-0">
+                                                <img
+                                                    src={uploadedImage}
+                                                    alt="업로드된 썸네일"
+                                                    className="w-20 h-14 object-cover rounded-xl border-2 border-green-400 shadow-md"
+                                                />
+                                                <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow">
+                                                    <CheckCircle2 size={12} className="text-white" />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 text-left">
+                                                <p className="text-xs font-black text-green-700 flex items-center gap-1">
+                                                    <CheckCircle2 size={12} /> 업로드 완료 · 썸네일로 사용됩니다
+                                                </p>
+                                                <p className="text-[10px] text-gray-400 mt-0.5">클릭하여 다른 사진으로 교체</p>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); setUploadedImage(null); setSelectedThumb(0); }}
+                                                    className="mt-1.5 text-[10px] text-red-400 hover:text-red-600 font-bold flex items-center gap-0.5 transition-colors"
+                                                >
+                                                    <X size={10} /> 삭제하고 자동 추천으로 변경
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        /* 업로드 안내 */
+                                        <div className="flex flex-col items-center gap-2 py-5">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${ isDragOver ? 'bg-primary/20' : 'bg-gray-100'}`}>
+                                                <Upload size={20} className={isDragOver ? 'text-primary' : 'text-gray-400'} />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-sm font-black text-gray-600">내 사진 업로드하기</p>
+                                                <p className="text-[10px] text-gray-400">클릭 또는 드래그 앤 드롭 · JPG, PNG, GIF</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {/* 드래그 오버 시 하이라이트 오버레이 */}
+                                    {isDragOver && (
+                                        <div className="absolute inset-0 rounded-2xl border-2 border-primary bg-primary/5 flex items-center justify-center pointer-events-none">
+                                            <p className="text-primary font-black text-sm">여기에 놓으세요!</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── 자동 추천 이미지 (구분선 + 그리드) ── */}
+                                {thumbnailCandidates.length > 0 && (
+                                    <div>
+                                        <div className="flex items-center gap-3 my-1">
+                                            <div className="flex-1 h-px bg-gray-100" />
+                                            <span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">또는 일정 이미지에서 선택</span>
+                                            <div className="flex-1 h-px bg-gray-100" />
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2.5">
+                                            {thumbnailCandidates.map((img, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => { setSelectedThumb(idx); setUploadedImage(null); }}
+                                                    className={`relative aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all hover:scale-105 ${
+                                                        !uploadedImage && selectedThumb === idx
+                                                            ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30'
+                                                            : 'border-gray-200 hover:border-primary/40'
+                                                    }`}
+                                                >
+                                                    <img src={img} alt={`thumb-${idx}`} className="w-full h-full object-cover" />
+                                                    {!uploadedImage && selectedThumb === idx && (
+                                                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                                            <CheckCircle2 size={22} className="text-white drop-shadow-lg" />
+                                                        </div>
+                                                    )}
+                                                    {/* 업로드 이미지가 있으면 자동추천은 흐리게 표시 */}
+                                                    {uploadedImage && (
+                                                        <div className="absolute inset-0 bg-white/50" />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -622,7 +847,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                             {/* 등록 버튼 */}
                             <button
                                 onClick={handlePublish}
-                                disabled={publishing || !price || !description}
+                                disabled={publishing || isUploading || !price || !description}
                                 className="w-full py-4 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-lg rounded-2xl shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-3"
                             >
                                 {publishing ? (
@@ -784,7 +1009,7 @@ const Itinerary = () => {
 
     const data = useMemo(() => {
         if (state) return state;
-        const def = { destination: 'South Korea (Seoul)', startDate: new Date().toISOString(), endDate: new Date(Date.now() + 86400000 * 4).toISOString(), focus: ['Food', 'Nature'], pace: 'Moderate', vibe: 'Social' };
+        const def = { destination: 'South Korea (Seoul)', destinationId: 'seoul', startDate: new Date().toISOString(), endDate: new Date(Date.now() + 86400000 * 4).toISOString(), focus: ['Food', 'Nature'], pace: 'Moderate', vibe: 'Social' };
         try {
             const saved = sessionStorage.getItem('lastSurveyData');
             return saved ? { ...def, ...JSON.parse(saved) } : def;
@@ -793,6 +1018,28 @@ const Itinerary = () => {
             return def;
         }
     }, [state]);
+
+    // ── 표시용 목적지 이름 생성 (번역 키 없이 안전하게 처리) ──────────────────
+    const [displayDestination, setDisplayDestination] = useState(() => {
+        const dest = data.destination || '';
+        // survey.destinations.xxx 번역 키가 포함된 경우 ID 기반 이름으로 대체
+        if (dest.includes('survey.destinations.')) {
+            const id = data.destinationId || '';
+            return id ? (id.charAt(0).toUpperCase() + id.slice(1)) : '';
+        }
+        return dest;
+    });
+
+    useEffect(() => {
+        if (!data.destination) { setDisplayDestination(''); return; }
+        const raw = data.destination;
+        if (raw.includes('survey.destinations.')) {
+            const id = data.destinationId || '';
+            setDisplayDestination(id ? (id.charAt(0).toUpperCase() + id.slice(1)) : '');
+            return;
+        }
+        setDisplayDestination(raw);
+    }, [data.destination, data.destinationId, i18n.language]);
 
     const [itinerary, setItinerary] = useState([]);
     const [destData, setDestData] = useState(null);
@@ -833,37 +1080,60 @@ const Itinerary = () => {
 
     // ── SMART TRAVEL ROUTE PLANNER ENGINE ──────────────────────────────────────
     useEffect(() => {
-        const raw = (data.destination || '').toLowerCase().trim();
+        try {
+            const raw = (data.destination || '').toLowerCase().trim();
+            const idMatch = (data.destinationId || '').toLowerCase().trim();
 
-        // ── Multi-step fuzzy destination matching ──────────────────────────────
-        let matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && raw === k);
-        if (!matchKey) {
-            const rawBase = raw.split('(')[0].trim();
-            matchKey = Object.keys(DESTINATION_DATA).find(k =>
-                k !== 'default' && (raw.includes(k) || rawBase.includes(k) || k.includes(rawBase))
-            );
-        }
-        if (!matchKey) {
-            const cityMatch = raw.match(/\(([^)]+)\)/);
-            const city = cityMatch ? cityMatch[1].trim() : raw;
-            matchKey = Object.keys(DESTINATION_DATA).find(k =>
-                k !== 'default' && (k.includes(city) || city.includes(k.split('(')[0].trim()))
-            );
-        }
-        if (!matchKey) {
-            const words = raw.replace(/[()]/g, ' ').split(/\s+/).filter(w => w.length > 2);
-            matchKey = Object.keys(DESTINATION_DATA).find(k =>
-                k !== 'default' && words.some(w => k.includes(w))
-            );
-        }
+            // ── Multi-step fuzzy destination matching ──────────────────────────────
+            let matchKey = null;
 
-        const sd = DESTINATION_DATA[matchKey || 'default'];
-        setDestData(sd);
+            // 0. Try ID match first (most reliable)
+            if (idMatch) {
+                matchKey = Object.keys(DESTINATION_DATA).find(k => 
+                    k !== 'default' && (
+                        k === idMatch || 
+                        k.includes(`(${idMatch})`) || 
+                        idMatch.includes(k) ||
+                        (idMatch === 'jeju' && k.includes('jeju'))
+                    )
+                );
+            }
+            
+            // 1. Exact text match
+            if (!matchKey) {
+                matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && raw === k);
+            }
+            
+            // 2. Fuzzy text matches (fallback)
+            if (!matchKey) {
+                const rawBase = raw.split('(')[0].trim();
+                matchKey = Object.keys(DESTINATION_DATA).find(k =>
+                    k !== 'default' && (raw.includes(k) || rawBase.includes(k) || k.includes(rawBase))
+                );
+            }
+            
+            if (!matchKey) {
+                const cityMatch = raw.match(/\(([^)]+)\)/);
+                const city = cityMatch ? cityMatch[1].trim() : raw;
+                matchKey = Object.keys(DESTINATION_DATA).find(k =>
+                    k !== 'default' && (k.includes(city) || city.includes(k.split('(')[0].trim()))
+                );
+            }
 
-        const start = new Date(data.startDate);
-        const end = new Date(data.endDate);
-        const dayCount = Math.max(differenceInDays(end, start) + 1, 1);
-        const allActivities = [...sd.activities];
+            // ── Selected Destination Data ──────────────────────────────────────────
+            const sd = (matchKey && DESTINATION_DATA[matchKey]) || DESTINATION_DATA['default'];
+            setDestData(sd);
+
+            const start = new Date(data.startDate);
+            const end = new Date(data.endDate);
+            const dayCount = Math.max(differenceInDays(end, start) + 1, 1);
+            
+            if (!sd || !sd.activities) {
+                console.error("No activities found for destination:", matchKey);
+                return;
+            }
+
+            const allActivities = [...sd.activities];
 
         // ── [CONSTRAINT 1] Global No-Duplicate Set ──────────────────────────────
         const globalUsed = new Set(); // 전체 일정에서 동일 장소 중복 추천 절대 금지
@@ -963,6 +1233,61 @@ const Itinerary = () => {
         };
 
         // ── MAIN GENERATION LOOP ────────────────────────────────────────────────
+        const generateItemExtras = (act, data, isDining) => {
+            let reason;
+            if (isDining) {
+                reason = t('itinerary.reasonDining', { defaultValue: 'Selected to match your dining style.', style: t(`categories.${data.dining || 'preferred'}`, { defaultValue: data.dining || 'preferred' }) });
+            } else {
+                const focus = Array.isArray(data.focus) && data.focus.length ? data.focus[0] : '';
+                if (focus === 'Culture') {
+                    reason = t('itinerary.reasonCulture', { defaultValue: 'Recommended for its deep historical significance.' });
+                } else if (focus === 'Nature' || focus === 'Eco') {
+                    reason = t('itinerary.reasonNature', { defaultValue: 'Perfect for enjoying nature and beautiful landscapes.' });
+                } else if (focus === 'City') {
+                    reason = t('itinerary.reasonCity', { defaultValue: 'Great choice to experience vibrant city life.' });
+                } else if (focus === 'Relax' || focus === 'Honeymoon') {
+                    reason = t('itinerary.reasonRelax', { defaultValue: 'A peaceful spot chosen for your relaxation.' });
+                } else if (focus === 'Foodie' || focus === 'Food') {
+                    reason = t('itinerary.reasonFood', { defaultValue: 'An exceptional place for a culinary journey.' });
+                } else if (data.vibe) {
+                    reason = t('itinerary.reasonVibe', { defaultValue: `Perfect for your ${data.vibe} vibe.`, vibe: t(`tags.${data.vibe}`, { defaultValue: data.vibe }) });
+                } else {
+                    reason = t('itinerary.reasonGeneral', { defaultValue: `A highly rated spot (Rating: ${act.rating || 4.5}) that fits your travel style.`, rating: act.rating || 4.5 });
+                }
+            }
+
+            let cost = 'Free';
+            const isBudget = (data.budget || data.pace || '').toLowerCase().includes('budget');
+            const isLuxury = (data.budget || data.pace || '').toLowerCase().includes('luxury');
+            if (isDining) {
+                cost = isBudget ? '$' : (isLuxury ? '$$$' : '$$');
+            } else {
+                if (act.type === 'Nature' || act.type === 'Park') cost = 'Free / Low Cost';
+                else if (isLuxury) cost = Math.random() > 0.5 ? '$$' : '$$$';
+                else if (isBudget) cost = Math.random() > 0.7 ? '$$' : (Math.random() > 0.4 ? '$' : 'Free');
+                else cost = Math.random() > 0.5 ? '$$' : '$';
+            }
+
+            const transports = [
+                t('itinerary.tipWalk', { defaultValue: 'Walk 10 mins from the nearest station.' }), 
+                t('itinerary.tipBus', { defaultValue: 'Take a local bus (approx. 15 mins).' }), 
+                t('itinerary.tipSubway', { defaultValue: 'Easily accessible via subway.' }), 
+                t('itinerary.tipTaxi', { defaultValue: 'A short taxi ride is recommended.' })
+            ];
+            const transportHint = transports[Math.floor(Math.random() * transports.length)];
+
+            const tips = [
+                t('itinerary.tipMorning', { defaultValue: 'Visit early morning to avoid crowds.' }),
+                t('itinerary.tipTrap', { defaultValue: 'Avoid nearby tourist trap restaurants.' }),
+                t('itinerary.tipSpecialty', { defaultValue: "Don't forget to try the local specialty around the corner." }),
+                t('itinerary.tipShoes', { defaultValue: 'Bring comfortable walking shoes.' }),
+                t('itinerary.tipTickets', { defaultValue: 'Tickets are cheaper if booked online in advance.' })
+            ];
+            const localTip = tips[Math.floor(Math.random() * tips.length)];
+
+            return { recommendationReason: reason, costEstimate: cost, transportHint, localTip };
+        };
+
         const days = [];
         for (let i = 0; i < dayCount; i++) {
             const sightsCount = basePerDay; // sightseeing spots per day (dining added separately)
@@ -991,7 +1316,8 @@ const Itinerary = () => {
                 lastLng = next.longitude;
                 dayItems.push({
                     ...next,
-                    img: getImg(next.name, next.type),
+                    ...generateItemExtras(next, Object.assign({}, data, { budget: data.pace }), false),
+                    img: getImg(next.name, next.type, data.destination, data.destinationId),
                     id: `${i}-${j}-${Date.now()}-${Math.random()}`,
                     time: '09:00', // will be recalculated by buildTimeSlots
                 });
@@ -1001,7 +1327,7 @@ const Itinerary = () => {
             const diningSpot = getDiningSpot(i, lastLat, lastLng);
             if (diningSpot && dayItems.length >= 1) {
                 const insertAt = Math.min(Math.ceil(dayItems.length / 2), 2);
-                dayItems.splice(insertAt, 0, diningSpot);
+                dayItems.splice(insertAt, 0, { ...diningSpot, ...generateItemExtras(diningSpot, Object.assign({}, data, { budget: data.pace }), true) });
             }
 
             // ── Assign realistic times with 2hr+ intervals ─────────────────────
@@ -1010,11 +1336,15 @@ const Itinerary = () => {
 
             days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme, items: timedItems });
         }
-        setItinerary(days);
-        
-        // 검색 이력 저장
-        saveSearchHistory(data);
-        
+            setItinerary(days);
+            
+            // 검색 이력 저장
+            saveSearchHistory(data);
+        } catch (error) {
+            console.error("Critical error in itinerary generation:", error);
+            // 에러 발생 시 빈 일정으로 세팅하여 크래시 방지
+            setItinerary([]);
+        }
     }, [data]);
 
 
@@ -1033,7 +1363,7 @@ const Itinerary = () => {
     const deleteAct = (di, id) => setDayItems(di, itinerary[di].items.filter(x => x.id !== id));
     const addAct = (di) => {
         const nm = t('itinerary.newSpotName'), tp = 'City';
-        const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: t('itinerary.newSpotDesc'), type: tp, img: getImg(nm, tp), isNew: true };
+        const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: t('itinerary.newSpotDesc'), type: tp, img: getImg(nm, tp, data.destination), isNew: true };
         setDayItems(di, [...itinerary[di].items, item]);
     };
 
@@ -1060,7 +1390,7 @@ const Itinerary = () => {
                         <ChevronLeft size={24} />
                     </div>
                     <div>
-                        <h1 className="font-extrabold text-xl md:text-2xl text-secondary leading-tight truncate max-w-[200px] md:max-w-none">{data.destination}</h1>
+                        <h1 className="font-extrabold text-xl md:text-2xl text-secondary leading-tight truncate max-w-[200px] md:max-w-none">{displayDestination}</h1>
                         <p className="text-[11px] md:text-xs font-bold text-gray-500 flex items-center gap-1.5 mt-0.5">
                             <Calendar size={13} className="text-primary" />
                             {safeFormat(data.startDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} – {safeFormat(data.endDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} · {t('itinerary.days', { count: (itinerary || []).length })}

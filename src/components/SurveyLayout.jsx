@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import ProgressBar from './ProgressBar';
 import Button from './Button';
 
@@ -13,9 +14,12 @@ const SurveyLayout = ({
     onNext,
     onBack,
     canNext = true,
-    nextLabel = 'Next Step'
+    nextLabel
 }) => {
     const navigate = useNavigate();
+    const { t } = useTranslation();
+
+    const displayNextLabel = nextLabel || t('survey.nextStep');
 
     return (
         <div className="min-h-screen bg-background flex flex-col">
@@ -31,7 +35,7 @@ const SurveyLayout = ({
                         <ChevronLeft size={28} />
                     </button>
                     <span className="text-primary font-bold text-base tracking-widest uppercase">
-                        Step {step} of {totalSteps}
+                        {t('survey.stepOf', { current: step, total: totalSteps })}
                     </span>
                     <h1 className="text-4xl md:text-5xl font-black text-secondary mt-2 leading-tight">{title}</h1>
                     {subtitle && (
@@ -53,7 +57,7 @@ const SurveyLayout = ({
                     disabled={!canNext}
                     className={`w-full text-lg py-4 ${!canNext ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                    {nextLabel}
+                    {displayNextLabel}
                 </Button>
             </div>
         </div>
