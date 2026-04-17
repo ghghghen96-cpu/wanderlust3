@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
     ChevronLeft, Calendar, Send, MapPin, Star, Plus, Trash2, Edit2, List,
@@ -6,1047 +6,48 @@ import {
     Globe, ExternalLink, ChevronRight, Upload, CheckCircle2, DollarSign, Image, FileText, Tag,
     Wallet, Bus, Info
 } from 'lucide-react';
-import { format, addDays, differenceInDays } from 'date-fns';
+import { addDays, differenceInDays } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
 import Navbar from '../components/Navbar';
-import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DESTINATION_DATA } from '../data';
 import { saveSearchHistory } from '../utils/history';
-import { auth, publishToMarketplace, uploadThumbnailToStorage } from '../firebase';
+import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { fetchPlaceImage } from '../utils/imageApi';
-import ExternalPlaceImage from '../components/ExternalPlaceImage';
 
-// ─── ADVERTISEMENT PLACEHOLDER ────────────────────────────────────────────────
-const AdPlaceholder = ({ className = '', style = {} }) => {
-    const { t, i18n } = useTranslation();
-    return (
-        <div className={`bg-gray-100 border border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 font-bold overflow-hidden relative ${className}`} style={style}>
-            <span className="text-[10px] uppercase tracking-widest absolute top-2 right-3 text-gray-400">{t('itinerary.recommended')}</span>
-            <div className="flex flex-col items-center gap-2 mt-2">
-                <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse"></div>
-                <div className="w-24 h-3 bg-gray-200 rounded animate-pulse"></div>
-                <div className="w-16 h-2 bg-gray-200 rounded animate-pulse"></div>
-            </div>
-        </div>
-    );
-};
+// Modular Components
+import ActivityCard from '../components/itinerary/ActivityCard';
+import AIChatModal from '../components/itinerary/AIChatModal';
+import PublishModal from '../components/itinerary/PublishModal';
+import FlightCard from '../components/itinerary/FlightCard';
+import HotelCard from '../components/itinerary/HotelCard';
+import { Section, AdPlaceholder } from '../components/itinerary/ItineraryComponents';
 
-// ─── IMAGE LIBRARY ───────────────────────────────────────────────────────────
-// 카테고리별 기본 이미지 라이브러리
-const IMAGE_LIBRARY = {
-    food: ["https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800", "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800", "https://images.unsplash.com/photo-1626804475297-411db142642a?q=80&w=800"],
-    nature: ["https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=800", "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=800", "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=800"],
-    city: ["https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=80&w=800", "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=800", "https://images.unsplash.com/photo-1519501025264-65ba15a82390?q=80&w=800"],
-    culture: ["https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=800", "https://images.unsplash.com/photo-1528164344705-47542687000d?q=80&w=800", "https://images.unsplash.com/photo-1548013146-72479768bada?q=80&w=800"],
-    relax: ["https://images.unsplash.com/photo-1540555700478-4be289fbecef?q=80&w=800"],
-    market: ["https://images.unsplash.com/photo-1533920143825-963ad2b4122d?q=80&w=800"],
-    tower: ["https://images.unsplash.com/photo-1572589028889-d584346e339b?q=80&w=800"],
-    park: ["https://images.unsplash.com/photo-1513889961551-628c115e2eb3?q=80&w=800"],
-    default: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=800",
-};
+// Helpers
+import { 
+    getImg, 
+    fmtTime, 
+    calcDist, 
+    safeFormat, 
+    getDayMapUrl 
+} from '../utils/itineraryHelpers';
 
-// 목적지별 대표 이미지 (Unsplash High-Quality)
-const DEST_IMAGES = {
-    seoul: "https://images.unsplash.com/photo-1517154421773-0529f29ea451?q=80&w=800",
-    tokyo: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=800", // 깨진 이미지 교체
-    osaka: "https://images.unsplash.com/photo-1590559899731-a382839e5549?q=80&w=800",
-    bangkok: "https://images.unsplash.com/photo-1504214208698-ea1919a23562?q=80&w=800",
-    bali: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=800",
-    singapore: "https://images.unsplash.com/photo-1525625232747-076121f17671?q=80&w=800",
-    paris: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=800",
-    london: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?q=80&w=800",
-    rome: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?q=80&w=800",
-    barcelona: "https://images.unsplash.com/photo-1583422409516-2895a77efded?q=80&w=800",
-    newyork: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?q=80&w=800",
-    sydney: "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?q=80&w=800",
-    taipei: "https://images.unsplash.com/photo-1552233319-39956247343e?q=80&w=800",
-    danang: "https://images.unsplash.com/photo-1559592442-7e182c9403db?q=80&w=800",
-    beijing: "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?q=80&w=800",
-    hongkong: "https://images.unsplash.com/photo-1506354666786-959d6d497f1a?q=80&w=800",
-    jeju: "https://images.unsplash.com/photo-1544483389-947833f2cfdf?q=80&w=800"
-};
-
-const getImg = (name = '', type = '', dest = '', destId = '') => {
-    const n = name.toLowerCase();
-    const d = dest.toLowerCase();
-    
-    // 1. 목적지 ID가 있다면 최우선적으로 해당 도시 이미지 매칭
-    let destKey = destId ? destId.toLowerCase().trim() : null;
-    
-    // 만약 ID가 없다면 기존처럼 텍스트에서 유추
-    if (!destKey || !DEST_IMAGES[destKey]) {
-        const lowerDest = dest.toLowerCase();
-        destKey = Object.keys(DEST_IMAGES).find(k => 
-            lowerDest.includes(k) || 
-            lowerDest.includes(t(`survey.destinations.${k}`, { lng: 'ko' }).toLowerCase()) ||
-            lowerDest.includes(t(`survey.destinations.${k}`, { lng: 'en' }).toLowerCase())
-        );
-    }
-    
-    // 목적지 전용 이미지가 있다면 높은 확률로(90%) 사용
-    if (destKey && DEST_IMAGES[destKey] && (n.includes('landmark') || Math.random() > 0.1)) {
-        return DEST_IMAGES[destKey];
-    }
-
-    // 카테고리별 이미지 반환
-    if (n.includes('market')) return IMAGE_LIBRARY.market[0];
-    if (n.includes('tower') || n.includes('tree') || n.includes('skytree') || n.includes('tower')) return IMAGE_LIBRARY.tower[0];
-    if (n.includes('park') || n.includes('garden')) return IMAGE_LIBRARY.park[0];
-    
-    const arr = IMAGE_LIBRARY[type.toLowerCase()];
-    if (Array.isArray(arr)) return arr[Math.floor(Math.random() * arr.length)];
-    
-    // 최종 Fallback
-    return (destKey && DEST_IMAGES[destKey]) || IMAGE_LIBRARY.default;
-};
-
-
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
-const safeFormat = (date, formatStr, localeData) => {
-    try {
-        if (!date) return '---';
-        const d = new Date(date);
-        if (isNaN(d.getTime())) return '---';
-        return format(d, formatStr, { locale: localeData });
-    } catch (e) {
-        console.error("Date formatting error:", e);
-        return '---';
-    }
-};
-
-const fmtTime = (t, lang = 'en') => {
-    if (!t) return '';
-    const [h, m] = t.split(':').map(Number);
-    const suffix = lang === 'ko' ? (h >= 12 ? '오후' : '오전') : (h >= 12 ? 'PM' : 'AM');
-    const displayH = h % 12 || 12;
-    const displayM = String(m || 0).padStart(2, '0');
-    return lang === 'ko' ? `${suffix} ${displayH}:${displayM}` : `${displayH}:${displayM} ${suffix}`;
-};
-
-const calcDist = (la1, lo1, la2, lo2) => {
-    if (!la1 || !lo1 || !la2 || !lo2) return 999999;
-    const R = 6371, toRad = (v) => v * Math.PI / 180;
-    const dLa = toRad(la2 - la1), dLo = toRad(lo2 - lo1);
-    const a = Math.sin(dLa / 2) ** 2 + Math.cos(toRad(la1)) * Math.cos(toRad(la2)) * Math.sin(dLo / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
-const getDayMapUrl = (items, dest) => {
-    if (!items || items.length === 0) return '#';
-    
-    // 각 아이템을 좌표가 있으면 좌표로, 없으면 이름+목적지로 변환
-    const spots = items.map(a => 
-        (a.latitude && a.longitude) 
-            ? `${a.latitude},${a.longitude}` 
-            : `${a.name} ${dest || ''}`
-    );
-    
-    const origin = encodeURIComponent(spots[0]);
-    const destination = encodeURIComponent(spots[spots.length - 1]);
-    
-    // 중간 경유지 설정
-    let waypoints = '';
-    if (spots.length > 2) {
-        waypoints = `&waypoints=${encodeURIComponent(spots.slice(1, -1).join('|'))}`;
-    }
-    
-    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}&travelmode=driving`;
-};
-
-// ─── ACTIVITY CARD ────────────────────────────────────────────────────────────
-const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
-    const { t, i18n } = useTranslation();
-    const [editing, setEditing] = useState(activity.isNew || false);
-    const [ed, setEd] = useState(activity);
-    const [timeEdit, setTimeEdit] = useState(false);
-    const timeRef = useRef(null);
-    const dc = useDragControls();
-
-    const save = () => { onSave({ ...ed, img: getImg(ed.name, ed.type, destination), isNew: false }); setEditing(false); };
-
-    // commit inline time change → triggers auto-sort in parent
-    const commitTime = (val) => {
-        setTimeEdit(false);
-        if (val) onSave({ ...activity, time: val });
-    };
-
-    if (editing) return (
-        <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-primary/20 space-y-4">
-            <div className="flex gap-3 items-center">
-                <input autoFocus value={ed.name} onChange={e => setEd({ ...ed, name: e.target.value })}
-                    className="flex-1 font-black text-2xl border-b-2 border-gray-200 focus:outline-none px-1 py-1 text-secondary" placeholder={t('itinerary.newSpotName')} />
-                <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('itinerary.colTime')}</span>
-                    <input type="time" value={ed.time} onChange={e => setEd({ ...ed, time: e.target.value })}
-                        className="font-bold text-base text-primary bg-primary/5 rounded-lg px-3 py-2 outline-none border border-primary/20 focus:ring-2 focus:ring-primary/30" />
-                </div>
-            </div>
-            <textarea value={ed.desc} onChange={e => setEd({ ...ed, desc: e.target.value })} rows={2}
-                className="w-full text-sm text-gray-600 border border-gray-200 rounded-xl p-3 focus:outline-none bg-gray-50 resize-none" />
-            <div className="flex gap-2 justify-end">
-                <button onClick={() => setEditing(false)} className="px-5 py-2 text-gray-500 font-bold text-sm">{t('itinerary.btnCancel')}</button>
-                <button onClick={save} className="px-6 py-2 bg-primary text-secondary rounded-xl font-bold text-sm">{t('itinerary.btnSave')}</button>
-            </div>
-        </div>
-    );
-
-    return (
-        <Reorder.Item value={activity} id={activity.id} dragListener={false} dragControls={dc} className="group">
-            <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col sm:flex-row gap-5 items-start sm:items-center">
-                {/* top stretch for mobile, or left for desktop */}
-                <div className="flex items-center justify-between w-full sm:w-auto">
-                    {/* drag handle */}
-                    <div onPointerDown={e => dc.start(e)} className="cursor-move p-2 hover:bg-gray-50 rounded-lg text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0">
-                        <List size={20} />
-                    </div>
-                    {/* action buttons (mobile only) */}
-                    <div className="flex sm:hidden gap-1">
-                        <button onClick={() => setEditing(true)} className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-colors"><Edit2 size={18} /></button>
-                        <button onClick={onDelete} className="p-2.5 text-red-400 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={18} /></button>
-                    </div>
-                </div>
-
-                {/* image */}
-                <div className="w-full sm:w-40 xl:w-48 aspect-video rounded-2xl overflow-hidden flex-shrink-0 relative shadow-sm border border-gray-100 bg-gray-100 group-hover:shadow-md transition-shadow">
-                    <ExternalPlaceImage 
-                        name={activity.name}
-                        region={destination}
-                        initialUrl={activity.img || getImg(activity.name, activity.type, destination, location.state?.destinationId)} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                    />
-                </div>
-
-                {/* info */}
-                <div className="flex-1 min-w-0 w-full">
-                    <h3 className="font-black text-[#006400] text-2xl truncate group-hover:opacity-80 transition-opacity mb-2">{activity.name}</h3>
-
-                    {/* ── INLINE TIME (New Line) ── */}
-                    <div className="mb-3">
-                        {timeEdit ? (
-                            <div className="flex items-center gap-2 bg-primary/5 p-2 rounded-xl border border-primary/20">
-                                <Clock size={16} className="text-primary" />
-                                <input
-                                    ref={timeRef}
-                                    type="time"
-                                    defaultValue={activity.time}
-                                    autoFocus
-                                    onBlur={e => commitTime(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter') commitTime(e.target.value);
-                                        if (e.key === 'Escape') setTimeEdit(false);
-                                    }}
-                                    className="text-base font-bold text-primary bg-transparent outline-none"
-                                />
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => setTimeEdit(true)}
-                                title={t('itinerary.setTime')}
-                                className="group/time flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-primary border border-gray-100 rounded-full hover:bg-primary/10 hover:border-primary/20 transition-all"
-                            >
-                                <Clock size={14} className="group-hover/time:scale-110 transition-transform" />
-                                <span className="font-bold text-sm tracking-tight">
-                                    {fmtTime(activity.time, i18n.language) || t('itinerary.setTime')}
-                                </span>
-                                <Edit2 size={10} className="opacity-0 group-hover/time:opacity-50 transition-opacity" />
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="space-y-3">
-                        <p className="text-base font-semibold text-[#4A4A4A] leading-relaxed">{activity.desc}</p>
-                        
-                        {/* ── NEW DATA DENSITY BLOCKS ── */}
-                        {(activity.recommendationReason || activity.costEstimate || activity.transportHint || activity.localTip) && (
-                            <div className="flex flex-col gap-2 mt-3 bg-gray-50/80 p-4 rounded-2xl border border-gray-100">
-                                {activity.recommendationReason && (
-                                    <div className="flex items-start gap-2">
-                                        <Sparkles size={16} className="text-primary mt-1 flex-shrink-0" />
-                                        <p className="text-sm font-semibold text-gray-700">
-                                            <span className="font-bold text-primary">{t('itinerary.whySelected', { defaultValue: 'Why we recommend this:' })} </span>
-                                            {activity.recommendationReason}
-                                        </p>
-                                    </div>
-                                )}
-                                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-1">
-                                    {activity.costEstimate && (
-                                        <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                                            <Wallet size={14} className="text-emerald-500" />
-                                            <span className="font-bold">{activity.costEstimate}</span>
-                                        </div>
-                                    )}
-                                    {activity.transportHint && (
-                                        <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                                            <Bus size={14} className="text-blue-500" />
-                                            <span>{activity.transportHint}</span>
-                                        </div>
-                                    )}
-                                </div>
-                                {activity.localTip && (
-                                    <div className="flex items-start gap-1.5 text-sm mt-1 bg-amber-50 rounded-xl p-2.5 border border-amber-100/50">
-                                        <Info size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                                        <span className="text-amber-800 italic leading-snug"><span className="font-bold">{t('itinerary.localTip', { defaultValue: 'Local Tip:' })}</span> {activity.localTip}</span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                            <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${activity.latitude && activity.longitude ? `${activity.latitude},${activity.longitude}` : encodeURIComponent(activity.name + ' ' + (destination || ''))}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary/10 text-primary text-xs font-black rounded-xl hover:bg-primary transition-all hover:text-white border border-primary/10"
-                            >
-                                <MapPin size={14} /> 
-                                {t('itinerary.maps')}
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                {/* action buttons */}
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <button onClick={() => setEditing(true)} className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-colors"><Edit2 size={18} /></button>
-                    <button onClick={onDelete} className="p-2.5 text-red-400  hover:bg-red-50  rounded-xl transition-colors"><Trash2 size={18} /></button>
-                </div>
-            </div>
-        </Reorder.Item>
-    );
-};
-
-// ─── AI CHAT MODAL ────────────────────────────────────────────────────────────
-const AIChatModal = ({ isOpen, onClose, destination }) => {
-    const { t, i18n } = useTranslation();
-    const [msgs, setMsgs] = useState([{ role: 'assistant', text: t('itinerary.chatBotGreeting', { destination }) }]);
-    const [inp, setInp] = useState('');
-    const [loading, setLoading] = useState(false);
-    const endRef = useRef(null);
-    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, isOpen]);
-
-    const REPLIES = [
-        { keywords: ['food', 'eat', 'restaurant', 'dining', '맛집', '음식', '식사'], reply: t('itinerary.chatBotReplies.food') },
-        { keywords: ['hotel', 'stay', 'accommodation', 'sleep', '숙소', '호텔', '잠'], reply: t('itinerary.chatBotReplies.stay') },
-        { keywords: ['weather', 'climate', 'temperature', '날씨', '기온', '비'], reply: t('itinerary.chatBotReplies.weather') },
-        { keywords: ['transport', 'bus', 'train', 'taxi', 'metro', '교통', '버스', '지하철'], reply: t('itinerary.chatBotReplies.transport') },
-        { keywords: ['budget', 'cost', 'money', 'price', '예산', '비용', '돈'], reply: t('itinerary.chatBotReplies.budget') },
-        { keywords: ['safe', 'safety', 'crime', 'danger', '보안', '안전', '위험'], reply: t('itinerary.chatBotReplies.safety') },
-    ];
-
-    const send = () => {
-        try {
-            const text = inp.trim();
-            if (!text) return;
-            // 입력값을 먼저 로컬에 저장 후 초기화
-            const updatedMsgs = [...msgs, { role: 'user', text }];
-            setMsgs(updatedMsgs);
-            setInp('');
-            setLoading(true);
-            setTimeout(() => {
-                try {
-                    const lower = text.toLowerCase();
-                    const matched = REPLIES.find(r => r.keywords.some(k => lower.includes(k)));
-                    const reply = matched
-                        ? matched.reply
-                        : t('itinerary.chatBotReplyDefault', { text, destination });
-                    setMsgs(prev => [...prev, { role: 'assistant', text: reply }]);
-                } catch (err) {
-                    setMsgs(prev => [...prev, { role: 'assistant', text: t('itinerary.chatBotError') }]);
-                } finally {
-                    setLoading(false);
-                }
-            }, 700);
-        } catch (err) {
-            console.error('Chat send error:', err);
-        }
-    };
-
-    if (!isOpen) return null;
-    return (
-        <div className="fixed bottom-24 right-8 w-96 h-[480px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden z-50">
-            <div className="bg-secondary px-5 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-secondary"><Sparkles size={16} /></div>
-                    <span className="text-white font-bold text-sm">WanderAI</span>
-                </div>
-                <button onClick={onClose} className="text-white/70 hover:text-white"><X size={18} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-                {msgs.map((m, i) => (
-                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-secondary text-white rounded-tr-none' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none shadow-sm'}`}>{m.text}</div>
-                    </div>
-                ))}
-                {loading && (
-                    <div className="flex justify-start">
-                        <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none p-3 shadow-sm flex gap-1 items-center">
-                            <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                        </div>
-                    </div>
-                )}
-                <div ref={endRef} />
-            </div>
-            <div className="p-3 bg-white border-t border-gray-100 flex gap-2">
-                <input
-                    value={inp}
-                    onChange={e => setInp(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-                    className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none"
-                    placeholder={t('itinerary.chatPlaceholder')}
-                    disabled={loading}
-                />
-                <button
-                    onClick={send}
-                    disabled={loading || !inp.trim()}
-                    className="w-10 h-10 rounded-full bg-primary text-secondary flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100"
-                >
-                    <Send size={16} />
-                </button>
-            </div>
-        </div>
-    );
-};
-
-// ─── PUBLISH MODAL ────────────────────────────────────────────────────────────
-const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user }) => {
-    const { t, i18n } = useTranslation();
-    const navigate = useNavigate();
-    const [price, setPrice] = useState('');
-    const [description, setDescription] = useState('');
-    const [selectedThumb, setSelectedThumb] = useState(0);
-    const [publishing, setPublishing] = useState(false);
-    const [success, setSuccess] = useState(false);
-    const [publishError, setPublishError] = useState('');
-    const [countdown, setCountdown] = useState(3);
-    // ─── 이미지 업로드 관련 상태 ─────────────────────────────────────────────────
-    const [uploadedImage, setUploadedImage] = useState(null); // 사용자가 업로드한 이미지 DataURL
-    const [isUploading, setIsUploading] = useState(false);    // 파일 읽기 중 로딩 상태
-    const [isDragOver, setIsDragOver] = useState(false);      // 드래그 오버 강조 표시
-    const fileInputRef = useRef(null);                        // 숨김 파일 input 참조
-
-    // 가장 평점이 높은 장소 우선으로 썸네일 자동 추천
-    const thumbnailCandidates = useMemo(() => {
-        let allItems = [];
-        itinerary.forEach(day => {
-            day.items.forEach(item => {
-                if (item.img) allItems.push(item);
-            });
-        });
-        
-        // 내림차순 정렬 (높은 평점 우선)
-        allItems.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-        
-        const imgs = [];
-        allItems.forEach(item => {
-            if (!imgs.includes(item.img)) {
-                imgs.push(item.img);
-            }
-        });
-        
-        return imgs.slice(0, 6); // 최대 6개까지 후보
-    }, [itinerary]);
-
-    // 등록 핸들러
-    const handlePublish = async () => {
-        console.log("--- Publish Process Started ---");
-
-        // 최종 썸네일: 업로드 이미지 우선, 없으면 자동 추천 이미지 사용
-        const finalThumbnail = uploadedImage || thumbnailCandidates[selectedThumb] || '';
-        
-        // 1. 유효성 검사 (Validation)
-        if (!price || isNaN(parseFloat(price))) {
-            setPublishError(t('itinerary.publishErrorNoPrice') || 'Please enter a valid price.');
-            return;
-        }
-        if (!description || description.trim().length < 5) {
-            setPublishError(t('itinerary.publishErrorNoDesc') || 'Please enter a detailed description (min 5 chars).');
-            return;
-        }
-        if (!finalThumbnail) {
-            setPublishError(t('itinerary.publishErrorNoThumb') || '썸네일 이미지를 업로드하거나 선택해 주세요.');
-            return;
-        }
-
-        console.log("Validation passed. Data assembly starting...");
-        setPublishing(true);
-        setPublishError('');
-        
-        try {
-            // 업로드된 이미지가 DataURL 형태일 경우 Firebase Storage에 업로드 (문서 크기 제한 1MB 방지)
-            console.log("Processing thumbnail...");
-            const safeThumbnail = await uploadThumbnailToStorage(finalThumbnail, user?.uid || 'anonymous');
-
-            // 1. 기본 메타데이터 구성 (순환 참조 및 undefined 방지)
-            const templateBase = {
-                creatorUid: user?.uid || 'anonymous',
-                creatorName: user?.displayName || t('nav.traveler', { defaultValue: 'Traveler' }),
-                creatorEmail: user?.email || '',
-                creatorAvatar: user?.photoURL || '',
-                title: String(description).trim(),
-                price: parseFloat(price),
-                thumbnail: safeThumbnail,
-                destination: String(data.destination || ''),
-                region: detectRegion(data.destination),
-                category: String(data.travelWith || 'Solo'),
-                budget: String(data.pace || 'Moderate'),
-                startDate: data.startDate ? new Date(data.startDate).toISOString() : new Date().toISOString(),
-                endDate: data.endDate ? new Date(data.endDate).toISOString() : new Date().toISOString(),
-                totalDays: parseInt(itinerary.length) || 0,
-                totalSpots: itinerary.reduce((s, d) => s + (d.items?.length || 0), 0),
-                focus: Array.isArray(data.focus) ? data.focus : [],
-                pace: String(data.pace || 'Moderate'),
-                vibe: String(data.vibe || ''),
-                publishedAt: new Date().toISOString()
-            };
-
-            // 2. 일정 데이터 직렬화
-            const days = itinerary.map(day => ({
-                dayNum: parseInt(day.dayNum),
-                date: day.date instanceof Date ? day.date.toISOString() : String(day.date),
-                theme: String(day.theme || ''),
-                items: (day.items || []).map(item => ({
-                    name: String(item.name || ''),
-                    desc: String(item.desc || ''),
-                    type: String(item.type || ''),
-                    time: String(item.time || ''),
-                    img: String(item.img || ''),
-                    latitude: item.latitude ? parseFloat(item.latitude) : null,
-                    longitude: item.longitude ? parseFloat(item.longitude) : null,
-                    rating: item.rating ? parseFloat(item.rating) : null,
-                }))
-            }));
-
-            // 3. 항공/숙소 데이터 직렬화
-            const flightData = (flights || []).map(f => ({
-                type: String(f.type || 'Outbound'),
-                from: String(f.from || ''),
-                to: String(f.to || ''),
-                number: String(f.number || ''),
-                time: String(f.time || ''),
-                notes: String(f.notes || '')
-            }));
-
-            const hotelData = (hotels || []).map(h => ({
-                name: String(h.name || ''),
-                address: String(h.address || ''),
-                confirmation: String(h.confirmation || ''),
-                checkin: String(h.checkin || ''),
-                checkout: String(h.checkout || '')
-            }));
-
-            const finalData = {
-                ...templateBase,
-                itinerary: days,
-                flights: flightData,
-                hotels: hotelData
-            };
-
-            console.log("Final data assembled successfully:", finalData);
-            
-            // 4. API 호출
-            console.log("Calling publishToMarketplace API...");
-            const docId = await publishToMarketplace(finalData);
-            console.log("Publish success! Received docId:", docId);
-            
-            setSuccess(true);
-
-            // 5. 카운트다운 후 리다이렉트 (강제 이동)
-            let count = 3;
-            setCountdown(count);
-            const timer = setInterval(() => {
-                count -= 1;
-                console.log(`Redirecting to marketplace in ${count}s...`);
-                if (count >= 0) setCountdown(count);
-                if (count <= 0) {
-                    clearInterval(timer);
-                    window.location.href = '/marketplace';
-                }
-            }, 1000);
-            
-        } catch (err) {
-            console.error('CRITICAL: Publish process failed:', err);
-            const errorMsg = err.message || 'Failed to publish. Connection error or invalid data.';
-            setPublishError(errorMsg);
-            alert(`Error: ${errorMsg}`);
-        } finally {
-            console.log("Publishing process reached finally block.");
-            setPublishing(false);
-        }
-    };
-
-    // 지역 자동 감지 (간단 매핑)
-    const detectRegion = (dest) => {
-        const d = (dest || '').toLowerCase();
-        // 한글 키워드도 포함하여 매핑
-        if (['japan', 'korea', 'seoul', 'tokyo', 'osaka', 'bangkok', 'bali', 'singapore', 'vietnam', 'china', 'beijing', 'shanghai', 'taipei', 'hong kong', '서울', '부산', '도쿄', '오사카', '방콕', '다낭', '하노이', '타이베이', '상하이', '베이징'].some(k => d.includes(k))) return 'Asia';
-        if (['paris', 'london', 'rome', 'barcelona', 'amsterdam', 'berlin', 'zurich', 'switzerland', 'interlaken', 'santorini', 'greece', 'italy', 'spain', 'france', 'germany', 'portugal', '파리', '런던', '로마', '피렌체', '바르셀로나', '산토리니', '프라하', '빈', '뮌헨', '베네치아', '밀라노', '리스본'].some(k => d.includes(k))) return 'Europe';
-        if (['new york', 'los angeles', 'san francisco', 'miami', 'hawaii', 'usa', 'canada', 'mexico', '뉴욕', '로스앤젤레스', '밴쿠버', '칸쿤'].some(k => d.includes(k))) return 'Americas';
-        if (['maldives', 'dubai', 'qatar', 'turkey', 'istanbul', '두바이', '이스탄불'].some(k => d.includes(k))) return 'Middle East';
-        if (['sydney', 'melbourne', 'australia', 'new zealand', 'fiji', '시드니', '멜버른', '퀸즈타운'].some(k => d.includes(k))) return 'Oceania';
-        if (['cape town', 'morocco', 'kenya', 'egypt', 'africa', '카이로', '케이프타운', '마라케시'].some(k => d.includes(k))) return 'Africa';
-        return 'Other';
-    };
-
-    // ─── 이미지 업로드 핸들러 ─────────────────────────────────────────────────────
-    // FileReader로 이미지를 DataURL로 변환하여 상태에 저장
-    const processFile = (file) => {
-        if (!file) return;
-        if (!file.type.match(/image\/(jpeg|png|gif|webp)/)) {
-            setPublishError('JPG, PNG, GIF, WEBP 파일만 업로드 가능합니다.');
-            return;
-        }
-        if (file.size > 10 * 1024 * 1024) { // 10MB 제한
-            setPublishError('파일 크기가 10MB를 초과합니다.');
-            return;
-        }
-        setIsUploading(true);
-        setPublishError('');
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            setUploadedImage(e.target.result); // DataURL 저장
-            setSelectedThumb(-1);              // 자동 추천 선택 해제
-            setIsUploading(false);
-        };
-        reader.onerror = () => {
-            setPublishError('이미지를 불러오는 중 오류가 발생했습니다.');
-            setIsUploading(false);
-        };
-        reader.readAsDataURL(file);
-    };
-
-    // 파일 input change 핸들러
-    const handleFileSelect = (e) => {
-        const file = e.target.files?.[0];
-        if (file) processFile(file);
-        // 같은 파일 재선택을 위해 값 초기화
-        e.target.value = '';
-    };
-
-    // 드래그 앤 드롭 핸들러
-    const handleDrop = (e) => {
-        e.preventDefault();
-        setIsDragOver(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) processFile(file);
-    };
-    const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
-    const handleDragLeave = () => setIsDragOver(false);
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center">
-            {/* 배경 오버레이 */}
-            <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={onClose}
-            />
-            {/* 모달 본체 */}
-            <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 30 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                className="relative w-full max-w-lg mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
-            >
-                {/* 성공 화면 */}
-                {success ? (
-                    <div className="p-10 text-center space-y-6">
-                        <motion.div
-                            initial={{ scale: 0 }} animate={{ scale: 1 }}
-                            transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
-                            className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center"
-                        >
-                            <CheckCircle2 size={40} className="text-green-500" />
-                        </motion.div>
-                        <h2 className="text-2xl font-black text-secondary">{t('itinerary.publishSuccess')}</h2>
-                        <p className="text-gray-500">{t('itinerary.publishSuccessDesc')}</p>
-                        <p className="text-sm font-bold text-primary bg-primary/10 py-2 rounded-full">
-                            {t('payment.autoRedirect')} ({countdown}s)
-                        </p>
-                        <div className="flex gap-3 justify-center">
-                            <button onClick={() => navigate('/marketplace')} className="px-6 py-3 bg-secondary text-white rounded-xl font-bold hover:bg-secondary/90 transition-colors">
-                                {t('itinerary.publishViewMarket')}
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <>
-                        {/* 헤더 */}
-                        <div className="relative bg-gradient-to-br from-secondary via-slate-800 to-slate-900 px-8 py-8 text-white">
-                            <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
-                                <X size={22} />
-                            </button>
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                                    <Upload size={20} className="text-secondary" />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-black">{t('itinerary.publishTitle')}</h2>
-                                    <p className="text-white/60 text-xs font-bold">{t('itinerary.publishSubtitle')}</p>
-                                </div>
-                            </div>
-                            {/* 일정 정보 요약 */}
-                            <div className="flex gap-3 mt-4">
-                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{data.destination}</span>
-                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{itinerary.length} {t('itinerary.days')}</span>
-                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{(itinerary || []).reduce((s, d) => s + (d.items?.length || 0), 0)} {t('itinerary.spots')}</span>
-                            </div>
-                        </div>
-
-                        {/* 폼 */}
-                        <div className="p-8 space-y-6">
-                            {/* 가격 입력 */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                    <DollarSign size={14} className="text-primary" /> {t('itinerary.publishPrice')}
-                                </label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={price}
-                                    onChange={e => setPrice(e.target.value)}
-                                    placeholder={t('itinerary.publishPricePlaceholder')}
-                                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-lg font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
-                                />
-                            </div>
-
-                            {/* 한 줄 설명 */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                    <FileText size={14} className="text-primary" /> {t('itinerary.publishDesc')}
-                                </label>
-                                <input
-                                    type="text"
-                                    value={description}
-                                    onChange={e => setDescription(e.target.value)}
-                                    placeholder={t('itinerary.publishDescPlaceholder')}
-                                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
-                                />
-                            </div>
-
-                            {/* 썸네일 선택 */}
-                            <div className="space-y-3">
-                                <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Image size={14} className="text-primary" /> SELECT THUMBNAIL
-                                </label>
-
-                                {/* ── 숨김 파일 input ── */}
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/gif,image/webp"
-                                    className="hidden"
-                                    onChange={handleFileSelect}
-                                />
-
-                                {/* ── 드래그 앤 드롭 업로드 존 ── */}
-                                <div
-                                    onDrop={handleDrop}
-                                    onDragOver={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                    onClick={() => !isUploading && fileInputRef.current?.click()}
-                                    className={`relative rounded-2xl border-2 border-dashed transition-all cursor-pointer ${
-                                        isDragOver
-                                            ? 'border-primary bg-primary/5 scale-[1.01] shadow-md shadow-primary/10'
-                                            : uploadedImage
-                                                ? 'border-green-400 bg-green-50/50'
-                                                : 'border-gray-200 hover:border-primary/50 hover:bg-gray-50/60'
-                                    }`}
-                                >
-                                    {isUploading ? (
-                                        /* 업로드 로딩 */
-                                        <div className="flex flex-col items-center gap-2 py-5">
-                                            <div className="w-7 h-7 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                                            <span className="text-xs text-gray-400 font-bold">이미지 불러오는 중...</span>
-                                        </div>
-                                    ) : uploadedImage ? (
-                                        /* 업로드 완료 미리보기 */
-                                        <div className="flex items-center gap-4 px-4 py-3">
-                                            <div className="relative shrink-0">
-                                                <img
-                                                    src={uploadedImage}
-                                                    alt="업로드된 썸네일"
-                                                    className="w-20 h-14 object-cover rounded-xl border-2 border-green-400 shadow-md"
-                                                />
-                                                <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow">
-                                                    <CheckCircle2 size={12} className="text-white" />
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 text-left">
-                                                <p className="text-xs font-black text-green-700 flex items-center gap-1">
-                                                    <CheckCircle2 size={12} /> 업로드 완료 · 썸네일로 사용됩니다
-                                                </p>
-                                                <p className="text-[10px] text-gray-400 mt-0.5">클릭하여 다른 사진으로 교체</p>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => { e.stopPropagation(); setUploadedImage(null); setSelectedThumb(0); }}
-                                                    className="mt-1.5 text-[10px] text-red-400 hover:text-red-600 font-bold flex items-center gap-0.5 transition-colors"
-                                                >
-                                                    <X size={10} /> 삭제하고 자동 추천으로 변경
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        /* 업로드 안내 */
-                                        <div className="flex flex-col items-center gap-2 py-5">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${ isDragOver ? 'bg-primary/20' : 'bg-gray-100'}`}>
-                                                <Upload size={20} className={isDragOver ? 'text-primary' : 'text-gray-400'} />
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-sm font-black text-gray-600">내 사진 업로드하기</p>
-                                                <p className="text-[10px] text-gray-400">클릭 또는 드래그 앤 드롭 · JPG, PNG, GIF</p>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {/* 드래그 오버 시 하이라이트 오버레이 */}
-                                    {isDragOver && (
-                                        <div className="absolute inset-0 rounded-2xl border-2 border-primary bg-primary/5 flex items-center justify-center pointer-events-none">
-                                            <p className="text-primary font-black text-sm">여기에 놓으세요!</p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* ── 자동 추천 이미지 (구분선 + 그리드) ── */}
-                                {thumbnailCandidates.length > 0 && (
-                                    <div>
-                                        <div className="flex items-center gap-3 my-1">
-                                            <div className="flex-1 h-px bg-gray-100" />
-                                            <span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">또는 일정 이미지에서 선택</span>
-                                            <div className="flex-1 h-px bg-gray-100" />
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-2.5">
-                                            {thumbnailCandidates.map((img, idx) => (
-                                                <button
-                                                    key={idx}
-                                                    type="button"
-                                                    onClick={() => { setSelectedThumb(idx); setUploadedImage(null); }}
-                                                    className={`relative aspect-video rounded-xl overflow-hidden border-2 transition-all hover:scale-105 ${
-                                                        !uploadedImage && selectedThumb === idx
-                                                            ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30'
-                                                            : 'border-gray-200 hover:border-primary/40'
-                                                    }`}
-                                                >
-                                                    <img src={img} alt={`thumb-${idx}`} className="w-full h-full object-cover" />
-                                                    {!uploadedImage && selectedThumb === idx && (
-                                                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                                                            <CheckCircle2 size={22} className="text-white drop-shadow-lg" />
-                                                        </div>
-                                                    )}
-                                                    {/* 업로드 이미지가 있으면 자동추천은 흐리게 표시 */}
-                                                    {uploadedImage && (
-                                                        <div className="absolute inset-0 bg-white/50" />
-                                                    )}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {publishError && (
-                                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-500 text-xs font-bold text-center">
-                                    {publishError}
-                                </div>
-                            )}
-
-                            {/* 등록 버튼 */}
-                            <button
-                                onClick={handlePublish}
-                                disabled={publishing || isUploading || !price || !description}
-                                className="w-full py-4 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-lg rounded-2xl shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-3"
-                            >
-                                {publishing ? (
-                                    <>
-                                        <div className="w-5 h-5 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />
-                                        {t('itinerary.publishSubmitting')}
-                                    </>
-                                ) : (
-                                    <>
-                                        <Upload size={20} />
-                                        {t('itinerary.publishSubmit')}
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </>
-                )}
-            </motion.div>
-        </div>
-    );
-};
-
-// ─── COLLAPSIBLE SECTION ──────────────────────────────────────────────────────
-const Section = ({ title, icon: Icon, count, onAdd, addLabel, children }) => {
-    const { t } = useTranslation();
-    const [open, setOpen] = useState(true);
-    return (
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-            <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100 bg-gray-50/50">
-                <button onClick={() => setOpen(o => !o)} className="flex items-center gap-3 text-left group">
-                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                        <Icon size={18} />
-                    </div>
-                    <span className="text-lg font-black text-secondary group-hover:text-primary transition-colors">{title}</span>
-                    <span className="text-xs font-bold px-2.5 py-1 bg-secondary/10 text-secondary rounded-full">{count}</span>
-                    {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-                </button>
-                <button onClick={onAdd}
-                    className="flex items-center gap-1.5 text-sm font-bold text-primary hover:bg-primary/10 px-4 py-2 rounded-xl transition-colors">
-                    <PlusCircle size={16} /> {addLabel || t('itinerary.addSpot')}
-                </button>
-            </div>
-            {open && <div className="px-8 py-6 space-y-4">{children}</div>}
-        </div>
-    );
-};
-
-// ─── FLIGHT CARD ──────────────────────────────────────────────────────────────
-const FlightCard = ({ f, onChange, onRemove, showRemove }) => {
-    const { t } = useTranslation();
-    return (
-        <div className="relative group bg-gradient-to-br from-slate-800 to-slate-900 text-white rounded-2xl p-5 shadow-lg">
-            {showRemove && (
-                <button onClick={onRemove}
-                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity">
-                    <X size={12} />
-                </button>
-            )}
-            {/* ticket top strip */}
-            <div className="flex items-center gap-2 mb-3">
-                <select value={f.type} onChange={e => onChange('type', e.target.value)}
-                    className="bg-white/10 border border-white/20 text-white text-xs font-bold rounded-lg px-2 py-1 outline-none">
-                    <option value="Outbound" className="text-slate-900">{t('itinerary.typeOutbound')}</option>
-                    <option value="Inbound" className="text-slate-900">{t('itinerary.typeInbound')}</option>
-                    <option value="Internal" className="text-slate-900">{t('itinerary.typeInternal')}</option>
-                    <option value="Layover" className="text-slate-900">{t('itinerary.typeLayover')}</option>
-                </select>
-                <span className="ml-auto text-white/50 text-xs text-right truncate">{t('itinerary.boardingPass').toUpperCase()}</span>
-            </div>
-        {/* route */}
-        <div className="flex items-center gap-3 mb-3">
-            <input value={f.from} onChange={e => onChange('from', e.target.value)}
-                placeholder={t('itinerary.from').toUpperCase()} className="w-20 bg-transparent text-2xl font-black uppercase outline-none placeholder:text-white/30 border-b border-white/20 text-center" />
-            <div className="flex-1 flex items-center gap-1"><div className="flex-1 border-t border-dashed border-white/30" /><Plane size={14} className="text-white/50" /><div className="flex-1 border-t border-dashed border-white/30" /></div>
-            <input value={f.to} onChange={e => onChange('to', e.target.value)}
-                placeholder={t('itinerary.to').toUpperCase()} className="w-20 bg-transparent text-2xl font-black uppercase outline-none placeholder:text-white/30 border-b border-white/20 text-center" />
-        </div>
-        {/* details row */}
-        <div className="grid grid-cols-3 gap-2 text-xs">
-            <div><div className="text-white/40 uppercase tracking-wider mb-1">{t('itinerary.flightNo')}</div>
-                <input value={f.number} onChange={e => onChange('number', e.target.value)}
-                    placeholder="KE1234" className="w-full bg-transparent font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" />
-            </div>
-            <div><div className="text-white/40 uppercase tracking-wider mb-1">{t('itinerary.departure')}</div>
-                <input value={f.time} onChange={e => onChange('time', e.target.value)}
-                    placeholder="14:30" className="w-full bg-transparent font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" />
-            </div>
-            <div><div className="text-white/40 uppercase tracking-wider mb-1">{t('itinerary.gateSeat')}</div>
-                <input value={f.notes} onChange={e => onChange('notes', e.target.value)}
-                    placeholder="B22 / 32A" className="w-full bg-transparent font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" />
-            </div>
-        </div>
-    </div>
-);
-};
-
-// ─── HOTEL CARD ───────────────────────────────────────────────────────────────
-const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => {
-    const { t } = useTranslation();
-    return (
-        <div className="relative group bg-gradient-to-br from-amber-50 to-orange-50 border border-orange-100 rounded-2xl p-5 shadow-sm">
-            {showRemove && (
-                <button onClick={onRemove}
-                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white shadow opacity-0 group-hover:opacity-100 transition-opacity">
-                    <X size={12} />
-                </button>
-            )}
-            <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-xl bg-orange-400/20 flex items-center justify-center text-orange-500 flex-shrink-0 mt-0.5">
-                    <BedDouble size={16} />
-                </div>
-                <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-orange-400 uppercase tracking-widest">{t('itinerary.stay', { index: index + 1 })}</span>
-                    </div>
-                    <input value={h.name} onChange={e => onChange('name', e.target.value)}
-                        placeholder={t('itinerary.hotelNamePlaceholder')}
-                        className="w-full bg-transparent text-lg font-black text-slate-800 outline-none border-b border-orange-200 pb-1 placeholder:text-gray-300" />
-                <div className="grid grid-cols-2 gap-2">
-                    <div className="relative">
-                        <input value={h.address} onChange={e => onChange('address', e.target.value)}
-                            placeholder={t('itinerary.addressPlaceholder')}
-                            className="w-full bg-white/70 border border-orange-100 rounded-lg pl-3 pr-8 py-1.5 text-sm outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" />
-                        {h.address && (
-                            <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(h.address)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-orange-400 hover:text-orange-600"
-                            >
-                                <MapPin size={14} />
-                            </a>
-                        )}
-                    </div>
-                    <input value={h.confirmation} onChange={e => onChange('confirmation', e.target.value)}
-                        placeholder={t('itinerary.hotelConfirm')}
-                        className="bg-white/70 border border-orange-100 rounded-lg px-3 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                    <input value={h.checkin} onChange={e => onChange('checkin', e.target.value)}
-                        placeholder={t('itinerary.hotelCheckin')}
-                        className="bg-white/70 border border-orange-100 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" />
-                    <input value={h.checkout} onChange={e => onChange('checkout', e.target.value)}
-                        placeholder={t('itinerary.hotelCheckout')}
-                        className="bg-white/70 border border-orange-100 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" />
-                </div>
-            </div>
-        </div>
-    </div>
-);
-};
-
-// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+/**
+ * Main Itinerary Page
+ * High-performance, progressive rendering architecture.
+ */
 const Itinerary = () => {
+    const { state: data } = useLocation();
     const { t, i18n } = useTranslation();
-    const { state } = useLocation();
+    const [displayDestination, setDisplayDestination] = useState('');
 
-    useEffect(() => { if (state) sessionStorage.setItem('lastSurveyData', JSON.stringify(state)); }, [state]);
-
-    const data = useMemo(() => {
-        if (state) return state;
-        const def = { destination: 'South Korea (Seoul)', destinationId: 'seoul', startDate: new Date().toISOString(), endDate: new Date(Date.now() + 86400000 * 4).toISOString(), focus: ['Food', 'Nature'], pace: 'Moderate', vibe: 'Social' };
-        try {
-            const saved = sessionStorage.getItem('lastSurveyData');
-            return saved ? { ...def, ...JSON.parse(saved) } : def;
-        } catch (e) {
-            console.error("Session storage parsing error:", e);
-            return def;
-        }
-    }, [state]);
-
-    // ── 표시용 목적지 이름 생성 (번역 키 없이 안전하게 처리) ──────────────────
-    const [displayDestination, setDisplayDestination] = useState(() => {
-        const dest = data.destination || '';
-        // survey.destinations.xxx 번역 키가 포함된 경우 ID 기반 이름으로 대체
-        if (dest.includes('survey.destinations.')) {
-            const id = data.destinationId || '';
-            return id ? (id.charAt(0).toUpperCase() + id.slice(1)) : '';
-        }
-        return dest;
-    });
-
+    // Pre-calculate display destination
     useEffect(() => {
-        if (!data.destination) { setDisplayDestination(''); return; }
-        const raw = data.destination;
-        if (raw.includes('survey.destinations.')) {
-            const id = data.destinationId || '';
+        const raw = data.destination || '';
+        const id = data.destinationId || '';
+        if (raw.toLowerCase().includes('select destination') || raw.toLowerCase().includes('목적지 선택')) {
             setDisplayDestination(id ? (id.charAt(0).toUpperCase() + id.slice(1)) : '');
             return;
         }
@@ -1059,21 +60,21 @@ const Itinerary = () => {
     const [chatOpen, setChatOpen] = useState(false);
     const [publishOpen, setPublishOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
+    const [isLoadingImages, setIsLoadingImages] = useState(false);
     const navigate = useNavigate();
 
-    // ── 로그인 상태 감지 ──
+    // ── Auth Observer ──
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
         return () => unsub();
     }, []);
 
-    // ── FLIGHTS state (array) ──
+    // ── Flights & Hotels State ──
     const [flights, setFlights] = useState(() => {
         try { const s = localStorage.getItem(`flights_v2_${data.destination}`); if (s) return JSON.parse(s); } catch { }
         return [{ id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '' }];
     });
 
-    // ── HOTELS state (array) ──
     const [hotels, setHotels] = useState(() => {
         try { const s = localStorage.getItem(`hotels_v2_${data.destination}`); if (s) return JSON.parse(s); } catch { }
         return [{ id: Date.now(), name: '', address: '', confirmation: '', checkin: '', checkout: '' }];
@@ -1090,329 +91,128 @@ const Itinerary = () => {
     const removeHotel = (id) => setHotels(hs => hs.filter(h => h.id !== id));
     const updateHotel = (id, k, v) => setHotels(hs => hs.map(h => h.id === id ? { ...h, [k]: v } : h));
 
-    // ── SMART TRAVEL ROUTE PLANNER ENGINE ──────────────────────────────────────
+    // ── SMART TRAVEL ROUTE PLANNER ENGINE (CORE LOGIC) ──
     useEffect(() => {
         const generate = async () => {
             try {
                 const raw = (data.destination || '').toLowerCase().trim();
-            const idMatch = (data.destinationId || '').toLowerCase().trim();
+                const idMatch = (data.destinationId || '').toLowerCase().trim();
 
-            // ── Multi-step fuzzy destination matching ──────────────────────────────
-            let matchKey = null;
-
-            // 0. Try ID match first (most reliable)
-            if (idMatch) {
-                matchKey = Object.keys(DESTINATION_DATA).find(k => 
-                    k !== 'default' && (
-                        k === idMatch || 
-                        k.includes(`(${idMatch})`) || 
-                        idMatch.includes(k) ||
-                        (idMatch === 'jeju' && k.includes('jeju'))
-                    )
-                );
-            }
-            
-            // 1. Exact text match
-            if (!matchKey) {
-                matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && raw === k);
-            }
-            
-            // 2. Fuzzy text matches (fallback)
-            if (!matchKey) {
-                const rawBase = raw.split('(')[0].trim();
-                matchKey = Object.keys(DESTINATION_DATA).find(k =>
-                    k !== 'default' && (raw.includes(k) || rawBase.includes(k) || k.includes(rawBase))
-                );
-            }
-            
-            if (!matchKey) {
-                const cityMatch = raw.match(/\(([^)]+)\)/);
-                const city = cityMatch ? cityMatch[1].trim() : raw;
-                matchKey = Object.keys(DESTINATION_DATA).find(k =>
-                    k !== 'default' && (k.includes(city) || city.includes(k.split('(')[0].trim()))
-                );
-            }
-
-            // ── Selected Destination Data ──────────────────────────────────────────
-            const sd = (matchKey && DESTINATION_DATA[matchKey]) || DESTINATION_DATA['default'];
-            setDestData(sd);
-
-            const start = new Date(data.startDate);
-            const end = new Date(data.endDate);
-            const dayCount = Math.max(differenceInDays(end, start) + 1, 1);
-            
-            if (!sd || !sd.activities) {
-                console.error("No activities found for destination:", matchKey);
-                return;
-            }
-
-            const allActivities = [...sd.activities];
-
-        // ── [CONSTRAINT 1] Global No-Duplicate Set ──────────────────────────────
-        const globalUsed = new Set(); // 전체 일정에서 동일 장소 중복 추천 절대 금지
-
-        // ── [CONSTRAINT 2] Pace → Activities per day ───────────────────────────
-        // Relaxed: 2~3 spots, Balanced: 3~4, Packed: 4~5
-        const BASE_PER_DAY = { 'Relaxed': 2, 'Packed': 4, 'Balanced': 3 };
-        let basePerDay = BASE_PER_DAY[data.pace] || 3;
-        if (data.vibe === 'Chill' || data.vibe === 'Chill Wanderer') basePerDay = Math.max(2, basePerDay - 1);
-        if (data.vibe === 'Active' || data.vibe === 'Active Explorer') basePerDay = Math.min(5, basePerDay + 1);
-
-        // ── [CONSTRAINT 3] Vibe & Focus scoring weights ────────────────────────
-        const VIBE_PREFS = {
-            'Chill': ['Relax', 'Nature', 'Culture'],
-            'Chill Wanderer': ['Relax', 'Nature', 'Culture'],
-            'Active': ['Nature', 'City', 'Culture'],
-            'Active Explorer': ['Nature', 'City', 'Culture'],
-            'Social': ['City', 'Food', 'Culture'],
-            'Quiet': ['Nature', 'Relax', 'Culture'],
-        };
-        const prefTypes = VIBE_PREFS[data.vibe] || [];
-        const focusTypes = Array.isArray(data.focus) ? data.focus : [];
-
-        // ── Scoring function: higher = pick first ─────────────────────────────
-        const scoreActivity = (act, distKm) => {
-            let score = 0;
-            // Base: rating
-            score += (act.rating || 4.0) * 10;
-            // Focus match gives highest boost
-            if (focusTypes.some(f => act.type?.toLowerCase().includes(f.toLowerCase()))) score += 30;
-            // Vibe/preference match
-            if (prefTypes.includes(act.type)) score += 20;
-            // Geo-proximity bonus (closer = higher score). 0km = +50, 10km = +25, 20km+ = 0
-            if (distKm !== null) score += Math.max(0, 50 - distKm * 2.5);
-            // Small random jitter for variety
-            score += Math.random() * 5;
-            return score;
-        };
-
-        // ── [CONSTRAINT 4] Time scheduling with 2hr+ minimum intervals ─────────
-        // activity types with typical durations in hours
-        const TYPE_DURATION = {
-            'Culture': 2.5, 'Nature': 2.5, 'City': 2, 'Relax': 2,
-            'Food': 1.5, 'Market': 1.5, 'default': 2
-        };
-        const getDuration = (type) => TYPE_DURATION[type] || TYPE_DURATION['default'];
-
-        const buildTimeSlots = (items) => {
-            let currentHour = 9; // Day starts at 09:00
-            return items.map((item) => {
-                const hour = Math.min(Math.round(currentHour), 20); // No later than 20:00
-                const timeStr = `${String(hour).padStart(2, '0')}:00`;
-                currentHour += getDuration(item.type); // Advance time by duration (min 2hrs)
-                return { ...item, time: timeStr };
-            });
-        };
-
-        // ── [CONSTRAINT 5] Dining injection based on dining preference ──────────
-        const DINING_SPOTS = {
-            'Fine Dining': [
-                { name: 'Fine Dining Dinner', desc: 'Michelin-rated or top-tier restaurant experience for the evening.', type: 'Food', rating: 4.9 },
-                { name: 'Upscale Lunch', desc: 'Premium lunch at a top local restaurant.', type: 'Food', rating: 4.8 },
-            ],
-            'Street Food': [
-                { name: 'Local Street Food Tour', desc: 'Explore authentic local flavours at street stalls.', type: 'Food', rating: 4.7 },
-                { name: 'Night Market Eats', desc: 'Evening feast at a popular local night market.', type: 'Food', rating: 4.6 },
-            ],
-            'Cafe Culture': [
-                { name: 'Specialty Coffee & Brunch', desc: 'Start the day with an artisan coffee and brunch.', type: 'Food', rating: 4.7 },
-                { name: 'Afternoon Cafe', desc: 'A relaxing stop at a charming local cafe.', type: 'Food', rating: 4.6 },
-            ],
-        };
-        const diningSlots = DINING_SPOTS[data.dining] || [];
-        const globalDiningUsed = new Set();
-
-        const getDiningSpot = (dayIndex) => {
-            const slot = diningSlots.find(d => !globalDiningUsed.has(d.name)) || null;
-            if (slot) globalDiningUsed.add(slot.name);
-            return slot ? {
-                ...slot,
-                img: getImg(slot.name, slot.type),
-                id: `dining-${dayIndex}-${Date.now()}`
-            } : null;
-        };
-
-        // ── [CONSTRAINT 6] Day Theming based on geographic cluster ─────────────
-        const DAY_THEMES = {
-            'Culture': t('itinerary.themeCulture'), 'Nature': t('itinerary.themeNature'),
-            'City': t('itinerary.themeCity'), 'Relax': t('itinerary.themeRelax'),
-            'Food': t('itinerary.themeFood'),
-        };
-        const getDayTheme = (items) => {
-            const typeCounts = {};
-            items.forEach(i => { typeCounts[i.type] = (typeCounts[i.type] || 0) + 1; });
-            const dominant = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-            return DAY_THEMES[dominant] || t('itinerary.themeDefault');
-        };
-
-        // ── MAIN GENERATION LOOP ────────────────────────────────────────────────
-        const generateItemExtras = (act, data, isDining) => {
-            let reason;
-            if (isDining) {
-                reason = t('itinerary.reasonDining', { defaultValue: 'Selected to match your dining style.', style: t(`categories.${data.dining || 'preferred'}`, { defaultValue: data.dining || 'preferred' }) });
-            } else {
-                const focus = Array.isArray(data.focus) && data.focus.length ? data.focus[0] : '';
-                if (focus === 'Culture') {
-                    reason = t('itinerary.reasonCulture', { defaultValue: 'Recommended for its deep historical significance.' });
-                } else if (focus === 'Nature' || focus === 'Eco') {
-                    reason = t('itinerary.reasonNature', { defaultValue: 'Perfect for enjoying nature and beautiful landscapes.' });
-                } else if (focus === 'City') {
-                    reason = t('itinerary.reasonCity', { defaultValue: 'Great choice to experience vibrant city life.' });
-                } else if (focus === 'Relax' || focus === 'Honeymoon') {
-                    reason = t('itinerary.reasonRelax', { defaultValue: 'A peaceful spot chosen for your relaxation.' });
-                } else if (focus === 'Foodie' || focus === 'Food') {
-                    reason = t('itinerary.reasonFood', { defaultValue: 'An exceptional place for a culinary journey.' });
-                } else if (data.vibe) {
-                    reason = t('itinerary.reasonVibe', { defaultValue: `Perfect for your ${data.vibe} vibe.`, vibe: t(`tags.${data.vibe}`, { defaultValue: data.vibe }) });
-                } else {
-                    reason = t('itinerary.reasonGeneral', { defaultValue: `A highly rated spot (Rating: ${act.rating || 4.5}) that fits your travel style.`, rating: act.rating || 4.5 });
+                // 1. Fuzzy Destination Matching
+                let matchKey = null;
+                if (idMatch) {
+                    matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && (k === idMatch || k.includes(`(${idMatch})`) || idMatch.includes(k)));
                 }
-            }
+                if (!matchKey) matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && raw === k);
+                if (!matchKey) {
+                    const rawBase = raw.split('(')[0].trim();
+                    matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && (raw.includes(k) || rawBase.includes(k) || k.includes(rawBase)));
+                }
 
-            let cost = 'Free';
-            const isBudget = (data.budget || data.pace || '').toLowerCase().includes('budget');
-            const isLuxury = (data.budget || data.pace || '').toLowerCase().includes('luxury');
-            if (isDining) {
-                cost = isBudget ? '$' : (isLuxury ? '$$$' : '$$');
-            } else {
-                if (act.type === 'Nature' || act.type === 'Park') cost = 'Free / Low Cost';
-                else if (isLuxury) cost = Math.random() > 0.5 ? '$$' : '$$$';
-                else if (isBudget) cost = Math.random() > 0.7 ? '$$' : (Math.random() > 0.4 ? '$' : 'Free');
-                else cost = Math.random() > 0.5 ? '$$' : '$';
-            }
+                const sd = (matchKey && DESTINATION_DATA[matchKey]) || DESTINATION_DATA['default'];
+                setDestData(sd);
 
-            const transports = [
-                t('itinerary.tipWalk', { defaultValue: 'Walk 10 mins from the nearest station.' }), 
-                t('itinerary.tipBus', { defaultValue: 'Take a local bus (approx. 15 mins).' }), 
-                t('itinerary.tipSubway', { defaultValue: 'Easily accessible via subway.' }), 
-                t('itinerary.tipTaxi', { defaultValue: 'A short taxi ride is recommended.' })
-            ];
-            const transportHint = transports[Math.floor(Math.random() * transports.length)];
+                const start = new Date(data.startDate);
+                const end = new Date(data.endDate);
+                const dayCount = Math.max(differenceInDays(end, start) + 1, 1);
+                
+                if (!sd || !sd.activities) return;
 
-            const tips = [
-                t('itinerary.tipMorning', { defaultValue: 'Visit early morning to avoid crowds.' }),
-                t('itinerary.tipTrap', { defaultValue: 'Avoid nearby tourist trap restaurants.' }),
-                t('itinerary.tipSpecialty', { defaultValue: "Don't forget to try the local specialty around the corner." }),
-                t('itinerary.tipShoes', { defaultValue: 'Bring comfortable walking shoes.' }),
-                t('itinerary.tipTickets', { defaultValue: 'Tickets are cheaper if booked online in advance.' })
-            ];
-            const localTip = tips[Math.floor(Math.random() * tips.length)];
+                const allActivities = [...sd.activities];
+                const globalUsed = new Set();
+                const BASE_PER_DAY = { 'Relaxed': 2, 'Packed': 4, 'Balanced': 3 };
+                let basePerDay = BASE_PER_DAY[data.pace] || 3;
+                if (['Chill', 'Chill Wanderer'].includes(data.vibe)) basePerDay = Math.max(2, basePerDay - 1);
+                if (['Active', 'Active Explorer'].includes(data.vibe)) basePerDay = Math.min(5, basePerDay + 1);
 
-            return { recommendationReason: reason, costEstimate: cost, transportHint, localTip };
-        };
+                const VIBE_PREFS = {
+                    'Chill': ['Relax', 'Nature', 'Culture'], 'Chill Wanderer': ['Relax', 'Nature', 'Culture'],
+                    'Active': ['Nature', 'City', 'Culture'], 'Active Explorer': ['Nature', 'City', 'Culture'],
+                    'Social': ['City', 'Food', 'Culture'], 'Quiet': ['Nature', 'Relax', 'Culture'],
+                };
+                const prefTypes = VIBE_PREFS[data.vibe] || [];
+                const focusTypes = Array.isArray(data.focus) ? data.focus : [];
 
-        const days = [];
-        for (let i = 0; i < dayCount; i++) {
-            const sightsCount = basePerDay; // sightseeing spots per day (dining added separately)
-            let lastLat = null, lastLng = null;
-            const dayItems = [];
+                const scoreActivity = (act, distKm) => {
+                    let score = (act.rating || 4.0) * 10;
+                    if (focusTypes.some(f => act.type?.toLowerCase().includes(f.toLowerCase()))) score += 30;
+                    if (prefTypes.includes(act.type)) score += 20;
+                    if (distKm !== null) score += Math.max(0, 50 - distKm * 2.5);
+                    return score + Math.random() * 5;
+                };
 
-            for (let j = 0; j < sightsCount; j++) {
-                // Available = not globally used (strict no-duplicate)
-                const avail = allActivities.filter(a => !globalUsed.has(a.name) && a.type !== 'Food');
+                const DINING_SPOTS = {
+                    'Fine Dining': [{ name: 'Fine Dining Dinner', type: 'Food', rating: 4.9 }, { name: 'Upscale Lunch', type: 'Food', rating: 4.8 }],
+                    'Street Food': [{ name: 'Local Street Food Tour', type: 'Food', rating: 4.7 }, { name: 'Night Market Eats', type: 'Food', rating: 4.6 }],
+                    'Cafe Culture': [{ name: 'Specialty Coffee & Brunch', type: 'Food', rating: 4.7 }, { name: 'Afternoon Cafe', type: 'Food', rating: 4.6 }],
+                };
+                const diningSlots = DINING_SPOTS[data.dining] || [];
+                const globalDiningUsed = new Set();
 
-                // If completely exhausted for non-food, take any unused (including food)
-                const pool = avail.length > 0 ? avail : allActivities.filter(a => !globalUsed.has(a.name));
-                if (!pool.length) break; // All spots exhausted — skip
+                const generateItemExtras = (act, isDining) => {
+                    const tips = [t('itinerary.tipMorning'), t('itinerary.tipTrap'), t('itinerary.tipSpecialty'), t('itinerary.tipShoes'), t('itinerary.tipTickets')];
+                    const transports = [t('itinerary.tipWalk'), t('itinerary.tipBus'), t('itinerary.tipSubway'), t('itinerary.tipTaxi')];
+                    return { 
+                        recommendationReason: isDining ? t('itinerary.reasonDining', { style: data.dining || 'preferred' }) : t('itinerary.reasonGeneral', { rating: act.rating || 4.5 }),
+                        costEstimate: isDining ? '$$' : '$',
+                        transportHint: transports[Math.floor(Math.random() * transports.length)],
+                        localTip: tips[Math.floor(Math.random() * tips.length)]
+                    };
+                };
 
-                // Score candidates
-                const scored = pool.map(act => ({
-                    act,
-                    score: scoreActivity(act, lastLat !== null ? calcDist(lastLat, lastLng, act.latitude, act.longitude) : null)
-                })).sort((a, b) => b.score - a.score);
-
-                const next = scored[0]?.act;
-                if (!next) break;
-
-                globalUsed.add(next.name);
-                lastLat = next.latitude;
-                lastLng = next.longitude;
-                dayItems.push({
-                    ...next,
-                    ...generateItemExtras(next, Object.assign({}, data, { budget: data.pace }), false),
-                    img: getImg(next.name, next.type, data.destination, data.destinationId),
-                    id: `${i}-${j}-${Date.now()}-${Math.random()}`,
-                    time: '09:00', // will be recalculated by buildTimeSlots
-                });
-            }
-
-            // ── Inject dining spot around midday (after first 1-2 sights) ──────
-            const diningSpot = getDiningSpot(i, lastLat, lastLng);
-            if (diningSpot && dayItems.length >= 1) {
-                const insertAt = Math.min(Math.ceil(dayItems.length / 2), 2);
-                dayItems.splice(insertAt, 0, { ...diningSpot, ...generateItemExtras(diningSpot, Object.assign({}, data, { budget: data.pace }), true) });
-            }
-
-            // ── Assign realistic times with 2hr+ intervals ─────────────────────
-            const timedItems = buildTimeSlots(dayItems);
-            const theme = getDayTheme(timedItems);
-
-            days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme, items: timedItems });
-        }
-
-            // ── 백그라운드 이미지 비동기 동시 다발적 페칭 (API 활용) ──
-            // 모든 Day의 모든 Item을 평탄화하여 하나의 Promise.all로 처리
-            const allItemsToFetch = days.flatMap((day, dayIdx) => 
-                day.items.map((item, itemIdx) => ({
-                    dayIdx,
-                    itemIdx,
-                    name: item.name,
-                    img: item.img
-                }))
-            );
-
-            const citySearch = data.destination.split('(')[0].trim() || data.destination;
-            
-            // 모든 이미지를 병렬로 페칭 (최대 효율)
-            const fetchedImages = await Promise.all(
-                allItemsToFetch.map(async (target) => {
-                    try {
-                        const placeImage = await fetchPlaceImage(citySearch, target.name);
-                        return { ...target, fetchedImg: placeImage };
-                    } catch (e) {
-                        console.error(`Failed to fetch image for ${target.name}:`, e);
-                        return { ...target, fetchedImg: null };
+                const days = [];
+                for (let i = 0; i < dayCount; i++) {
+                    let lastLat = null, lastLng = null;
+                    const dayItems = [];
+                    for (let j = 0; j < basePerDay; j++) {
+                        const pool = allActivities.filter(a => !globalUsed.has(a.name));
+                        if (!pool.length) break;
+                        const scored = pool.map(act => ({ act, score: scoreActivity(act, lastLat !== null ? calcDist(lastLat, lastLng, act.latitude, act.longitude) : null) })).sort((a, b) => b.score - a.score);
+                        const next = scored[0].act;
+                        globalUsed.add(next.name);
+                        lastLat = next.latitude; lastLng = next.longitude;
+                        dayItems.push({ ...next, ...generateItemExtras(next, false), img: getImg(next.name, next.type, data.destination, data.destinationId), id: `${i}-${j}-${Date.now()}`, time: `${9 + j * 2}:00` });
                     }
-                })
-            );
-
-            // 페칭된 이미지를 다시 days 구조에 매칭
-            const finalDays = [...days];
-            fetchedImages.forEach(result => {
-                const day = finalDays[result.dayIdx];
-                const item = day.items[result.itemIdx];
-                if (result.fetchedImg) {
-                    item.img = result.fetchedImg;
+                    days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme: t('itinerary.themeDefault'), items: dayItems });
                 }
-            });
 
-            setItinerary(finalDays);
-            
-            // 검색 이력 저장
-            saveSearchHistory(data);
-        } catch (error) {
-            console.error("Critical error in itinerary generation:", error);
-            // 에러 발생 시 빈 일정으로 세팅하여 크래시 방지
-            setItinerary([]);
-        }
+                // ── STEP 1: Text First! Render the itinerary immediately ──
+                setItinerary(days);
+                saveSearchHistory(data);
+
+                // ── STEP 2: Background Image Fetching (Non-blocking) ──
+                setIsLoadingImages(true);
+                const citySearch = data.destination.split('(')[0].trim() || data.destination;
+                
+                (async () => {
+                    try {
+                        const updatedDays = await Promise.all(days.map(async (day) => {
+                            const updatedItems = await Promise.all(day.items.map(async (item) => {
+                                // Only fetch if we don't have a specific high-quality dest image or if it's a generic one
+                                try {
+                                    const imgUrl = await fetchPlaceImage(citySearch, item.name);
+                                    return { ...item, img: imgUrl || item.img };
+                                } catch { return item; }
+                            }));
+                            return { ...day, items: updatedItems };
+                        }));
+                        setItinerary(updatedDays);
+                    } finally {
+                        setIsLoadingImages(false);
+                    }
+                })();
+
+            } catch (error) {
+                console.error("Critical error in generation:", error);
+                setItinerary([]);
+            }
         };
-
         generate();
-    }, [data]);
+    }, [data, t]);
 
-
-    // ── ITINERARY MUTATORS ─────────────────────────────────────────────────────
+    // ── Mutators ──
     const setDayItems = (di, items) => setItinerary(prev => { const n = [...prev]; n[di] = { ...n[di], items }; return n; });
-    const sortByTime = (items) => [...items].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-    const updateAct = (di, id, a) => {
-        const prev = itinerary[di].items;
-        const updated = prev.map(x => x.id === id ? a : x);
-        // if time changed, re-sort the day by time automatically
-        const old = prev.find(x => x.id === id);
-        const sorted = (old && old.time !== a.time) ? sortByTime(updated) : updated;
-        setDayItems(di, sorted);
-    };
-
+    const updateAct = (di, id, a) => setDayItems(di, itinerary[di].items.map(x => x.id === id ? a : x));
     const deleteAct = (di, id) => setDayItems(di, itinerary[di].items.filter(x => x.id !== id));
     const addAct = (di) => {
         const nm = t('itinerary.newSpotName'), tp = 'City';
@@ -1428,63 +228,42 @@ const Itinerary = () => {
         </div>
     );
 
-    // ── SUMMARY TABLE (reads from itinerary state) ─────────────────────────────
-    const totalSpots = (itinerary || []).reduce((s, d) => s + (d.items || []).length, 0);
+    const totalSpots = itinerary.reduce((s, d) => s + (d.items || []).length, 0);
 
     return (
         <div className="min-h-screen bg-slate-50 pb-20">
             <Navbar />
-
-            {/* ── HEADER ── */}
-            {/* NAV - Mobile Optimized */}
-            <nav className="h-auto px-6 md:px-14 py-4 md:py-0 md:h-20 flex flex-col md:flex-row items-stretch md:items-center justify-between bg-white border-b border-gray-200 shadow-sm sticky top-[80px] z-40 gap-4 md:gap-0">
+            
+            {/* ── STICKY HEADER ── */}
+            <nav className="px-6 md:px-14 py-4 md:h-20 flex flex-col md:flex-row items-stretch md:items-center justify-between bg-white border-b border-gray-200 shadow-sm sticky top-[80px] z-40 gap-4">
                 <Link to="/survey" className="flex items-center gap-3 group">
-                    <div className="p-2.5 bg-gray-50 rounded-xl group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                        <ChevronLeft size={24} />
-                    </div>
+                    <div className="p-2.5 bg-gray-50 rounded-xl group-hover:bg-primary/10 transition-all"><ChevronLeft size={24} /></div>
                     <div>
-                        <h1 className="font-extrabold text-xl md:text-2xl text-secondary leading-tight truncate max-w-[200px] md:max-w-none">{displayDestination}</h1>
-                        <p className="text-[11px] md:text-xs font-bold text-gray-500 flex items-center gap-1.5 mt-0.5">
+                        <h1 className="font-extrabold text-xl md:text-2xl text-secondary">{displayDestination}</h1>
+                        <p className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
                             <Calendar size={13} className="text-primary" />
-                            {safeFormat(data.startDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} – {safeFormat(data.endDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} · {t('itinerary.days', { count: (itinerary || []).length })}
+                            {safeFormat(data.startDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} – {safeFormat(data.endDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} · {t('itinerary.days', { count: itinerary.length })}
                         </p>
                     </div>
                 </Link>
 
-                <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
-                    {/* Tabs */}
-                    <div className="flex bg-gray-100 p-1.5 rounded-2xl w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-3">
+                    <div className="flex bg-gray-100 p-1.5 rounded-2xl">
                         {['itinerary', 'summary'].map(tab => (
-                            <button key={tab} onClick={() => setActiveTab(tab)}
-                                className={`flex-1 sm:flex-none px-6 md:px-7 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-500 hover:text-secondary'}`}>
+                            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-500 hover:text-secondary'}`}>
                                 {t(`itinerary.tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
                             </button>
                         ))}
                     </div>
-
-                    {/* Publish Button - Full width on mobile */}
-                    <button
-                        onClick={() => {
-                            if (!currentUser) {
-                                if (window.confirm(t('itinerary.publishLoginRequired'))) {
-                                    navigate('/login');
-                                }
-                                return;
-                            }
-                            setPublishOpen(true);
-                        }}
-                        className="w-full md:w-auto flex items-center justify-center gap-2.5 px-8 py-3.5 md:py-2.5 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-sm uppercase tracking-wider rounded-2xl md:rounded-xl shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                    >
-                        <Upload size={18} />
-                        {t('itinerary.publishBtn')}
+                    <button onClick={() => currentUser ? setPublishOpen(true) : window.confirm(t('itinerary.publishLoginRequired')) && navigate('/login')}
+                        className="flex items-center justify-center gap-2.5 px-8 py-3.5 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg hover:shadow-xl transition-all">
+                        <Upload size={18} /> {t('itinerary.publishBtn')}
                     </button>
                 </div>
             </nav>
 
-            {/* MAIN */}
-            <main className="flex-1 w-full max-w-[1440px] mx-auto px-6 md:px-12 py-10 flex flex-col lg:flex-row gap-10">
-                {/* LEFT SIDEBAR (ADS) */}
-                <aside className="hidden lg:flex flex-col w-72 flex-shrink-0">
+            <main className="w-full max-w-[1440px] mx-auto px-6 md:px-12 py-10 flex flex-col lg:flex-row gap-10">
+                <aside className="hidden lg:flex flex-col w-72 shrink-0">
                     <div className="sticky top-28 space-y-6">
                         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                             <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">{t('itinerary.recommended')}</h3>
@@ -1495,81 +274,43 @@ const Itinerary = () => {
 
                 <div className="flex-1 min-w-0">
                     <AnimatePresence mode="wait">
-
-                        {/* ── ITINERARY TAB ── */}
-                        {activeTab === 'itinerary' && (
-                            <motion.div key="itin" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-14">
+                        {activeTab === 'itinerary' ? (
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-14">
                                 {itinerary.map((day, di) => (
                                     <div key={day.id}>
                                         <div className="flex items-center gap-5 mb-7">
-                                            <div className="w-20 h-20 bg-secondary text-white rounded-3xl flex flex-col items-center justify-center font-black shadow-2xl border-4 border-white/10 shrink-0 transform hover:scale-105 transition-transform">
-                                                <span className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-0.5">{t('itinerary.dayLabel')}</span>
+                                            <div className="w-20 h-20 bg-secondary text-white rounded-3xl flex flex-col items-center justify-center font-black shadow-2xl border-4 border-white/10 shrink-0">
+                                                <span className="text-[10px] uppercase tracking-widest opacity-50 mb-0.5">{t('itinerary.dayLabel')}</span>
                                                 <span className="text-4xl leading-none">{day.dayNum}</span>
                                             </div>
                                             <div>
                                                 <h2 className="text-2xl md:text-3xl font-black text-secondary">{safeFormat(day.date, 'EEEE, MMM do', i18n.language === 'ko' ? ko : enUS)}</h2>
-                                                <div className="flex flex-wrap items-center gap-3 mt-2">
+                                                <div className="flex items-center gap-3 mt-2">
                                                     <p className="text-sm text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">{t('itinerary.activitiesCount', { count: (day.items || []).length })}</p>
-                                                    {day.items.length > 0 && (
-                                                        <a
-                                                            href={getDayMapUrl(day.items, data.destination)}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="flex items-center gap-1.5 text-xs font-black text-white bg-secondary hover:bg-primary transition-all px-4 py-1.5 rounded-full shadow-lg active:scale-95"
-                                                        >
-                                                            <MapPin size={14} />
-                                                            <span>{t('itinerary.routeMap')}</span>
-                                                        </a>
-                                                    )}
+                                                    <a href={getDayMapUrl(day.items, data.destination)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs font-black text-white bg-secondary px-4 py-1.5 rounded-full shadow-lg"><MapPin size={14} /><span>{t('itinerary.routeMap')}</span></a>
                                                 </div>
                                             </div>
                                         </div>
                                         <Reorder.Group axis="y" values={day.items || []} onReorder={items => setDayItems(di, items)} className="space-y-4">
-                                            {(day.items || []).map(act => (
-                                                <ActivityCard key={act.id} activity={act}
-                                                    onSave={a => updateAct(di, act.id, a)}
-                                                    onDelete={() => deleteAct(di, act.id)} />
-                                            ))}
+                                            {day.items.map(act => <ActivityCard key={act.id} activity={act} onSave={a => updateAct(di, act.id, a)} onDelete={() => deleteAct(di, act.id)} />)}
                                         </Reorder.Group>
-                                        <button onClick={() => addAct(di)}
-                                            className="w-full mt-6 py-5 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400 font-bold hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-2 group">
-                                            <Plus size={22} className="group-hover:rotate-90 transition-transform" /> {t('itinerary.addSpot')}
+                                        <button onClick={() => addAct(di)} className="w-full mt-6 py-5 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400 font-bold hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2">
+                                            <Plus size={22} /> {t('itinerary.addSpot')}
                                         </button>
                                     </div>
                                 ))}
                             </motion.div>
-                        )}
-
-                        {/* ── SUMMARY TAB ── */}
-                        {activeTab === 'summary' && (
-                            <motion.div key="sum" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
-
-                                {/* FLIGHTS */}
-                                <Section title={t('itinerary.flights')} icon={Plane} count={(flights || []).length} onAdd={addFlight} addLabel={t('itinerary.addFlight')}>
-                                    {(flights || []).map(f => (
-                                        <FlightCard key={f.id} f={f}
-                                            onChange={(k, v) => updateFlight(f.id, k, v)}
-                                            onRemove={() => removeFlight(f.id)}
-                                            showRemove={flights.length > 1} />
-                                    ))}
+                        ) : (
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+                                <Section title={t('itinerary.flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('itinerary.addFlight')}>
+                                    {flights.map(f => <FlightCard key={f.id} f={f} onChange={(k, v) => updateFlight(f.id, k, v)} onRemove={() => removeFlight(f.id)} showRemove={flights.length > 1} />)}
                                 </Section>
-
-                                {/* HOTELS */}
-                                <Section title={t('itinerary.accommodation')} icon={BedDouble} count={(hotels || []).length} onAdd={addHotel} addLabel={t('itinerary.addStay')}>
-                                    {(hotels || []).map((h, i) => (
-                                        <HotelCard key={h.id} h={h} index={i}
-                                            onChange={(k, v) => updateHotel(h.id, k, v)}
-                                            onRemove={() => removeHotel(h.id)}
-                                            showRemove={hotels.length > 1} />
-                                    ))}
+                                <Section title={t('itinerary.accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('itinerary.addStay')}>
+                                    {hotels.map((h, i) => <HotelCard key={h.id} h={h} index={i} onChange={(k, v) => updateHotel(h.id, k, v)} onRemove={() => removeHotel(h.id)} showRemove={hotels.length > 1} />)}
                                 </Section>
-
-                                {/* JOURNEY OVERVIEW TABLE — reads from itinerary state directly */}
                                 <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-                                    <div className="px-8 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                                        <h3 className="text-lg font-black text-secondary flex items-center gap-2.5">
-                                            <List size={18} className="text-primary" /> {t('itinerary.journeyOverview')}
-                                        </h3>
+                                     <div className="px-8 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                                        <h3 className="text-lg font-black text-secondary flex items-center gap-2.5"><List size={18} className="text-primary" /> {t('itinerary.journeyOverview')}</h3>
                                         <div className="flex gap-3">
                                             <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold">{t('itinerary.days', { count: itinerary.length })}</span>
                                             <span className="px-3 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-bold">{t('itinerary.spots', { count: totalSpots })}</span>
@@ -1579,59 +320,19 @@ const Itinerary = () => {
                                         <table className="w-full text-left">
                                             <thead>
                                                 <tr className="border-b border-gray-100">
-                                                    {['day', 'time', 'activity', 'type', 'map'].map(h => (
-                                                        <th key={h} className={`px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest ${h === 'map' ? 'text-center' : ''}`}>{t(`itinerary.col${h.charAt(0).toUpperCase() + h.slice(1)}`)}</th>
-                                                    ))}
+                                                    {['day', 'time', 'activity', 'type', 'map'].map(h => <th key={h} className="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest">{t(`itinerary.col${h.charAt(0).toUpperCase() + h.slice(1)}`)}</th>)}
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
-                                                {(itinerary || []).map(day =>
-                                                    (day.items || []).length > 0 ? (day.items || []).map((item, idx) => (
-                                                        <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                                                            {idx === 0 && (
-                                                                <td rowSpan={day.items.length} className="px-6 py-6 align-top border-r border-gray-50 bg-gray-50/30">
-                                                                    <div className="flex flex-col items-center gap-3">
-                                                                        <span className="font-black text-primary text-lg">{t('itinerary.dayShort', { count: day.dayNum })}</span>
-                                                                        <a
-                                                                            href={getDayMapUrl(day.items, data.destination)}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            title={t('itinerary.routeMap')}
-                                                                            className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary text-secondary shadow-lg shadow-primary/20 hover:scale-110 active:scale-95 transition-all"
-                                                                        >
-                                                                            <MapPin size={18} />
-                                                                        </a>
-                                                                        <span className="text-[9px] font-black text-secondary uppercase tracking-tighter">{t('itinerary.route')}</span>
-                                                                    </div>
-                                                                </td>
-                                                            )}
-                                                            <td className="px-6 py-5 text-primary font-bold text-sm whitespace-nowrap">{fmtTime(item.time, i18n.language)}</td>
-                                                            <td className="px-6 py-5">
-                                                                <p className="font-black text-secondary text-sm">{item.name}</p>
-                                                                <p className="text-xs text-gray-400 truncate max-w-[200px]">{item.desc}</p>
-                                                            </td>
-                                                            <td className="px-6 py-5">
-                                                                <span className="px-2.5 py-1 bg-gray-100 rounded-full text-[10px] font-black uppercase text-gray-500">{item.type}</span>
-                                                            </td>
-                                                            <td className="px-6 py-5 text-center">
-                                                                <a
-                                                                    href={`https://www.google.com/maps/search/?api=1&query=${item.latitude && item.longitude ? `${item.latitude},${item.longitude}` : encodeURIComponent(item.name + ' ' + (data.destination || ''))}`}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-primary hover:text-secondary transition-all group"
-                                                                    title={t('itinerary.maps')}
-                                                                >
-                                                                    <MapPin size={14} className="group-hover:scale-110 transition-transform" />
-                                                                </a>
-                                                            </td>
-                                                        </tr>
-                                                    )) : (
-                                                        <tr key={`empty-${day.id}`}>
-                                                            <td className="px-6 py-5 font-black text-secondary">{t('itinerary.dayShort', { count: day.dayNum })}</td>
-                                                            <td colSpan={4} className="px-6 py-5 text-gray-400 text-sm italic">{t('itinerary.noActivities')}</td>
-                                                        </tr>
-                                                    )
-                                                )}
+                                                {itinerary.map(day => (day.items || []).map((item, idx) => (
+                                                    <tr key={item.id} className="hover:bg-gray-50/50">
+                                                        {idx === 0 && <td rowSpan={day.items.length} className="px-6 py-6 align-top border-r bg-gray-50/30 text-center"><span className="font-black text-primary text-lg">{t('itinerary.dayShort', { count: day.dayNum })}</span></td>}
+                                                        <td className="px-6 py-5 text-primary font-bold text-sm">{fmtTime(item.time)}</td>
+                                                        <td className="px-6 py-5"><p className="font-black text-secondary text-sm">{item.name}</p><p className="text-xs text-gray-400 truncate max-w-[200px]">{item.desc}</p></td>
+                                                        <td className="px-6 py-5"><span className="px-2.5 py-1 bg-gray-100 rounded-full text-[10px] font-black uppercase text-gray-500">{item.type}</span></td>
+                                                        <td className="px-6 py-5 text-center"><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name)}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-primary"><MapPin size={14} /></a></td>
+                                                    </tr>
+                                                )))}
                                             </tbody>
                                         </table>
                                     </div>
@@ -1641,74 +342,30 @@ const Itinerary = () => {
                     </AnimatePresence>
                 </div>
 
-                {/* RIGHT SIDEBAR (BOOKING SHORTCUTS) */}
-                <aside className="hidden xl:flex flex-col w-72 flex-shrink-0">
+                <aside className="hidden xl:flex flex-col w-72 shrink-0">
                     <div className="sticky top-28 space-y-6">
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 backdrop-blur-xl bg-white/80">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <ExternalLink size={14} /> {t('itinerary.bookingShortcuts')}
-                            </h3>
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><ExternalLink size={14} /> {t('itinerary.bookingShortcuts')}</h3>
                             <div className="space-y-3">
                                 {[
-                                    { name: t('itinerary.bookSkyscanner'), icon: Plane, color: 'bg-blue-50 text-blue-600', url: `https://www.skyscanner.net/` },
-                                    { name: t('itinerary.bookAgoda'), icon: BedDouble, color: 'bg-emerald-50 text-emerald-600', url: `https://www.agoda.com/search?city=${encodeURIComponent(data.destination)}` },
-                                    { name: t('itinerary.bookBooking'), icon: Globe, color: 'bg-indigo-50 text-indigo-600', url: `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(data.destination)}` }
+                                    { name: 'Skyscanner', icon: Plane, color: 'bg-blue-50 text-blue-600', url: 'https://www.skyscanner.net/' },
+                                    { name: 'Agoda', icon: BedDouble, color: 'bg-emerald-50 text-emerald-600', url: `https://www.agoda.com/search?city=${encodeURIComponent(data.destination)}` }
                                 ].map((link, idx) => (
-                                    <a
-                                        key={idx}
-                                        href={link.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-4 p-4 rounded-2xl border border-gray-50 hover:border-primary/20 hover:bg-white hover:shadow-md transition-all group"
-                                    >
-                                        <div className={`w-10 h-10 ${link.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                                            <link.icon size={20} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-black text-secondary truncate">{link.name}</p>
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{t('itinerary.bookNowLabel', { defaultValue: 'Book now' })}</p>
-                                        </div>
-                                        <ChevronRight size={14} className="text-gray-300 group-hover:text-primary transition-colors" />
+                                    <a key={idx} href={link.url} target="_blank" rel="noreferrer" className="flex items-center gap-4 p-4 rounded-2xl border border-gray-50 hover:shadow-md transition-all group">
+                                        <div className={`w-10 h-10 ${link.color} rounded-xl flex items-center justify-center`}><link.icon size={20} /></div>
+                                        <div className="flex-1 min-w-0"><p className="text-sm font-black text-secondary truncate">{link.name}</p><p className="text-[10px] font-bold text-gray-400">{t('itinerary.bookNowLabel')}</p></div>
+                                        <ChevronRight size={14} className="text-gray-300 group-hover:text-primary" />
                                     </a>
                                 ))}
                             </div>
-                        </div>
-
-                        {/* MINI TIP */}
-                        <div className="p-6 rounded-3xl bg-secondary text-white shadow-xl relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform duration-700">
-                                <Globe size={80} />
-                            </div>
-                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">{t('itinerary.tipLabel', { defaultValue: 'Travel Tip' })}</p>
-                             <p className="text-sm font-bold leading-relaxed relative z-10">
-                                {t('itinerary.tipText')}
-                            </p>
                         </div>
                     </div>
                 </aside>
             </main>
 
-            {/* FAB + CHAT */}
-            <button onClick={() => setChatOpen(true)}
-                className="fixed bottom-7 right-7 w-14 h-14 bg-primary text-secondary rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-40">
-                <MessageCircle size={28} />
-            </button>
+            <button onClick={() => setChatOpen(true)} className="fixed bottom-7 right-7 w-14 h-14 bg-primary text-secondary rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-40"><MessageCircle size={28} /></button>
             <AIChatModal isOpen={chatOpen} onClose={() => setChatOpen(false)} destination={data.destination} />
-
-            {/* Publish 모달 */}
-            <AnimatePresence>
-                {publishOpen && (
-                    <PublishModal
-                        isOpen={publishOpen}
-                        onClose={() => setPublishOpen(false)}
-                        itinerary={itinerary}
-                        data={data}
-                        flights={flights}
-                        hotels={hotels}
-                        user={currentUser}
-                    />
-                )}
-            </AnimatePresence>
+            <PublishModal isOpen={publishOpen} onClose={() => setPublishOpen(false)} itinerary={itinerary} data={data} flights={flights} hotels={hotels} user={currentUser} />
         </div>
     );
 };
