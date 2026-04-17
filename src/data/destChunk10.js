@@ -75,25 +75,5 @@ export const destChunk10 = {
             { name: "Jalan Alor", type: "Food", rating: 4.6, desc: "Famous food street coming alive at night.", latitude: 3.1458, longitude: 101.7088 },
             { name: "Chinatown Petaling Street", type: "Food", rating: 4.4, desc: "Bustling market with traditional eateries.", latitude: 3.1439, longitude: 101.6974 }
         ]
-    },
-    'korea (jeju)': {
-        activities: [
-            // Nature
-            { name: "Seongsan Ilchulbong", type: "Nature", rating: 4.9, desc: "Dramatic volcanic cone offering stunning sunrise views over the ocean.", latitude: 33.4580, longitude: 126.9425 },
-            { name: "Hallasan Mountain", type: "Nature", rating: 4.8, desc: "South Korea's highest peak, a shield volcano with beautiful trails.", latitude: 33.3617, longitude: 126.5292 },
-            { name: "Manjanggul Cave", type: "Nature", rating: 4.7, desc: "One of the finest lava tunnels in the world, a UNESCO site.", latitude: 33.5282, longitude: 126.7701 },
-            { name: "Cheonjiyeon Waterfall", type: "Nature", rating: 4.6, desc: "Famous waterfall where the sky meets the pond.", latitude: 33.2462, longitude: 126.5543 },
-            // Culture
-            { name: "Seongeup Folk Village", type: "Culture", rating: 4.5, desc: "Traditional village preserving Jeju's unique thatched houses and culture.", latitude: 33.3850, longitude: 126.7972 },
-            { name: "Osulloc Tea Museum", type: "Culture", rating: 4.7, desc: "Beautiful tea plantation and museum dedicated to tea history.", latitude: 33.3059, longitude: 126.2895 },
-            { name: "Jeju Haenyeo Museum", type: "Culture", rating: 4.6, desc: "Museum honoring Jeju's unique female divers.", latitude: 33.5222, longitude: 126.8529 },
-            // Relax
-            { name: "Hyeopjae Beach", type: "Relax", rating: 4.8, desc: "Emerald waters and white sand overlooking Biyangdo island.", latitude: 33.3937, longitude: 126.2393 },
-            { name: "Camellia Hill", type: "Relax", rating: 4.7, desc: "Large botanical garden famous for its camellia flowers.", latitude: 33.2818, longitude: 126.3702 },
-            { name: "Aewol Coastal Road", type: "Relax", rating: 4.8, desc: "Scenic drive with numerous trendy cafes and ocean views.", latitude: 33.4655, longitude: 126.3312 },
-            // Food
-            { name: "Dongmun Traditional Market", type: "Food", rating: 4.6, desc: "Vibrant market for fresh seafood and Jeju's orange-based snacks.", latitude: 33.5123, longitude: 126.5269 },
-            { name: "Donsadon (Black Pork)", type: "Food", rating: 4.8, desc: "Famous spot for authentic Jeju grilled black pork.", latitude: 33.4862, longitude: 126.4801 }
-        ]
     }
 };

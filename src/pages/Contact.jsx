@@ -2,10 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Mail, MessageSquare, Send, CheckCircle } from 'lucide-react';
 import Navbar from '../components/Navbar';
-import { useTranslation } from 'react-i18next';
 
 const Contact = () => {
-    const { t } = useTranslation();
     const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
     const [sent, setSent] = useState(false);
 
@@ -20,15 +18,15 @@ const Contact = () => {
             <Navbar />
             <div style={{ maxWidth: '680px', margin: '0 auto', padding: '80px 32px' }}>
                 <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#78716c', textDecoration: 'none', fontSize: '14px', letterSpacing: '0.1em', marginBottom: '48px' }}>
-                    <ArrowLeft size={16} /> {t('common.backHome')}
+                    <ArrowLeft size={16} /> Back to Home
                 </Link>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
                     <MessageSquare size={36} color="#92400e" />
-                    <h1 style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '48px', fontWeight: 'bold', color: '#1c1917' }}>{t('contact.title')}</h1>
+                    <h1 style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '48px', fontWeight: 'bold', color: '#1c1917' }}>Contact Us</h1>
                 </div>
                 <p style={{ color: '#78716c', fontSize: '17px', marginBottom: '48px', lineHeight: 1.7, fontFamily: 'sans-serif' }}>
-                    {t('contact.desc')}
+                    Have a question, feedback, or just want to say hello? We'd love to hear from you. Fill out the form below and we'll get back to you within 24 hours.
                 </p>
 
                 {sent ? (
@@ -37,17 +35,17 @@ const Contact = () => {
                         padding: '56px 40px', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.06)'
                     }}>
                         <CheckCircle size={56} color="#16a34a" style={{ margin: '0 auto 20px' }} />
-                        <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '28px', marginBottom: '12px' }}>{t('contact.successTitle')}</h2>
+                        <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '28px', marginBottom: '12px' }}>Message Sent!</h2>
                         <p style={{ color: '#78716c', fontFamily: 'sans-serif', fontSize: '16px' }}>
-                            {t('contact.successDesc')}
+                            Thank you for reaching out. We'll get back to you within 24 hours.
                         </p>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         {[
-                            { key: 'name', label: t('contact.formName'), type: 'text', placeholder: 'John Doe' },
-                            { key: 'email', label: t('contact.formEmail'), type: 'email', placeholder: 'john@example.com' },
-                            { key: 'subject', label: t('contact.formSubject'), type: 'text', placeholder: 'How can we help?' },
+                            { key: 'name', label: 'Your Name', type: 'text', placeholder: 'John Doe' },
+                            { key: 'email', label: 'Email Address', type: 'email', placeholder: 'john@example.com' },
+                            { key: 'subject', label: 'Subject', type: 'text', placeholder: 'How can we help?' },
                         ].map(field => (
                             <div key={field.key}>
                                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#78716c', marginBottom: '8px', fontFamily: 'sans-serif' }}>
@@ -73,12 +71,12 @@ const Contact = () => {
                         ))}
                         <div>
                             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#78716c', marginBottom: '8px', fontFamily: 'sans-serif' }}>
-                                {t('contact.formMessage')}
+                                Message
                             </label>
                             <textarea
                                 required
                                 rows={6}
-                                placeholder={t('contact.formPlaceholderMessage')}
+                                placeholder="Tell us more..."
                                 value={form.message}
                                 onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
                                 style={{
@@ -106,7 +104,7 @@ const Contact = () => {
                             onMouseEnter={e => e.currentTarget.style.background = '#92400e'}
                             onMouseLeave={e => e.currentTarget.style.background = '#1c1917'}
                         >
-                            <Send size={18} /> {t('contact.formSend')}
+                            <Send size={18} /> Send Message
                         </button>
                     </form>
                 )}
@@ -114,7 +112,7 @@ const Contact = () => {
                 <div style={{ marginTop: '56px', padding: '24px', background: 'white', borderRadius: '12px', border: '1px solid #e7e5e4', display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <Mail size={22} color="#92400e" />
                     <div>
-                        <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#1c1917', fontFamily: 'sans-serif' }}>{t('contact.emailDirect')}</div>
+                        <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#1c1917', fontFamily: 'sans-serif' }}>Email us directly</div>
                         <div style={{ color: '#78716c', fontSize: '14px', fontFamily: 'sans-serif' }}>support@wanderlust-ai.com</div>
                     </div>
                 </div>

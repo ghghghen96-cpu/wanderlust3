@@ -3,11 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
     User, Mail, LogOut, MapPin, Calendar, Clock, ArrowRight,
-    Compass, Trash2, ChevronRight, TrendingUp, DollarSign, 
-    CreditCard, Download, ExternalLink, Receipt
+    Compass, Trash2, ChevronRight
 } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, logout, getUserPurchases, listenToUserEarnings, getSalesHistory, requestPayout } from '../firebase';
+import { auth, logout, getUserPurchases } from '../firebase';
 import Navbar from '../components/Navbar';
 import i18n from '../i18n';
 import { saveSearchHistory, getSearchHistory, deleteHistoryEntry, clearSearchHistory } from '../utils/history';
@@ -31,42 +30,23 @@ const getDays = (start, end, t) => {
 
 // ─── 마이페이지 ────────────────────────────────────────────────────
 const MyPage = () => {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const [user, setUser] = useState(null);
     const [history, setHistory] = useState([]);
     const [purchases, setPurchases] = useState([]);
-    const [earnings, setEarnings] = useState({ currentBalance: 0, totalEarnings: 0, templatesSold: 0 });
-    const [salesHistory, setSalesHistory] = useState([]);
-    const [toast, setToast] = useState({ show: false, message: '' });
     const navigate = useNavigate();
 
     useEffect(() => {
-        let unsubEarnings = null;
-        const unsubAuth = onAuthStateChanged(auth, async (u) => {
+        const unsub = onAuthStateChanged(auth, async (u) => {
             setUser(u);
             if (u) {
-                // 구매한 템플릿
                 const userPurchases = await getUserPurchases(u.uid);
                 setPurchases(userPurchases);
-
-                // 수익 실시간 구독
-                unsubEarnings = listenToUserEarnings(u.uid, (data) => {
-                    setEarnings(data);
-                });
-
-                // 판매 내역 조회
-                const sales = await getSalesHistory(u.uid);
-                setSalesHistory(sales);
             } else {
                 setPurchases([]);
-                setEarnings({ currentBalance: 0, totalEarnings: 0, templatesSold: 0 });
-                setSalesHistory([]);
             }
         });
-        return () => {
-            unsubAuth();
-            if (unsubEarnings) unsubEarnings();
-        };
+        return () => unsub();
     }, []);
 
     useEffect(() => {
@@ -110,49 +90,6 @@ const MyPage = () => {
 
     const goToTemplate = (templateId, template) => {
         navigate(`/template/${templateId}`, { state: { template } });
-    };
-
-    // 통화 포맷팅 (언어별 분기)
-    const formatMoney = (amount) => {
-        const lang = i18n.language;
-        if (lang === 'ko') {
-            // KRW 환율 (1 USD ≈ 1400 KRW) 적용하여 원화 표시
-            const amountKRW = Math.round(amount * 1400);
-            return new Intl.NumberFormat('ko-KR', { 
-                style: 'currency', 
-                currency: 'KRW',
-                maximumFractionDigits: 0 
-            }).format(amountKRW);
-        } else {
-            return new Intl.NumberFormat('en-US', { 
-                style: 'currency', 
-                currency: 'USD' 
-            }).format(amount);
-        }
-    };
-
-    const handleWithdraw = async () => {
-        if (earnings.currentBalance <= 0) {
-            setToast({ show: true, message: t('myPage.noBalance') });
-            setTimeout(() => setToast({ show: false, message: '' }), 3000);
-            return;
-        }
-
-        try {
-            await requestPayout(user.uid, earnings.currentBalance, {
-                bankName: t('myPage.walletName'),
-                accountNumber: '**** **** 1234',
-                accountHolder: user.displayName || t('myPage.anonymousUser')
-            });
-            setToast({ 
-                show: true, 
-                message: t('myPage.withdrawSuccess')
-            });
-            setTimeout(() => setToast({ show: false, message: '' }), 4000);
-        } catch (error) {
-            setToast({ show: true, message: t('myPage.payoutFail') });
-            setTimeout(() => setToast({ show: false, message: '' }), 3000);
-        }
     };
 
     return (
@@ -348,7 +285,7 @@ const MyPage = () => {
                                         }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#92400e'}
                                         onMouseLeave={e => e.currentTarget.style.background = '#1c1917'}
-                                        title={t('myPage.viewItineraryTooltip')}
+                                        title="View this itinerary again"
                                     >
                                         {t('myPage.viewPlan')} <ChevronRight size={14} />
                                     </button>
@@ -362,7 +299,7 @@ const MyPage = () => {
                                         }}
                                         onMouseEnter={e => { e.currentTarget.style.borderColor = '#fca5a5'; e.currentTarget.style.color = '#ef4444'; }}
                                         onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#78716c'; }}
-                                        title={t('myPage.removeHistoryTooltip')}
+                                        title="Remove from history"
                                     >
                                         <Trash2 size={15} />
                                     </button>
@@ -390,167 +327,6 @@ const MyPage = () => {
                         </Link>
                     </div>
                 )}
-
-                {/* ── 프리미엄 수익 대시보드 (Revenue Dashboard) ── */}
-                <div style={{ marginTop: '80px', marginBottom: '80px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '32px' }}>
-                        <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6366f1', marginBottom: '8px' }}>
-                                <div style={{ width: '24px', height: '24px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <TrendingUp size={14} />
-                                </div>
-                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                    {t('myPage.businessCenter')}
-                                </span>
-                            </div>
-                            <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '32px', color: '#0f172a', fontWeight: '900', letterSpacing: '-0.02em' }}>
-                                {t('myPage.revenueDashboard')}
-                            </h2>
-                        </div>
-                        <button
-                            onClick={handleWithdraw}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '8px',
-                                padding: '12px 24px', background: '#0f172a', color: 'white',
-                                border: 'none', borderRadius: '12px', fontFamily: 'Inter, sans-serif',
-                                fontSize: '14px', fontWeight: '700', cursor: 'pointer',
-                                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)'
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#0f172a'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                        >
-                            <Download size={16} /> {t('myPage.withdraw')}
-                        </button>
-                    </div>
-
-                    {/* 스태츠 카드 그리드 (Stripe Style) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px', marginBottom: '40px' }}>
-                        {[
-                            { 
-                                label: t('myPage.templatesSoldLabel'), 
-                                value: earnings.templatesSold, 
-                                sub: t('myPage.lifetimeSales'), 
-                                icon: <Receipt size={20} />, 
-                                color: '#6366f1',
-                                trend: '+12%' 
-                            },
-                            { 
-                                label: t('myPage.totalEarningsLabel'), 
-                                value: formatMoney(earnings.totalEarnings), 
-                                sub: t('myPage.grossRevenue'), 
-                                icon: <DollarSign size={20} />, 
-                                color: '#10b981',
-                                trend: '+8.4%'
-                            },
-                            { 
-                                label: t('myPage.availablePayoutLabel'), 
-                                value: formatMoney(earnings.currentBalance), 
-                                sub: t('myPage.readyToWithdraw'), 
-                                icon: <CreditCard size={20} />, 
-                                color: '#f59e0b',
-                                trend: 'Current'
-                            }
-                        ].map((card, idx) => (
-                            <div key={idx} style={{
-                                background: 'white', border: '1px solid #e2e8f0', borderRadius: '24px',
-                                padding: '32px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                                display: 'flex', flexDirection: 'column', gap: '20px',
-                                transition: 'transform 0.2s ease',
-                                cursor: 'default'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
-                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <div style={{ color: card.color, background: `${card.color}10`, width: '44px', height: '44px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        {card.icon}
-                                    </div>
-                                    <span style={{ 
-                                        fontSize: '11px', fontWeight: '800', 
-                                        color: card.trend.startsWith('+') ? '#10b981' : '#64748b', 
-                                        background: card.trend.startsWith('+') ? '#10b98115' : '#f1f5f9',
-                                        padding: '4px 10px', borderRadius: '20px', textTransform: 'uppercase'
-                                    }}>
-                                        {card.trend}
-                                    </span>
-                                </div>
-                                <div>
-                                    <h4 style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', color: '#64748b', fontWeight: '600', marginBottom: '8px' }}>{card.label}</h4>
-                                    <div style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', fontFamily: 'Inter, sans-serif', marginBottom: '4px', letterSpacing: '-0.03em' }}>
-                                        {card.value}
-                                    </div>
-                                    <p style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'Inter, sans-serif', fontWeight: '500' }}>{card.sub}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* 판매 내역 리스트 (Clean Fintech Style) */}
-                    <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
-                        <div style={{ padding: '32px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>
-                                {t('myPage.recentSales')}
-                            </h3>
-                            <button style={{ background: 'transparent', border: 'none', color: '#6366f1', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
-                                {t('myPage.viewAll')}
-                            </button>
-                        </div>
-                        
-                        {salesHistory.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '60px 0', background: '#f8fafc' }}>
-                                <div style={{ width: '64px', height: '64px', background: 'white', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                                    <ExternalLink size={24} color="#cbd5e1" />
-                                </div>
-                                <p style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '600' }}>
-                                    {t('myPage.noSales')}
-                                </p>
-                            </div>
-                        ) : (
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Inter, sans-serif' }}>
-                                    <thead>
-                                        <tr style={{ background: '#f8fafc' }}>
-                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('myPage.settlementDate')}</th>
-                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('myPage.productName')}</th>
-                                            <th style={{ textAlign: 'left', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('myPage.customer')}</th>
-                                            <th style={{ textAlign: 'right', padding: '16px 32px', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('myPage.netAmount')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody style={{ divideY: '1px solid #f1f5f9' }}>
-                                        {salesHistory.slice(0, 5).map((sale, i) => (
-                                            <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} 
-                                                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                            >
-                                                <td style={{ padding: '20px 32px', fontSize: '14px', color: '#64748b', fontWeight: '500' }}>
-                                                    {formatDate(sale.purchasedAt?.toDate?.() || new Date())}
-                                                </td>
-                                                <td style={{ padding: '20px 32px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#e2e8f0', overflow: 'hidden' }}>
-                                                            <img src={sale.planData?.thumbnail_url || 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=100'} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                        </div>
-                                                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{sale.planData?.title || t('myPage.unknownTitle')}</span>
-                                                    </div>
-                                                </td>
-                                                <td style={{ padding: '20px 32px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>👤</div>
-                                                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>{t('myPage.userPrefix')}{sale.uid?.substring(0, 4)}</span>
-                                                    </div>
-                                                </td>
-                                                <td style={{ padding: '20px 32px', textAlign: 'right' }}>
-                                                    <span style={{ fontSize: '15px', fontWeight: '900', color: '#10b981' }}>+{formatMoney(sale.planData?.price || 0)}</span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                </div>
 
                 {/* ── 구매한 템플릿 섹션 ── */}
                 <div style={{ marginTop: '60px' }}>
@@ -617,7 +393,7 @@ const MyPage = () => {
                                                     fontFamily: 'serif', fontSize: '18px', color: '#1c1917', fontStyle: 'italic',
                                                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                                                 }}>
-                                                    {template.title || t('myPage.unknownTitle')}
+                                                    {template.title || 'Unknown Title'}
                                                 </h3>
                                                 {template.region && (
                                                     <span style={{ fontSize: '11px', background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
@@ -626,7 +402,7 @@ const MyPage = () => {
                                                 )}
                                             </div>
                                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontFamily: 'sans-serif', fontSize: '13px', color: '#78716c' }}>
-                                                <User size={12} /> {template.creator || t('myPage.creatorDefault', { defaultValue: 'Creator' })}
+                                                <User size={12} /> {template.creator || 'Creator'}
                                                 {template.budget && (
                                                     <>
                                                         <span>•</span>
@@ -646,29 +422,6 @@ const MyPage = () => {
                     )}
                 </div>
             </div>
-
-            {/* 토스트 알림 */}
-            {toast.show && (
-                <div style={{
-                    position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)',
-                    background: '#1e293b', color: 'white', padding: '16px 32px',
-                    borderRadius: '50px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                    zIndex: 2000, display: 'flex', alignItems: 'center', gap: '12px',
-                    fontFamily: 'sans-serif', fontSize: '14px', fontWeight: 'bold',
-                    animation: 'slideUp 0.3s ease-out'
-                }}>
-                    <div style={{ background: '#10b981', borderRadius: '50%', padding: '4px' }}>
-                        <ChevronRight size={14} color="white" />
-                    </div>
-                    {toast.message}
-                    <style>{`
-                        @keyframes slideUp {
-                            from { transform: translate(-50%, 20px); opacity: 0; }
-                            to { transform: translate(-50%, 0); opacity: 1; }
-                        }
-                    `}</style>
-                </div>
-            )}
         </div>
     );
 };

@@ -2,8 +2,6 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, setDoc, updateDoc, increment, onSnapshot, getDoc } from "firebase/firestore";
 
-import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
-
 // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyBwR9DgMXq1Iwx8vnqiB3GYbD5ikJ5r4Uw",
@@ -17,7 +15,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
@@ -41,19 +38,7 @@ export const logout = async () => {
 
 // 마켓플레이스에 일정 템플릿 등록
 export const publishToMarketplace = async (templateData) => {
-    console.log("[Firebase] Starting publishToMarketplace with data:", templateData);
-    
     try {
-        // 필수 필드 체크 (Backend-side validation)
-        const requiredFields = ['creatorUid', 'title', 'price', 'thumbnail', 'days'];
-        for (const field of requiredFields) {
-            if (!templateData[field]) {
-                const errMsg = `Missing required field: ${field}`;
-                console.error("[Firebase] Validation failed:", errMsg);
-                throw new Error(errMsg);
-            }
-        }
-
         const docRef = await addDoc(collection(db, "Marketplace_Templates"), {
             ...templateData,
             createdAt: serverTimestamp(),
@@ -63,29 +48,10 @@ export const publishToMarketplace = async (templateData) => {
             rating: 0,
             purchaseCount: 0,
         });
-
-        console.log("[Firebase] Template successfully added. ID:", docRef.id);
         return docRef.id;
     } catch (error) {
-        console.error("[Firebase] Critical error in publishToMarketplace:", error);
+        console.error("Error publishing to marketplace:", error);
         throw error;
-    }
-};
-
-// 썸네일 이미지 Storage 업로드
-export const uploadThumbnailToStorage = async (dataUrl, uid) => {
-    if (!dataUrl || !dataUrl.startsWith("data:image")) return dataUrl;
-    try {
-        const uniqueName = `thumbnails/${uid}_${Date.now()}.jpg`;
-        const storageRef = ref(storage, uniqueName);
-        console.log("Uploading thumbnail to storage:", uniqueName);
-        await uploadString(storageRef, dataUrl, 'data_url');
-        const downloadUrl = await getDownloadURL(storageRef);
-        console.log("Thumbnail uploaded successfully:", downloadUrl);
-        return downloadUrl;
-    } catch (error) {
-        console.error("Error uploading thumbnail:", error);
-        throw new Error('이미지 업로드에 실패했습니다. (Storage Error)');
     }
 };
 
@@ -163,7 +129,6 @@ export const recordPurchase = async (uid, plan) => {
             paidAmount: plan.paidAmount || plan.price,
             paidCurrency: plan.paidCurrency || 'USD',
             planData: plan,
-            creatorUid: plan.creatorId || plan.creatorUid || null, // 판매 내역 조회를 위한 상위 필드 추가
             purchasedAt: serverTimestamp(),
         });
         
@@ -211,24 +176,6 @@ export const getUserPurchases = async (uid) => {
         return purchases;
     } catch (error) {
         console.error("Error fetching purchases:", error);
-        return [];
-    }
-};
-
-// 특정 사용자가 판매한 내역 조회 (판매자 관점)
-export const getSalesHistory = async (creatorUid) => {
-    if (!creatorUid) return [];
-    try {
-        const q = query(collection(db, "My_Library"), where("creatorUid", "==", creatorUid));
-        const querySnapshot = await getDocs(q);
-        const sales = [];
-        querySnapshot.forEach((doc) => {
-            sales.push({ docId: doc.id, ...doc.data() });
-        });
-        // 일시 기준 정렬 (클라이언트 단에서 정렬하거나 쿼리 인덱스 필요)
-        return sales.sort((a, b) => b.purchasedAt?.seconds - a.purchasedAt?.seconds);
-    } catch (error) {
-        console.error("Error fetching sales history:", error);
         return [];
     }
 };

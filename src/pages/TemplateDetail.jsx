@@ -4,9 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeft, MapPin, Star, Calendar, Clock, Compass, Tag, BedDouble, Plane } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { motion } from 'framer-motion';
-import { db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { MOCK_TEMPLATES } from '../data/marketplaceData';
 
 const TemplateDetail = () => {
     const { id } = useParams();
@@ -15,57 +12,21 @@ const TemplateDetail = () => {
     const { t } = useTranslation();
 
     const [template, setTemplate] = useState(null);
-    const [isFetching, setIsFetching] = useState(false);
 
     useEffect(() => {
-        const loadTemplate = async () => {
-            if (location.state && location.state.template) {
-                setTemplate(location.state.template);
-            } else if (id) {
-                // state가 없는 경우 Firestore에서 직접 조회 (새로고침 대응)
-                setIsFetching(true);
-                try {
-                    // 1. Marketplace_Templates에서 조회
-                    const docRef = doc(db, "Marketplace_Templates", id);
-                    const docSnap = await getDoc(docRef);
-                    
-                    if (docSnap.exists()) {
-                        setTemplate({ id: docSnap.id, ...docSnap.data() });
-                    } else {
-                        // 2. Firestore에 없다면 로컬 MOCK_TEMPLATES에서 검색 (테스트용 템플릿 대응)
-                        const mockItem = MOCK_TEMPLATES.find(t => t.id.toString() === id.toString());
-                        if (mockItem) {
-                            setTemplate(mockItem);
-                        } else {
-                            console.warn("No such template in Marketplace or MOCK data!");
-                            navigate('/marketplace');
-                        }
-                    }
-                } catch (error) {
-                    console.error("Error fetching template:", error);
-                    // 에러 발생 시에도 일단 목업에서 찾아봄
-                    const mockItem = MOCK_TEMPLATES.find(t => t.id.toString() === id.toString());
-                    if (mockItem) {
-                        setTemplate(mockItem);
-                    } else {
-                        navigate('/marketplace');
-                    }
-                } finally {
-                    setIsFetching(false);
-                }
-            } else {
-                navigate('/marketplace');
-            }
-        };
+        if (location.state && location.state.template) {
+            setTemplate(location.state.template);
+        } else {
+            // Ideally fetch from Firestore by ID if not in state
+            // For now, redirect back to marketplace or mypage
+            navigate('/mypage');
+        }
+    }, [location.state, navigate]);
 
-        loadTemplate();
-    }, [id, location.state, navigate]);
-
-    if (isFetching || !template) {
+    if (!template) {
         return (
-            <div className="min-h-screen bg-[#111111] flex flex-col items-center justify-center gap-4">
+            <div className="min-h-screen bg-[#111111] flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FF8A71]"></div>
-                <p className="text-slate-400 animate-pulse">{t('marketplace.loading') || 'Loading template...'}</p>
             </div>
         );
     }
@@ -168,26 +129,12 @@ const TemplateDetail = () => {
                             ))}
                         </div>
                     ) : (
-                        <div className="text-center py-12 text-slate-400 italic">
-                            {t('itinerary.emptyActs') || 'No itinerary data available for this template.'}
+                        <div className="text-center py-12">
+                            <Compass size={48} className="mx-auto text-[#d6d3d1] mb-4" />
+                            <h3 className="text-xl font-serif italic text-[#44403c] mb-2">No structured itinerary available</h3>
+                            <p className="text-[#a8a29e] max-w-md mx-auto">This template does not contain a day-by-day plan.</p>
                         </div>
                     )}
-                </div>
-
-                {/* 하단 CTA 섹션 */}
-                <div className="mt-16 text-center">
-                    <h3 className="text-2xl font-serif italic mb-4 text-[#1c1917]">
-                        {t('itinerary.readyToWander') || 'Ready to start your own journey?'}
-                    </h3>
-                    <p className="text-[#44403c]/60 max-w-lg mx-auto mb-8 text-sm">
-                        {t('itinerary.readySubtitle') || 'Create a personalized travel plan designed just for you with our AI.'}
-                    </p>
-                    <button 
-                        onClick={() => navigate('/survey')}
-                        className="px-8 py-3 bg-[#1c1917] text-white font-bold rounded-xl hover:bg-[#FF8A71] transition-all transform hover:-translate-y-1 shadow-lg hover:shadow-[#FF8A71]/20"
-                    >
-                        {t('landing.heroButton') || t('nav.createTrip')}
-                    </button>
                 </div>
             </div>
         </div>
