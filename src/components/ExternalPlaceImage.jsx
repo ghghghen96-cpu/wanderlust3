@@ -47,28 +47,36 @@ const ExternalPlaceImage = ({ name, initialUrl, region, className, alt }) => {
     }, [name, region, initialUrl]);
 
     return (
-        <div className={`relative overflow-hidden ${className} bg-slate-100`}>
-            {/* Loading State */}
+        <div className={`relative overflow-hidden ${className} bg-gray-200`}>
+            {/* Loading State: Shimmer Skeleton */}
             <AnimatePresence>
                 {loading && (
                     <motion.div 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-[2px]"
+                        className="absolute inset-0 z-10"
                     >
-                        <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mb-2" />
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest animate-pulse">
-                            Searching Photo...
-                        </span>
+                        {/* Shimmer Effect Box */}
+                        <div className="w-full h-full animate-shimmer bg-gray-200" />
+                        
+                        {/* Overlay text for better UX (Optional) */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/5">
+                            <span className="text-[9px] text-gray-400 font-black uppercase tracking-[0.2em] animate-pulse">
+                                Optimizing View...
+                            </span>
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
             {/* Error or Empty State */}
             {error && !imgUrl && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-200">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase">No Photo Found</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center mb-2">
+                        <span className="text-gray-400 text-xs text-secondary font-bold">!</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">No Image Found</span>
                 </div>
             )}
 
@@ -76,14 +84,16 @@ const ExternalPlaceImage = ({ name, initialUrl, region, className, alt }) => {
             {imgUrl && (
                 <motion.img 
                     key={imgUrl}
-                    initial={{ opacity: 0, scale: 1.1 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.5 }}
                     src={imgUrl} 
                     alt={alt || name}
                     className="w-full h-full object-cover"
+                    onLoad={() => setLoading(false)}
                     onError={(e) => {
                         e.target.onerror = null;
+                        setError(true);
                         // 최종 폴백: 여행 테마 이미지
                         e.target.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=800';
                     }}

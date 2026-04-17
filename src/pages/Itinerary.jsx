@@ -1351,15 +1351,40 @@ const Itinerary = () => {
         }
 
             // ── 백그라운드 이미지 비동기 동시 다발적 페칭 (API 활용) ──
-            const finalDays = await Promise.all(days.map(async (day) => {
-                const enhancedItems = await Promise.all(day.items.map(async (item) => {
-                    // Get city for the specific place (from item or from general data)
-                    const citySearch = data.destination.split('(')[0].trim() || data.destination;
-                    const placeImage = await fetchPlaceImage(citySearch, item.name);
-                    return { ...item, img: placeImage || item.img }; // Use fetched image, or fallback to the static getImg
-                }));
-                return { ...day, items: enhancedItems };
-            }));
+            // 모든 Day의 모든 Item을 평탄화하여 하나의 Promise.all로 처리
+            const allItemsToFetch = days.flatMap((day, dayIdx) => 
+                day.items.map((item, itemIdx) => ({
+                    dayIdx,
+                    itemIdx,
+                    name: item.name,
+                    img: item.img
+                }))
+            );
+
+            const citySearch = data.destination.split('(')[0].trim() || data.destination;
+            
+            // 모든 이미지를 병렬로 페칭 (최대 효율)
+            const fetchedImages = await Promise.all(
+                allItemsToFetch.map(async (target) => {
+                    try {
+                        const placeImage = await fetchPlaceImage(citySearch, target.name);
+                        return { ...target, fetchedImg: placeImage };
+                    } catch (e) {
+                        console.error(`Failed to fetch image for ${target.name}:`, e);
+                        return { ...target, fetchedImg: null };
+                    }
+                })
+            );
+
+            // 페칭된 이미지를 다시 days 구조에 매칭
+            const finalDays = [...days];
+            fetchedImages.forEach(result => {
+                const day = finalDays[result.dayIdx];
+                const item = day.items[result.itemIdx];
+                if (result.fetchedImg) {
+                    item.img = result.fetchedImg;
+                }
+            });
 
             setItinerary(finalDays);
             
