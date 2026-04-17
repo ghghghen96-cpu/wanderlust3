@@ -1,8 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, setDoc, updateDoc, increment, onSnapshot, getDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, setDoc, updateDoc, increment, onSnapshot, getDoc, deleteDoc, orderBy } from "firebase/firestore";
 
-import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from "firebase/storage";
 
 // Firebase configuration
 const firebaseConfig = {
@@ -86,6 +86,55 @@ export const uploadThumbnailToStorage = async (dataUrl, uid) => {
     } catch (error) {
         console.error("Error uploading thumbnail:", error);
         throw new Error('이미지 업로드에 실패했습니다. (Storage Error)');
+    }
+};
+
+// 사용자가 게시한 마켓플레이스 템플릿 목록 가져오기
+export const getUserPublishedTemplates = async (uid) => {
+    if (!uid) return [];
+    try {
+        const q = query(
+            collection(db, "Marketplace_Templates"),
+            where("creatorUid", "==", uid),
+            orderBy("createdAt", "desc")
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error("Error fetching user templates:", error);
+        throw error;
+    }
+};
+
+// 마켓플레이스 템플릿 삭제 (Storage 이미지 포함)
+export const deleteMarketplaceTemplate = async (templateId, thumbnailUrl) => {
+    if (!templateId) throw new Error("Template ID is required");
+    
+    try {
+        // 1. Firestore 문서 삭제
+        await deleteDoc(doc(db, "Marketplace_Templates", templateId));
+        console.log(`[Firebase] Deleted Firestore document: ${templateId}`);
+
+        // 2. Storage 이미지 삭제 (필요한 경우)
+        if (thumbnailUrl && thumbnailUrl.includes("firebasestorage.googleapis.com")) {
+            try {
+                // URL에서 ref 생성하여 삭제
+                const imageRef = ref(storage, thumbnailUrl);
+                await deleteObject(imageRef);
+                console.log(`[Firebase] Deleted storage object for URL: ${thumbnailUrl}`);
+            } catch (storageError) {
+                // 스토리지 삭제 실패는 로깅만 하고 전체 프로세스가 실패한 것으로 간주하진 않음 (이미 문서가 삭제되었으므로)
+                console.warn("[Firebase] Failed to delete storage object:", storageError);
+            }
+        }
+        
+        return true;
+    } catch (error) {
+        console.error("[Firebase] Error deleting template:", error);
+        throw error;
     }
 };
 

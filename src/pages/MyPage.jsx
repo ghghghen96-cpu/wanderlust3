@@ -7,7 +7,11 @@ import {
     CreditCard, Download, ExternalLink, Receipt
 } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, logout, getUserPurchases, listenToUserEarnings, getSalesHistory, requestPayout } from '../firebase';
+import { 
+    auth, logout, getUserPurchases, listenToUserEarnings, 
+    getSalesHistory, requestPayout, getUserPublishedTemplates,
+    deleteMarketplaceTemplate 
+} from '../firebase';
 import Navbar from '../components/Navbar';
 import i18n from '../i18n';
 import { saveSearchHistory, getSearchHistory, deleteHistoryEntry, clearSearchHistory } from '../utils/history';
@@ -37,6 +41,8 @@ const MyPage = () => {
     const [purchases, setPurchases] = useState([]);
     const [earnings, setEarnings] = useState({ currentBalance: 0, totalEarnings: 0, templatesSold: 0 });
     const [salesHistory, setSalesHistory] = useState([]);
+    const [publishedTemplates, setPublishedTemplates] = useState([]);
+    const [deleteModal, setDeleteModal] = useState({ show: false, templateId: null, thumbnailUrl: null });
     const [toast, setToast] = useState({ show: false, message: '' });
     const navigate = useNavigate();
 
@@ -57,10 +63,15 @@ const MyPage = () => {
                 // 판매 내역 조회
                 const sales = await getSalesHistory(u.uid);
                 setSalesHistory(sales);
+
+                // 게시한 템플릿 조회
+                const published = await getUserPublishedTemplates(u.uid);
+                setPublishedTemplates(published);
             } else {
                 setPurchases([]);
                 setEarnings({ currentBalance: 0, totalEarnings: 0, templatesSold: 0 });
                 setSalesHistory([]);
+                setPublishedTemplates([]);
             }
         });
         return () => {
@@ -151,6 +162,21 @@ const MyPage = () => {
             setTimeout(() => setToast({ show: false, message: '' }), 4000);
         } catch (error) {
             setToast({ show: true, message: t('myPage.payoutFail') });
+            setTimeout(() => setToast({ show: false, message: '' }), 3000);
+        }
+    };
+
+    const handleDeleteTemplate = async () => {
+        if (!deleteModal.templateId) return;
+        try {
+            await deleteMarketplaceTemplate(deleteModal.templateId, deleteModal.thumbnailUrl);
+            setPublishedTemplates(prev => prev.filter(t => t.id !== deleteModal.templateId));
+            setDeleteModal({ show: false, templateId: null, thumbnailUrl: null });
+            setToast({ show: true, message: t('myPage.deleteSuccess') });
+            setTimeout(() => setToast({ show: false, message: '' }), 3000);
+        } catch (error) {
+            console.error("Deletion failed:", error);
+            setToast({ show: true, message: t('common.error') });
             setTimeout(() => setToast({ show: false, message: '' }), 3000);
         }
     };
@@ -552,6 +578,110 @@ const MyPage = () => {
                     </div>
                 </div>
 
+                {/* ── 내가 게시한 템플릿 섹션 ── */}
+                <div style={{ marginTop: '60px', marginBottom: '60px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+                        <div>
+                            <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '28px', color: '#1c1917', marginBottom: '4px' }}>
+                                {t('myPage.publishedTitle')}
+                            </h2>
+                            <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '14px' }}>
+                                {t('myPage.publishedDesc')}
+                            </p>
+                        </div>
+                    </div>
+
+                    {publishedTemplates.length === 0 ? (
+                        <div style={{
+                            background: 'white', border: '1px solid #e7e5e4', borderRadius: '20px',
+                            padding: '48px 32px', textAlign: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+                        }}>
+                            <div style={{ display: 'inline-flex', padding: '16px', background: '#f5f5f4', borderRadius: '50%', marginBottom: '16px' }}>
+                                <ExternalLink size={36} color="#a8a29e" />
+                            </div>
+                            <p style={{ fontFamily: 'sans-serif', color: '#78716c', fontSize: '15px' }}>
+                                {t('myPage.noPublishedDesc', { defaultValue: 'You haven\'t published any templates yet.' })}
+                            </p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {publishedTemplates.map((tpl) => (
+                                <div key={tpl.id} style={{
+                                    background: 'white', border: '1px solid #e7e5e4', borderRadius: '16px',
+                                    padding: '20px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                                    display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap',
+                                    transition: 'box-shadow 0.2s'
+                                }}
+                                    onMouseEnter={e => e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)'}
+                                >
+                                    <div style={{
+                                        width: '80px', height: '60px', borderRadius: '10px', overflow: 'hidden', background: '#e5e7eb', flexShrink: 0
+                                    }}>
+                                        {tpl.thumbnail && (
+                                            <img src={tpl.thumbnail} alt={tpl.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        )}
+                                    </div>
+
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                            <h3 style={{
+                                                fontFamily: 'serif', fontSize: '18px', color: '#1c1917', fontStyle: 'italic',
+                                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                            }}>
+                                                {tpl.title}
+                                            </h3>
+                                            <span style={{ fontSize: '11px', background: '#ecfdf5', color: '#059669', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                                                {tpl.status || 'Active'}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', fontFamily: 'sans-serif', fontSize: '13px', color: '#78716c' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#0f172a' }}>{formatMoney(tpl.price)}</span>
+                                            <span>•</span>
+                                            <span>{t('myPage.templatesSoldLabel')}: {tpl.purchaseCount || 0}</span>
+                                            {tpl.rating > 0 && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span>⭐ {tpl.rating.toFixed(1)}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                                        <button
+                                            onClick={() => navigate(`/template/${tpl.id}`)}
+                                            style={{
+                                                padding: '8px 12px', background: 'transparent',
+                                                border: '1px solid #e7e5e4', borderRadius: '10px',
+                                                color: '#78716c', cursor: 'pointer', transition: 'all 0.2s',
+                                                display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'
+                                            }}
+                                            onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                            <ExternalLink size={14} /> {t('common.view', { defaultValue: 'View' })}
+                                        </button>
+                                        <button
+                                            onClick={() => setDeleteModal({ show: true, templateId: tpl.id, thumbnailUrl: tpl.thumbnail })}
+                                            style={{
+                                                padding: '8px 12px', background: 'transparent',
+                                                border: '1px solid #fee2e2', borderRadius: '10px',
+                                                color: '#ef4444', cursor: 'pointer', transition: 'all 0.2s',
+                                                display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'
+                                            }}
+                                            onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                            <Trash2 size={14} /> {t('common.delete')}
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
                 {/* ── 구매한 템플릿 섹션 ── */}
                 <div style={{ marginTop: '60px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
@@ -667,6 +797,63 @@ const MyPage = () => {
                             to { transform: translate(-50%, 0); opacity: 1; }
                         }
                     `}</style>
+                </div>
+            )}
+            {/* 삭제 확인 모달 */}
+            {deleteModal.show && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 3000, padding: '20px'
+                }}>
+                    <div style={{
+                        background: 'white', borderRadius: '24px', maxWidth: '400px', width: '100%',
+                        padding: '32px', boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+                        textAlign: 'center', animation: 'scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}>
+                        <div style={{
+                            width: '64px', height: '64px', background: '#fee2e2', borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px'
+                        }}>
+                            <Trash2 size={32} color="#ef4444" />
+                        </div>
+                        <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '24px', color: '#1c1917', marginBottom: '12px' }}>
+                            {t('common.delete')}
+                        </h3>
+                        <p style={{ fontFamily: 'sans-serif', color: '#64748b', fontSize: '15px', lineHeight: '1.6', marginBottom: '32px' }}>
+                            {t('myPage.deleteConfirm')}
+                        </p>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button
+                                onClick={() => setDeleteModal({ show: false, templateId: null, thumbnailUrl: null })}
+                                style={{
+                                    flex: 1, padding: '14px', background: '#f1f5f9', border: 'none',
+                                    borderRadius: '14px', color: '#475569', fontWeight: 'bold',
+                                    cursor: 'pointer', fontFamily: 'Inter, sans-serif'
+                                }}
+                            >
+                                {t('common.cancel')}
+                            </button>
+                            <button
+                                onClick={handleDeleteTemplate}
+                                style={{
+                                    flex: 1, padding: '14px', background: '#ef4444', border: 'none',
+                                    borderRadius: '14px', color: 'white', fontWeight: 'bold',
+                                    cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)'
+                                }}
+                            >
+                                {t('common.delete')}
+                            </button>
+                        </div>
+                        <style>{`
+                            @keyframes scaleUp {
+                                from { transform: scale(0.9); opacity: 0; }
+                                to { transform: scale(1); opacity: 1; }
+                            }
+                        `}</style>
+                    </div>
                 </div>
             )}
         </div>

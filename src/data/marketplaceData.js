@@ -47,7 +47,11 @@ export const MOCK_TEMPLATES = [
         budget: "Budget",
         category: "Family",
         image: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=800&auto=format&fit=crop",
-        tags: ["Family", "Hot"]
+        tags: ["Family", "Hot"],
+        itinerary: [
+            { dayNum: 1, theme: "Beach & Relaxation", items: [{ name: "Uluwatu Beach", desc: "Crystal clear water and white sand.", time: "10:00", type: "Activity" }] },
+            { dayNum: 2, theme: "Temple Visit", items: [{ name: "Tanah Lot", desc: "Beautiful sunset at the temple.", time: "17:00", type: "Sightseeing" }] }
+        ]
     },
     {
         id: 4,
@@ -61,7 +65,11 @@ export const MOCK_TEMPLATES = [
         budget: "Luxury",
         category: "Solo",
         image: "https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?q=80&w=800&auto=format&fit=crop",
-        tags: ["Adventure"]
+        tags: ["Adventure"],
+        itinerary: [
+            { dayNum: 1, theme: "Valley Exploration", items: [{ name: "Lauterbrunnen", desc: "Village of 72 waterfalls.", time: "09:00", type: "Sightseeing" }] },
+            { dayNum: 2, theme: "High Altitude Hike", items: [{ name: "Jungfraujoch", desc: "Top of Europe experience.", time: "11:00", type: "Activity" }] }
+        ]
     },
     {
         id: 5,
@@ -75,7 +83,11 @@ export const MOCK_TEMPLATES = [
         budget: "Moderate",
         category: "Couple",
         image: "https://images.unsplash.com/photo-1490644658840-3f2e3f8c5625?q=80&w=800&auto=format&fit=crop",
-        tags: ["City"]
+        tags: ["City"],
+        itinerary: [
+            { dayNum: 1, theme: "Midtown Marvels", items: [{ name: "Empire State Building", desc: "Iconic skyscraper views.", time: "20:00", type: "Sightseeing" }] },
+            { dayNum: 2, theme: "Modern Art Day", items: [{ name: "MoMA", desc: "World-class modern art collection.", time: "13:00", type: "Activity" }] }
+        ]
     },
     {
         id: 6,
@@ -89,7 +101,11 @@ export const MOCK_TEMPLATES = [
         budget: "Moderate",
         category: "Family",
         image: "https://images.unsplash.com/photo-1518182170546-076616fdcd87?q=80&w=800&auto=format&fit=crop",
-        tags: ["Nature", "Eco"]
+        tags: ["Nature", "Eco"],
+        itinerary: [
+            { dayNum: 1, theme: "Rainforest Magic", items: [{ name: "Monteverde Reserve", desc: "Cloud forest hiking.", time: "08:00", type: "Activity" }] },
+            { dayNum: 2, theme: "Hot Springs", items: [{ name: "Tabacon Thermal Resort", desc: "Natural hot springs.", time: "16:00", type: "Dining" }] }
+        ]
     },
     {
         id: 7,
@@ -103,7 +119,11 @@ export const MOCK_TEMPLATES = [
         budget: "Moderate",
         category: "Solo",
         image: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=800&auto=format&fit=crop",
-        tags: ["Culture"]
+        tags: ["Culture"],
+        itinerary: [
+            { dayNum: 1, theme: "Golden Zen", items: [{ name: "Kinkaku-ji", desc: "The famous Golden Pavilion.", time: "10:00", type: "Sightseeing" }] },
+            { dayNum: 2, theme: "Arashiyama Bamboo", items: [{ name: "Bamboo Grove", desc: "Serene walk through bamboo.", time: "07:00", type: "Activity" }] }
+        ]
     },
     {
         id: 8,
@@ -117,6 +137,11 @@ export const MOCK_TEMPLATES = [
         budget: "Luxury",
         category: "Couple",
         image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop",
-        tags: ["Honeymoon", "Best Seller"]
+        tags: ["Honeymoon", "Best Seller"],
+        itinerary: [
+            { dayNum: 1, theme: "Bungalow Bliss", items: [{ name: "Private Deck Breakfast", desc: "Enjoy ocean breeze.", time: "09:00", type: "Dining" }] },
+            { dayNum: 2, theme: "Underwater Wonders", items: [{ name: "Coral Reef Snorkeling", desc: "Swim with colorful fish.", time: "14:00", type: "Activity" }] }
+        ]
     }
+
 ];

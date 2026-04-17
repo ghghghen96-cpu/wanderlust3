@@ -3,20 +3,24 @@ import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
     ChevronLeft, Calendar, Send, MapPin, Star, Plus, Trash2, Edit2, List,
     Clock, MessageCircle, Sparkles, X, Plane, BedDouble, PlusCircle, ChevronDown, ChevronUp,
-    Globe, ExternalLink, ChevronRight, Upload, CheckCircle2, DollarSign, Image, FileText, Tag
+    Globe, ExternalLink, ChevronRight, Upload, CheckCircle2, DollarSign, Image, FileText, Tag,
+    Wallet, Bus, Info
 } from 'lucide-react';
 import { format, addDays, differenceInDays } from 'date-fns';
+import { ko, enUS } from 'date-fns/locale';
 import Navbar from '../components/Navbar';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DESTINATION_DATA } from '../data';
 import { saveSearchHistory } from '../utils/history';
-import { auth, publishToMarketplace } from '../firebase';
+import { auth, publishToMarketplace, uploadThumbnailToStorage } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { fetchPlaceImage } from '../utils/imageApi';
+import ExternalPlaceImage from '../components/ExternalPlaceImage';
 
 // ─── ADVERTISEMENT PLACEHOLDER ────────────────────────────────────────────────
 const AdPlaceholder = ({ className = '', style = {} }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     return (
         <div className={`bg-gray-100 border border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 font-bold overflow-hidden relative ${className}`} style={style}>
             <span className="text-[10px] uppercase tracking-widest absolute top-2 right-3 text-gray-400">{t('itinerary.recommended')}</span>
@@ -30,6 +34,7 @@ const AdPlaceholder = ({ className = '', style = {} }) => {
 };
 
 // ─── IMAGE LIBRARY ───────────────────────────────────────────────────────────
+// 카테고리별 기본 이미지 라이브러리
 const IMAGE_LIBRARY = {
     food: ["https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800", "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800", "https://images.unsplash.com/photo-1626804475297-411db142642a?q=80&w=800"],
     nature: ["https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=800", "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=800", "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=800"],
@@ -42,22 +47,82 @@ const IMAGE_LIBRARY = {
     default: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=800",
 };
 
-const getImg = (name = '', type = '') => {
+// 목적지별 대표 이미지 (Unsplash High-Quality)
+const DEST_IMAGES = {
+    seoul: "https://images.unsplash.com/photo-1517154421773-0529f29ea451?q=80&w=800",
+    tokyo: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=800", // 깨진 이미지 교체
+    osaka: "https://images.unsplash.com/photo-1590559899731-a382839e5549?q=80&w=800",
+    bangkok: "https://images.unsplash.com/photo-1504214208698-ea1919a23562?q=80&w=800",
+    bali: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=800",
+    singapore: "https://images.unsplash.com/photo-1525625232747-076121f17671?q=80&w=800",
+    paris: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=800",
+    london: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?q=80&w=800",
+    rome: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?q=80&w=800",
+    barcelona: "https://images.unsplash.com/photo-1583422409516-2895a77efded?q=80&w=800",
+    newyork: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?q=80&w=800",
+    sydney: "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?q=80&w=800",
+    taipei: "https://images.unsplash.com/photo-1552233319-39956247343e?q=80&w=800",
+    danang: "https://images.unsplash.com/photo-1559592442-7e182c9403db?q=80&w=800",
+    beijing: "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?q=80&w=800",
+    hongkong: "https://images.unsplash.com/photo-1506354666786-959d6d497f1a?q=80&w=800",
+    jeju: "https://images.unsplash.com/photo-1544483389-947833f2cfdf?q=80&w=800"
+};
+
+const getImg = (name = '', type = '', dest = '', destId = '') => {
     const n = name.toLowerCase();
+    const d = dest.toLowerCase();
+    
+    // 1. 목적지 ID가 있다면 최우선적으로 해당 도시 이미지 매칭
+    let destKey = destId ? destId.toLowerCase().trim() : null;
+    
+    // 만약 ID가 없다면 기존처럼 텍스트에서 유추
+    if (!destKey || !DEST_IMAGES[destKey]) {
+        const lowerDest = dest.toLowerCase();
+        destKey = Object.keys(DEST_IMAGES).find(k => 
+            lowerDest.includes(k) || 
+            lowerDest.includes(t(`survey.destinations.${k}`, { lng: 'ko' }).toLowerCase()) ||
+            lowerDest.includes(t(`survey.destinations.${k}`, { lng: 'en' }).toLowerCase())
+        );
+    }
+    
+    // 목적지 전용 이미지가 있다면 높은 확률로(90%) 사용
+    if (destKey && DEST_IMAGES[destKey] && (n.includes('landmark') || Math.random() > 0.1)) {
+        return DEST_IMAGES[destKey];
+    }
+
+    // 카테고리별 이미지 반환
     if (n.includes('market')) return IMAGE_LIBRARY.market[0];
-    if (n.includes('tower') || n.includes('tree')) return IMAGE_LIBRARY.tower[0];
+    if (n.includes('tower') || n.includes('tree') || n.includes('skytree') || n.includes('tower')) return IMAGE_LIBRARY.tower[0];
     if (n.includes('park') || n.includes('garden')) return IMAGE_LIBRARY.park[0];
+    
     const arr = IMAGE_LIBRARY[type.toLowerCase()];
     if (Array.isArray(arr)) return arr[Math.floor(Math.random() * arr.length)];
-    return IMAGE_LIBRARY.default;
+    
+    // 최종 Fallback
+    return (destKey && DEST_IMAGES[destKey]) || IMAGE_LIBRARY.default;
 };
 
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-const fmtTime = (t) => {
+const safeFormat = (date, formatStr, localeData) => {
+    try {
+        if (!date) return '---';
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return '---';
+        return format(d, formatStr, { locale: localeData });
+    } catch (e) {
+        console.error("Date formatting error:", e);
+        return '---';
+    }
+};
+
+const fmtTime = (t, lang = 'en') => {
     if (!t) return '';
     const [h, m] = t.split(':').map(Number);
-    return `${h % 12 || 12}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+    const suffix = lang === 'ko' ? (h >= 12 ? '오후' : '오전') : (h >= 12 ? 'PM' : 'AM');
+    const displayH = h % 12 || 12;
+    const displayM = String(m || 0).padStart(2, '0');
+    return lang === 'ko' ? `${suffix} ${displayH}:${displayM}` : `${displayH}:${displayM} ${suffix}`;
 };
 
 const calcDist = (la1, lo1, la2, lo2) => {
@@ -92,14 +157,14 @@ const getDayMapUrl = (items, dest) => {
 
 // ─── ACTIVITY CARD ────────────────────────────────────────────────────────────
 const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [editing, setEditing] = useState(activity.isNew || false);
     const [ed, setEd] = useState(activity);
     const [timeEdit, setTimeEdit] = useState(false);
     const timeRef = useRef(null);
     const dc = useDragControls();
 
-    const save = () => { onSave({ ...ed, img: getImg(ed.name, ed.type), isNew: false }); setEditing(false); };
+    const save = () => { onSave({ ...ed, img: getImg(ed.name, ed.type, destination), isNew: false }); setEditing(false); };
 
     // commit inline time change → triggers auto-sort in parent
     const commitTime = (val) => {
@@ -144,54 +209,101 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
                 </div>
 
                 {/* image */}
-                <div className="w-full sm:w-24 h-48 sm:h-24 rounded-2xl overflow-hidden flex-shrink-0 relative shadow-inner">
-                    <img src={activity.img || getImg(activity.name, activity.type)} alt={activity.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                    {/* Removed Rating Overlay */}
+                <div className="w-full sm:w-40 xl:w-48 aspect-video rounded-2xl overflow-hidden flex-shrink-0 relative shadow-sm border border-gray-100 bg-gray-100 group-hover:shadow-md transition-shadow">
+                    <ExternalPlaceImage 
+                        name={activity.name}
+                        region={destination}
+                        initialUrl={activity.img || getImg(activity.name, activity.type, destination, location.state?.destinationId)} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                    />
                 </div>
 
                 {/* info */}
                 <div className="flex-1 min-w-0 w-full">
-                    <h3 className="font-black text-secondary text-xl truncate group-hover:text-primary transition-colors">{activity.name}</h3>
+                    <h3 className="font-black text-[#006400] text-2xl truncate group-hover:opacity-80 transition-opacity mb-2">{activity.name}</h3>
 
-                    {/* ── INLINE TIME ── */}
-                    <div className="mt-1">
+                    {/* ── INLINE TIME (New Line) ── */}
+                    <div className="mb-3">
                         {timeEdit ? (
-                            <input
-                                ref={timeRef}
-                                type="time"
-                                defaultValue={activity.time}
-                                autoFocus
-                                onBlur={e => commitTime(e.target.value)}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter') commitTime(e.target.value);
-                                    if (e.key === 'Escape') setTimeEdit(false);
-                                }}
-                                className="text-sm font-bold text-primary bg-primary/5 border border-primary/30 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-primary/30"
-                            />
+                            <div className="flex items-center gap-2 bg-primary/5 p-2 rounded-xl border border-primary/20">
+                                <Clock size={16} className="text-primary" />
+                                <input
+                                    ref={timeRef}
+                                    type="time"
+                                    defaultValue={activity.time}
+                                    autoFocus
+                                    onBlur={e => commitTime(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') commitTime(e.target.value);
+                                        if (e.key === 'Escape') setTimeEdit(false);
+                                    }}
+                                    className="text-base font-bold text-primary bg-transparent outline-none"
+                                />
+                            </div>
                         ) : (
                             <button
                                 onClick={() => setTimeEdit(true)}
                                 title={t('itinerary.setTime')}
-                                className="inline-flex items-center gap-1.5 text-primary font-bold text-xs px-2 py-1 rounded-lg hover:bg-primary/10 transition-colors border border-transparent hover:border-primary/20"
+                                className="group/time flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-primary border border-gray-100 rounded-full hover:bg-primary/10 hover:border-primary/20 transition-all"
                             >
-                                <Clock size={12} />
-                                {fmtTime(activity.time) || t('itinerary.setTime')}
-                                <span className="text-[9px] text-primary/40 opacity-0 group-hover:opacity-100 transition-opacity ml-0.5">✎</span>
+                                <Clock size={14} className="group-hover/time:scale-110 transition-transform" />
+                                <span className="font-bold text-sm tracking-tight">
+                                    {fmtTime(activity.time, i18n.language) || t('itinerary.setTime')}
+                                </span>
+                                <Edit2 size={10} className="opacity-0 group-hover/time:opacity-50 transition-opacity" />
                             </button>
                         )}
                     </div>
 
-                    <div className="flex items-center gap-3 mt-1">
-                        <p className="text-sm text-gray-500 truncate">{activity.desc}</p>
-                        <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${activity.latitude && activity.longitude ? `${activity.latitude},${activity.longitude}` : encodeURIComponent(activity.name + ' ' + (destination || ''))}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-shrink-0 flex items-center gap-1 text-[10px] font-bold text-gray-400 hover:text-primary transition-colors bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100"
-                        >
-                            <MapPin size={10} /> {t('itinerary.maps')}
-                        </a>
+                    <div className="space-y-3">
+                        <p className="text-base font-semibold text-[#4A4A4A] leading-relaxed">{activity.desc}</p>
+                        
+                        {/* ── NEW DATA DENSITY BLOCKS ── */}
+                        {(activity.recommendationReason || activity.costEstimate || activity.transportHint || activity.localTip) && (
+                            <div className="flex flex-col gap-2 mt-3 bg-gray-50/80 p-4 rounded-2xl border border-gray-100">
+                                {activity.recommendationReason && (
+                                    <div className="flex items-start gap-2">
+                                        <Sparkles size={16} className="text-primary mt-1 flex-shrink-0" />
+                                        <p className="text-sm font-semibold text-gray-700">
+                                            <span className="font-bold text-primary">{t('itinerary.whySelected', { defaultValue: 'Why we recommend this:' })} </span>
+                                            {activity.recommendationReason}
+                                        </p>
+                                    </div>
+                                )}
+                                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-1">
+                                    {activity.costEstimate && (
+                                        <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                            <Wallet size={14} className="text-emerald-500" />
+                                            <span className="font-bold">{activity.costEstimate}</span>
+                                        </div>
+                                    )}
+                                    {activity.transportHint && (
+                                        <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                            <Bus size={14} className="text-blue-500" />
+                                            <span>{activity.transportHint}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                {activity.localTip && (
+                                    <div className="flex items-start gap-1.5 text-sm mt-1 bg-amber-50 rounded-xl p-2.5 border border-amber-100/50">
+                                        <Info size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                                        <span className="text-amber-800 italic leading-snug"><span className="font-bold">{t('itinerary.localTip', { defaultValue: 'Local Tip:' })}</span> {activity.localTip}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${activity.latitude && activity.longitude ? `${activity.latitude},${activity.longitude}` : encodeURIComponent(activity.name + ' ' + (destination || ''))}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary/10 text-primary text-xs font-black rounded-xl hover:bg-primary transition-all hover:text-white border border-primary/10"
+                            >
+                                <MapPin size={14} /> 
+                                {t('itinerary.maps')}
+                            </a>
+                        </div>
                     </div>
                 </div>
 
@@ -207,7 +319,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination }) => {
 
 // ─── AI CHAT MODAL ────────────────────────────────────────────────────────────
 const AIChatModal = ({ isOpen, onClose, destination }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [msgs, setMsgs] = useState([{ role: 'assistant', text: t('itinerary.chatBotGreeting', { destination }) }]);
     const [inp, setInp] = useState('');
     const [loading, setLoading] = useState(false);
@@ -215,12 +327,12 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, isOpen]);
 
     const REPLIES = [
-        { keywords: ['food', 'eat', 'restaurant', 'dining'], reply: 'Check out the local markets and food streets in your itinerary! You can find more info at [Seoul Food Guide](https://www.visitseoul.net).' },
-        { keywords: ['hotel', 'stay', 'accommodation', 'sleep'], reply: 'You can find accommodation info in the Summary tab. For direct bookings, visit [Hotels.com](https://www.hotels.com) or [Airbnb](https://www.airbnb.com).' },
-        { keywords: ['weather', 'climate', 'temperature'], reply: 'I recommend checking [AccuWeather](https://www.accuweather.com) a week before your trip for the most accurate info.' },
-        { keywords: ['transport', 'bus', 'train', 'taxi', 'metro'], reply: 'Local transport options vary! Check [Google Maps](https://www.google.com/maps) or local transit sites like [T-Money](https://www.t-money.co.kr) for Seoul.' },
-        { keywords: ['budget', 'cost', 'money', 'price'], reply: 'Budgeting tips are available at [Lonely Planet](https://www.lonelyplanet.com). Street food and public transport save the most money!' },
-        { keywords: ['safe', 'safety', 'crime', 'danger'], reply: 'Most tourist areas are safe. See [Travel Advisories](https://travel.state.gov) for official safety information.' },
+        { keywords: ['food', 'eat', 'restaurant', 'dining', '맛집', '음식', '식사'], reply: t('itinerary.chatBotReplies.food') },
+        { keywords: ['hotel', 'stay', 'accommodation', 'sleep', '숙소', '호텔', '잠'], reply: t('itinerary.chatBotReplies.stay') },
+        { keywords: ['weather', 'climate', 'temperature', '날씨', '기온', '비'], reply: t('itinerary.chatBotReplies.weather') },
+        { keywords: ['transport', 'bus', 'train', 'taxi', 'metro', '교통', '버스', '지하철'], reply: t('itinerary.chatBotReplies.transport') },
+        { keywords: ['budget', 'cost', 'money', 'price', '예산', '비용', '돈'], reply: t('itinerary.chatBotReplies.budget') },
+        { keywords: ['safe', 'safety', 'crime', 'danger', '보안', '안전', '위험'], reply: t('itinerary.chatBotReplies.safety') },
     ];
 
     const send = () => {
@@ -238,10 +350,10 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
                     const matched = REPLIES.find(r => r.keywords.some(k => lower.includes(k)));
                     const reply = matched
                         ? matched.reply
-                        : `Great question about "${text}"! I suggest exploring local guides or asking your hotel concierge for the best tips on ${destination}.`;
+                        : t('itinerary.chatBotReplyDefault', { text, destination });
                     setMsgs(prev => [...prev, { role: 'assistant', text: reply }]);
                 } catch (err) {
-                    setMsgs(prev => [...prev, { role: 'assistant', text: 'Sorry, something went wrong. Please try again.' }]);
+                    setMsgs(prev => [...prev, { role: 'assistant', text: t('itinerary.chatBotError') }]);
                 } finally {
                     setLoading(false);
                 }
@@ -301,7 +413,7 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
 
 // ─── PUBLISH MODAL ────────────────────────────────────────────────────────────
 const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const [price, setPrice] = useState('');
     const [description, setDescription] = useState('');
@@ -310,90 +422,158 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     const [success, setSuccess] = useState(false);
     const [publishError, setPublishError] = useState('');
     const [countdown, setCountdown] = useState(3);
+    // ─── 이미지 업로드 관련 상태 ─────────────────────────────────────────────────
+    const [uploadedImage, setUploadedImage] = useState(null); // 사용자가 업로드한 이미지 DataURL
+    const [isUploading, setIsUploading] = useState(false);    // 파일 읽기 중 로딩 상태
+    const [isDragOver, setIsDragOver] = useState(false);      // 드래그 오버 강조 표시
+    const fileInputRef = useRef(null);                        // 숨김 파일 input 참조
 
-    // 일정에서 대표 이미지 후보 자동 추출
+    // 가장 평점이 높은 장소 우선으로 썸네일 자동 추천
     const thumbnailCandidates = useMemo(() => {
-        const imgs = [];
+        let allItems = [];
         itinerary.forEach(day => {
             day.items.forEach(item => {
-                if (item.img && !imgs.includes(item.img)) {
-                    imgs.push(item.img);
-                }
+                if (item.img) allItems.push(item);
             });
         });
+        
+        // 내림차순 정렬 (높은 평점 우선)
+        allItems.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        
+        const imgs = [];
+        allItems.forEach(item => {
+            if (!imgs.includes(item.img)) {
+                imgs.push(item.img);
+            }
+        });
+        
         return imgs.slice(0, 6); // 최대 6개까지 후보
     }, [itinerary]);
 
     // 등록 핸들러
     const handlePublish = async () => {
-        if (!price || !description) return;
+        console.log("--- Publish Process Started ---");
+
+        // 최종 썸네일: 업로드 이미지 우선, 없으면 자동 추천 이미지 사용
+        const finalThumbnail = uploadedImage || thumbnailCandidates[selectedThumb] || '';
+        
+        // 1. 유효성 검사 (Validation)
+        if (!price || isNaN(parseFloat(price))) {
+            setPublishError(t('itinerary.publishErrorNoPrice') || 'Please enter a valid price.');
+            return;
+        }
+        if (!description || description.trim().length < 5) {
+            setPublishError(t('itinerary.publishErrorNoDesc') || 'Please enter a detailed description (min 5 chars).');
+            return;
+        }
+        if (!finalThumbnail) {
+            setPublishError(t('itinerary.publishErrorNoThumb') || '썸네일 이미지를 업로드하거나 선택해 주세요.');
+            return;
+        }
+
+        console.log("Validation passed. Data assembly starting...");
         setPublishing(true);
         setPublishError('');
+        
         try {
-            // 전체 일정 데이터를 구성
-            const templateData = {
-                // 판매자 정보
-                creatorUid: user.uid,
-                creatorName: user.displayName || 'Anonymous',
-                creatorEmail: user.email,
-                creatorAvatar: user.photoURL || '',
-                // 상품 정보
-                title: description,
+            // 업로드된 이미지가 DataURL 형태일 경우 Firebase Storage에 업로드 (문서 크기 제한 1MB 방지)
+            console.log("Processing thumbnail...");
+            const safeThumbnail = await uploadThumbnailToStorage(finalThumbnail, user?.uid || 'anonymous');
+
+            // 1. 기본 메타데이터 구성 (순환 참조 및 undefined 방지)
+            const templateBase = {
+                creatorUid: user?.uid || 'anonymous',
+                creatorName: user?.displayName || t('nav.traveler', { defaultValue: 'Traveler' }),
+                creatorEmail: user?.email || '',
+                creatorAvatar: user?.photoURL || '',
+                title: String(description).trim(),
                 price: parseFloat(price),
-                thumbnail: thumbnailCandidates[selectedThumb] || '',
-                destination: data.destination,
+                thumbnail: safeThumbnail,
+                destination: String(data.destination || ''),
                 region: detectRegion(data.destination),
-                category: data.travelWith || 'Solo',
-                budget: data.pace || 'Moderate',
-                // 일정 데이터 (장소, 시간, 메모 등)
-                days: itinerary.map(day => ({
-                    dayNum: day.dayNum,
-                    date: day.date?.toISOString?.() || day.date,
-                    theme: day.theme,
-                    items: day.items.map(item => ({
-                        name: item.name,
-                        desc: item.desc,
-                        type: item.type,
-                        time: item.time,
-                        img: item.img,
-                        latitude: item.latitude || null,
-                        longitude: item.longitude || null,
-                        rating: item.rating || null,
-                    }))
-                })),
-                // 항공편 및 숙소 데이터
-                flights: flights.map(f => ({ type: f.type, from: f.from, to: f.to, number: f.number, time: f.time, notes: f.notes })),
-                hotels: hotels.map(h => ({ name: h.name, address: h.address, confirmation: h.confirmation, checkin: h.checkin, checkout: h.checkout })),
-                // 여행 메타 정보
-                startDate: data.startDate,
-                endDate: data.endDate,
-                totalDays: itinerary.length,
-                totalSpots: itinerary.reduce((s, d) => s + d.items.length, 0),
-                focus: data.focus || [],
-                pace: data.pace || 'Moderate',
-                vibe: data.vibe || '',
+                category: String(data.travelWith || 'Solo'),
+                budget: String(data.pace || 'Moderate'),
+                startDate: data.startDate ? new Date(data.startDate).toISOString() : new Date().toISOString(),
+                endDate: data.endDate ? new Date(data.endDate).toISOString() : new Date().toISOString(),
+                totalDays: parseInt(itinerary.length) || 0,
+                totalSpots: itinerary.reduce((s, d) => s + (d.items?.length || 0), 0),
+                focus: Array.isArray(data.focus) ? data.focus : [],
+                pace: String(data.pace || 'Moderate'),
+                vibe: String(data.vibe || ''),
+                publishedAt: new Date().toISOString()
             };
+
+            // 2. 일정 데이터 직렬화
+            const days = itinerary.map(day => ({
+                dayNum: parseInt(day.dayNum),
+                date: day.date instanceof Date ? day.date.toISOString() : String(day.date),
+                theme: String(day.theme || ''),
+                items: (day.items || []).map(item => ({
+                    name: String(item.name || ''),
+                    desc: String(item.desc || ''),
+                    type: String(item.type || ''),
+                    time: String(item.time || ''),
+                    img: String(item.img || ''),
+                    latitude: item.latitude ? parseFloat(item.latitude) : null,
+                    longitude: item.longitude ? parseFloat(item.longitude) : null,
+                    rating: item.rating ? parseFloat(item.rating) : null,
+                }))
+            }));
+
+            // 3. 항공/숙소 데이터 직렬화
+            const flightData = (flights || []).map(f => ({
+                type: String(f.type || 'Outbound'),
+                from: String(f.from || ''),
+                to: String(f.to || ''),
+                number: String(f.number || ''),
+                time: String(f.time || ''),
+                notes: String(f.notes || '')
+            }));
+
+            const hotelData = (hotels || []).map(h => ({
+                name: String(h.name || ''),
+                address: String(h.address || ''),
+                confirmation: String(h.confirmation || ''),
+                checkin: String(h.checkin || ''),
+                checkout: String(h.checkout || '')
+            }));
+
+            const finalData = {
+                ...templateBase,
+                itinerary: days,
+                flights: flightData,
+                hotels: hotelData
+            };
+
+            console.log("Final data assembled successfully:", finalData);
             
-            // undefined 값이나 중첩된 참조 에러 방지를 위해 완전한 Plain Object 로 직렬화
-            const cleanData = JSON.parse(JSON.stringify(templateData));
+            // 4. API 호출
+            console.log("Calling publishToMarketplace API...");
+            const docId = await publishToMarketplace(finalData);
+            console.log("Publish success! Received docId:", docId);
             
-            await publishToMarketplace(cleanData);
             setSuccess(true);
-            // 카운트다운 후 마켓플레이스로 자동 이동
+
+            // 5. 카운트다운 후 리다이렉트 (강제 이동)
             let count = 3;
             setCountdown(count);
             const timer = setInterval(() => {
                 count -= 1;
-                setCountdown(count);
+                console.log(`Redirecting to marketplace in ${count}s...`);
+                if (count >= 0) setCountdown(count);
                 if (count <= 0) {
                     clearInterval(timer);
-                    navigate('/marketplace');
+                    window.location.href = '/marketplace';
                 }
             }, 1000);
+            
         } catch (err) {
-            console.error('Publish error:', err);
-            setPublishError(err.message || 'Failed to publish. Please try again.');
+            console.error('CRITICAL: Publish process failed:', err);
+            const errorMsg = err.message || 'Failed to publish. Connection error or invalid data.';
+            setPublishError(errorMsg);
+            alert(`Error: ${errorMsg}`);
         } finally {
+            console.log("Publishing process reached finally block.");
             setPublishing(false);
         }
     };
@@ -401,14 +581,60 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     // 지역 자동 감지 (간단 매핑)
     const detectRegion = (dest) => {
         const d = (dest || '').toLowerCase();
-        if (['japan', 'korea', 'seoul', 'tokyo', 'osaka', 'bangkok', 'bali', 'singapore', 'vietnam', 'china', 'beijing', 'shanghai', 'taipei', 'hong kong'].some(k => d.includes(k))) return 'Asia';
-        if (['paris', 'london', 'rome', 'barcelona', 'amsterdam', 'berlin', 'zurich', 'switzerland', 'interlaken', 'santorini', 'greece', 'italy', 'spain', 'france', 'germany', 'portugal'].some(k => d.includes(k))) return 'Europe';
-        if (['new york', 'los angeles', 'san francisco', 'miami', 'hawaii', 'usa', 'canada', 'mexico'].some(k => d.includes(k))) return 'Americas';
-        if (['maldives', 'dubai', 'qatar', 'turkey', 'istanbul'].some(k => d.includes(k))) return 'Middle East';
-        if (['sydney', 'melbourne', 'australia', 'new zealand', 'fiji'].some(k => d.includes(k))) return 'Oceania';
-        if (['cape town', 'morocco', 'kenya', 'egypt', 'africa'].some(k => d.includes(k))) return 'Africa';
+        // 한글 키워드도 포함하여 매핑
+        if (['japan', 'korea', 'seoul', 'tokyo', 'osaka', 'bangkok', 'bali', 'singapore', 'vietnam', 'china', 'beijing', 'shanghai', 'taipei', 'hong kong', '서울', '부산', '도쿄', '오사카', '방콕', '다낭', '하노이', '타이베이', '상하이', '베이징'].some(k => d.includes(k))) return 'Asia';
+        if (['paris', 'london', 'rome', 'barcelona', 'amsterdam', 'berlin', 'zurich', 'switzerland', 'interlaken', 'santorini', 'greece', 'italy', 'spain', 'france', 'germany', 'portugal', '파리', '런던', '로마', '피렌체', '바르셀로나', '산토리니', '프라하', '빈', '뮌헨', '베네치아', '밀라노', '리스본'].some(k => d.includes(k))) return 'Europe';
+        if (['new york', 'los angeles', 'san francisco', 'miami', 'hawaii', 'usa', 'canada', 'mexico', '뉴욕', '로스앤젤레스', '밴쿠버', '칸쿤'].some(k => d.includes(k))) return 'Americas';
+        if (['maldives', 'dubai', 'qatar', 'turkey', 'istanbul', '두바이', '이스탄불'].some(k => d.includes(k))) return 'Middle East';
+        if (['sydney', 'melbourne', 'australia', 'new zealand', 'fiji', '시드니', '멜버른', '퀸즈타운'].some(k => d.includes(k))) return 'Oceania';
+        if (['cape town', 'morocco', 'kenya', 'egypt', 'africa', '카이로', '케이프타운', '마라케시'].some(k => d.includes(k))) return 'Africa';
         return 'Other';
     };
+
+    // ─── 이미지 업로드 핸들러 ─────────────────────────────────────────────────────
+    // FileReader로 이미지를 DataURL로 변환하여 상태에 저장
+    const processFile = (file) => {
+        if (!file) return;
+        if (!file.type.match(/image\/(jpeg|png|gif|webp)/)) {
+            setPublishError('JPG, PNG, GIF, WEBP 파일만 업로드 가능합니다.');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) { // 10MB 제한
+            setPublishError('파일 크기가 10MB를 초과합니다.');
+            return;
+        }
+        setIsUploading(true);
+        setPublishError('');
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setUploadedImage(e.target.result); // DataURL 저장
+            setSelectedThumb(-1);              // 자동 추천 선택 해제
+            setIsUploading(false);
+        };
+        reader.onerror = () => {
+            setPublishError('이미지를 불러오는 중 오류가 발생했습니다.');
+            setIsUploading(false);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // 파일 input change 핸들러
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (file) processFile(file);
+        // 같은 파일 재선택을 위해 값 초기화
+        e.target.value = '';
+    };
+
+    // 드래그 앤 드롭 핸들러
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) processFile(file);
+    };
+    const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
+    const handleDragLeave = () => setIsDragOver(false);
 
     if (!isOpen) return null;
 
@@ -440,8 +666,8 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                         </motion.div>
                         <h2 className="text-2xl font-black text-secondary">{t('itinerary.publishSuccess')}</h2>
                         <p className="text-gray-500">{t('itinerary.publishSuccessDesc')}</p>
-                        <p className="text-sm font-bold text-primary">
-                            {countdown}초 후 마켓플레이스로 이동합니다...
+                        <p className="text-sm font-bold text-primary bg-primary/10 py-2 rounded-full">
+                            {t('payment.autoRedirect')} ({countdown}s)
                         </p>
                         <div className="flex gap-3 justify-center">
                             <button onClick={() => navigate('/marketplace')} className="px-6 py-3 bg-secondary text-white rounded-xl font-bold hover:bg-secondary/90 transition-colors">
@@ -469,7 +695,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                             <div className="flex gap-3 mt-4">
                                 <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{data.destination}</span>
                                 <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{itinerary.length} {t('itinerary.days')}</span>
-                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{itinerary.reduce((s, d) => s + d.items.length, 0)} {t('itinerary.spots')}</span>
+                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{(itinerary || []).reduce((s, d) => s + (d.items?.length || 0), 0)} {t('itinerary.spots')}</span>
                             </div>
                         </div>
 
@@ -506,35 +732,120 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                             </div>
 
                             {/* 썸네일 선택 */}
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Image size={14} className="text-primary" /> {t('itinerary.publishThumbnail')}
+                                    <Image size={14} className="text-primary" /> SELECT THUMBNAIL
                                 </label>
-                                <p className="text-[10px] text-gray-400 font-bold">{t('itinerary.publishThumbnailAuto')}</p>
-                                {thumbnailCandidates.length > 0 ? (
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {thumbnailCandidates.map((img, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => setSelectedThumb(idx)}
-                                                className={`relative aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all hover:scale-105 ${
-                                                    selectedThumb === idx
-                                                        ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30'
-                                                        : 'border-gray-200 hover:border-gray-300'
-                                                }`}
-                                            >
-                                                <img src={img} alt={`thumb-${idx}`} className="w-full h-full object-cover" />
-                                                {selectedThumb === idx && (
-                                                    <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                                                        <CheckCircle2 size={24} className="text-white drop-shadow-lg" />
-                                                    </div>
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-center h-24 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-sm">
-                                        No images available
+
+                                {/* ── 숨김 파일 input ── */}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/gif,image/webp"
+                                    className="hidden"
+                                    onChange={handleFileSelect}
+                                />
+
+                                {/* ── 드래그 앤 드롭 업로드 존 ── */}
+                                <div
+                                    onDrop={handleDrop}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                                    className={`relative rounded-2xl border-2 border-dashed transition-all cursor-pointer ${
+                                        isDragOver
+                                            ? 'border-primary bg-primary/5 scale-[1.01] shadow-md shadow-primary/10'
+                                            : uploadedImage
+                                                ? 'border-green-400 bg-green-50/50'
+                                                : 'border-gray-200 hover:border-primary/50 hover:bg-gray-50/60'
+                                    }`}
+                                >
+                                    {isUploading ? (
+                                        /* 업로드 로딩 */
+                                        <div className="flex flex-col items-center gap-2 py-5">
+                                            <div className="w-7 h-7 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                                            <span className="text-xs text-gray-400 font-bold">이미지 불러오는 중...</span>
+                                        </div>
+                                    ) : uploadedImage ? (
+                                        /* 업로드 완료 미리보기 */
+                                        <div className="flex items-center gap-4 px-4 py-3">
+                                            <div className="relative shrink-0">
+                                                <img
+                                                    src={uploadedImage}
+                                                    alt="업로드된 썸네일"
+                                                    className="w-20 h-14 object-cover rounded-xl border-2 border-green-400 shadow-md"
+                                                />
+                                                <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow">
+                                                    <CheckCircle2 size={12} className="text-white" />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 text-left">
+                                                <p className="text-xs font-black text-green-700 flex items-center gap-1">
+                                                    <CheckCircle2 size={12} /> 업로드 완료 · 썸네일로 사용됩니다
+                                                </p>
+                                                <p className="text-[10px] text-gray-400 mt-0.5">클릭하여 다른 사진으로 교체</p>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); setUploadedImage(null); setSelectedThumb(0); }}
+                                                    className="mt-1.5 text-[10px] text-red-400 hover:text-red-600 font-bold flex items-center gap-0.5 transition-colors"
+                                                >
+                                                    <X size={10} /> 삭제하고 자동 추천으로 변경
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        /* 업로드 안내 */
+                                        <div className="flex flex-col items-center gap-2 py-5">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${ isDragOver ? 'bg-primary/20' : 'bg-gray-100'}`}>
+                                                <Upload size={20} className={isDragOver ? 'text-primary' : 'text-gray-400'} />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-sm font-black text-gray-600">내 사진 업로드하기</p>
+                                                <p className="text-[10px] text-gray-400">클릭 또는 드래그 앤 드롭 · JPG, PNG, GIF</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {/* 드래그 오버 시 하이라이트 오버레이 */}
+                                    {isDragOver && (
+                                        <div className="absolute inset-0 rounded-2xl border-2 border-primary bg-primary/5 flex items-center justify-center pointer-events-none">
+                                            <p className="text-primary font-black text-sm">여기에 놓으세요!</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── 자동 추천 이미지 (구분선 + 그리드) ── */}
+                                {thumbnailCandidates.length > 0 && (
+                                    <div>
+                                        <div className="flex items-center gap-3 my-1">
+                                            <div className="flex-1 h-px bg-gray-100" />
+                                            <span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">또는 일정 이미지에서 선택</span>
+                                            <div className="flex-1 h-px bg-gray-100" />
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2.5">
+                                            {thumbnailCandidates.map((img, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => { setSelectedThumb(idx); setUploadedImage(null); }}
+                                                    className={`relative aspect-video rounded-xl overflow-hidden border-2 transition-all hover:scale-105 ${
+                                                        !uploadedImage && selectedThumb === idx
+                                                            ? 'border-primary shadow-lg shadow-primary/20 ring-2 ring-primary/30'
+                                                            : 'border-gray-200 hover:border-primary/40'
+                                                    }`}
+                                                >
+                                                    <img src={img} alt={`thumb-${idx}`} className="w-full h-full object-cover" />
+                                                    {!uploadedImage && selectedThumb === idx && (
+                                                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                                            <CheckCircle2 size={22} className="text-white drop-shadow-lg" />
+                                                        </div>
+                                                    )}
+                                                    {/* 업로드 이미지가 있으면 자동추천은 흐리게 표시 */}
+                                                    {uploadedImage && (
+                                                        <div className="absolute inset-0 bg-white/50" />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -548,7 +859,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                             {/* 등록 버튼 */}
                             <button
                                 onClick={handlePublish}
-                                disabled={publishing || !price || !description}
+                                disabled={publishing || isUploading || !price || !description}
                                 className="w-full py-4 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-lg rounded-2xl shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-3"
                             >
                                 {publishing ? (
@@ -703,17 +1014,44 @@ const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 const Itinerary = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { state } = useLocation();
 
     useEffect(() => { if (state) sessionStorage.setItem('lastSurveyData', JSON.stringify(state)); }, [state]);
 
     const data = useMemo(() => {
         if (state) return state;
-        const saved = sessionStorage.getItem('lastSurveyData');
-        const def = { destination: 'South Korea (Seoul)', startDate: new Date().toISOString(), endDate: new Date(Date.now() + 86400000 * 4).toISOString(), focus: ['Food', 'Nature'], pace: 'Moderate', vibe: 'Social' };
-        return saved ? { ...def, ...JSON.parse(saved) } : def;
+        const def = { destination: 'South Korea (Seoul)', destinationId: 'seoul', startDate: new Date().toISOString(), endDate: new Date(Date.now() + 86400000 * 4).toISOString(), focus: ['Food', 'Nature'], pace: 'Moderate', vibe: 'Social' };
+        try {
+            const saved = sessionStorage.getItem('lastSurveyData');
+            return saved ? { ...def, ...JSON.parse(saved) } : def;
+        } catch (e) {
+            console.error("Session storage parsing error:", e);
+            return def;
+        }
     }, [state]);
+
+    // ── 표시용 목적지 이름 생성 (번역 키 없이 안전하게 처리) ──────────────────
+    const [displayDestination, setDisplayDestination] = useState(() => {
+        const dest = data.destination || '';
+        // survey.destinations.xxx 번역 키가 포함된 경우 ID 기반 이름으로 대체
+        if (dest.includes('survey.destinations.')) {
+            const id = data.destinationId || '';
+            return id ? (id.charAt(0).toUpperCase() + id.slice(1)) : '';
+        }
+        return dest;
+    });
+
+    useEffect(() => {
+        if (!data.destination) { setDisplayDestination(''); return; }
+        const raw = data.destination;
+        if (raw.includes('survey.destinations.')) {
+            const id = data.destinationId || '';
+            setDisplayDestination(id ? (id.charAt(0).toUpperCase() + id.slice(1)) : '');
+            return;
+        }
+        setDisplayDestination(raw);
+    }, [data.destination, data.destinationId, i18n.language]);
 
     const [itinerary, setItinerary] = useState([]);
     const [destData, setDestData] = useState(null);
@@ -754,37 +1092,61 @@ const Itinerary = () => {
 
     // ── SMART TRAVEL ROUTE PLANNER ENGINE ──────────────────────────────────────
     useEffect(() => {
-        const raw = (data.destination || '').toLowerCase().trim();
+        const generate = async () => {
+            try {
+                const raw = (data.destination || '').toLowerCase().trim();
+            const idMatch = (data.destinationId || '').toLowerCase().trim();
 
-        // ── Multi-step fuzzy destination matching ──────────────────────────────
-        let matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && raw === k);
-        if (!matchKey) {
-            const rawBase = raw.split('(')[0].trim();
-            matchKey = Object.keys(DESTINATION_DATA).find(k =>
-                k !== 'default' && (raw.includes(k) || rawBase.includes(k) || k.includes(rawBase))
-            );
-        }
-        if (!matchKey) {
-            const cityMatch = raw.match(/\(([^)]+)\)/);
-            const city = cityMatch ? cityMatch[1].trim() : raw;
-            matchKey = Object.keys(DESTINATION_DATA).find(k =>
-                k !== 'default' && (k.includes(city) || city.includes(k.split('(')[0].trim()))
-            );
-        }
-        if (!matchKey) {
-            const words = raw.replace(/[()]/g, ' ').split(/\s+/).filter(w => w.length > 2);
-            matchKey = Object.keys(DESTINATION_DATA).find(k =>
-                k !== 'default' && words.some(w => k.includes(w))
-            );
-        }
+            // ── Multi-step fuzzy destination matching ──────────────────────────────
+            let matchKey = null;
 
-        const sd = DESTINATION_DATA[matchKey || 'default'];
-        setDestData(sd);
+            // 0. Try ID match first (most reliable)
+            if (idMatch) {
+                matchKey = Object.keys(DESTINATION_DATA).find(k => 
+                    k !== 'default' && (
+                        k === idMatch || 
+                        k.includes(`(${idMatch})`) || 
+                        idMatch.includes(k) ||
+                        (idMatch === 'jeju' && k.includes('jeju'))
+                    )
+                );
+            }
+            
+            // 1. Exact text match
+            if (!matchKey) {
+                matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && raw === k);
+            }
+            
+            // 2. Fuzzy text matches (fallback)
+            if (!matchKey) {
+                const rawBase = raw.split('(')[0].trim();
+                matchKey = Object.keys(DESTINATION_DATA).find(k =>
+                    k !== 'default' && (raw.includes(k) || rawBase.includes(k) || k.includes(rawBase))
+                );
+            }
+            
+            if (!matchKey) {
+                const cityMatch = raw.match(/\(([^)]+)\)/);
+                const city = cityMatch ? cityMatch[1].trim() : raw;
+                matchKey = Object.keys(DESTINATION_DATA).find(k =>
+                    k !== 'default' && (k.includes(city) || city.includes(k.split('(')[0].trim()))
+                );
+            }
 
-        const start = new Date(data.startDate);
-        const end = new Date(data.endDate);
-        const dayCount = Math.max(differenceInDays(end, start) + 1, 1);
-        const allActivities = [...sd.activities];
+            // ── Selected Destination Data ──────────────────────────────────────────
+            const sd = (matchKey && DESTINATION_DATA[matchKey]) || DESTINATION_DATA['default'];
+            setDestData(sd);
+
+            const start = new Date(data.startDate);
+            const end = new Date(data.endDate);
+            const dayCount = Math.max(differenceInDays(end, start) + 1, 1);
+            
+            if (!sd || !sd.activities) {
+                console.error("No activities found for destination:", matchKey);
+                return;
+            }
+
+            const allActivities = [...sd.activities];
 
         // ── [CONSTRAINT 1] Global No-Duplicate Set ──────────────────────────────
         const globalUsed = new Set(); // 전체 일정에서 동일 장소 중복 추천 절대 금지
@@ -884,6 +1246,61 @@ const Itinerary = () => {
         };
 
         // ── MAIN GENERATION LOOP ────────────────────────────────────────────────
+        const generateItemExtras = (act, data, isDining) => {
+            let reason;
+            if (isDining) {
+                reason = t('itinerary.reasonDining', { defaultValue: 'Selected to match your dining style.', style: t(`categories.${data.dining || 'preferred'}`, { defaultValue: data.dining || 'preferred' }) });
+            } else {
+                const focus = Array.isArray(data.focus) && data.focus.length ? data.focus[0] : '';
+                if (focus === 'Culture') {
+                    reason = t('itinerary.reasonCulture', { defaultValue: 'Recommended for its deep historical significance.' });
+                } else if (focus === 'Nature' || focus === 'Eco') {
+                    reason = t('itinerary.reasonNature', { defaultValue: 'Perfect for enjoying nature and beautiful landscapes.' });
+                } else if (focus === 'City') {
+                    reason = t('itinerary.reasonCity', { defaultValue: 'Great choice to experience vibrant city life.' });
+                } else if (focus === 'Relax' || focus === 'Honeymoon') {
+                    reason = t('itinerary.reasonRelax', { defaultValue: 'A peaceful spot chosen for your relaxation.' });
+                } else if (focus === 'Foodie' || focus === 'Food') {
+                    reason = t('itinerary.reasonFood', { defaultValue: 'An exceptional place for a culinary journey.' });
+                } else if (data.vibe) {
+                    reason = t('itinerary.reasonVibe', { defaultValue: `Perfect for your ${data.vibe} vibe.`, vibe: t(`tags.${data.vibe}`, { defaultValue: data.vibe }) });
+                } else {
+                    reason = t('itinerary.reasonGeneral', { defaultValue: `A highly rated spot (Rating: ${act.rating || 4.5}) that fits your travel style.`, rating: act.rating || 4.5 });
+                }
+            }
+
+            let cost = 'Free';
+            const isBudget = (data.budget || data.pace || '').toLowerCase().includes('budget');
+            const isLuxury = (data.budget || data.pace || '').toLowerCase().includes('luxury');
+            if (isDining) {
+                cost = isBudget ? '$' : (isLuxury ? '$$$' : '$$');
+            } else {
+                if (act.type === 'Nature' || act.type === 'Park') cost = 'Free / Low Cost';
+                else if (isLuxury) cost = Math.random() > 0.5 ? '$$' : '$$$';
+                else if (isBudget) cost = Math.random() > 0.7 ? '$$' : (Math.random() > 0.4 ? '$' : 'Free');
+                else cost = Math.random() > 0.5 ? '$$' : '$';
+            }
+
+            const transports = [
+                t('itinerary.tipWalk', { defaultValue: 'Walk 10 mins from the nearest station.' }), 
+                t('itinerary.tipBus', { defaultValue: 'Take a local bus (approx. 15 mins).' }), 
+                t('itinerary.tipSubway', { defaultValue: 'Easily accessible via subway.' }), 
+                t('itinerary.tipTaxi', { defaultValue: 'A short taxi ride is recommended.' })
+            ];
+            const transportHint = transports[Math.floor(Math.random() * transports.length)];
+
+            const tips = [
+                t('itinerary.tipMorning', { defaultValue: 'Visit early morning to avoid crowds.' }),
+                t('itinerary.tipTrap', { defaultValue: 'Avoid nearby tourist trap restaurants.' }),
+                t('itinerary.tipSpecialty', { defaultValue: "Don't forget to try the local specialty around the corner." }),
+                t('itinerary.tipShoes', { defaultValue: 'Bring comfortable walking shoes.' }),
+                t('itinerary.tipTickets', { defaultValue: 'Tickets are cheaper if booked online in advance.' })
+            ];
+            const localTip = tips[Math.floor(Math.random() * tips.length)];
+
+            return { recommendationReason: reason, costEstimate: cost, transportHint, localTip };
+        };
+
         const days = [];
         for (let i = 0; i < dayCount; i++) {
             const sightsCount = basePerDay; // sightseeing spots per day (dining added separately)
@@ -912,7 +1329,8 @@ const Itinerary = () => {
                 lastLng = next.longitude;
                 dayItems.push({
                     ...next,
-                    img: getImg(next.name, next.type),
+                    ...generateItemExtras(next, Object.assign({}, data, { budget: data.pace }), false),
+                    img: getImg(next.name, next.type, data.destination, data.destinationId),
                     id: `${i}-${j}-${Date.now()}-${Math.random()}`,
                     time: '09:00', // will be recalculated by buildTimeSlots
                 });
@@ -922,7 +1340,7 @@ const Itinerary = () => {
             const diningSpot = getDiningSpot(i, lastLat, lastLng);
             if (diningSpot && dayItems.length >= 1) {
                 const insertAt = Math.min(Math.ceil(dayItems.length / 2), 2);
-                dayItems.splice(insertAt, 0, diningSpot);
+                dayItems.splice(insertAt, 0, { ...diningSpot, ...generateItemExtras(diningSpot, Object.assign({}, data, { budget: data.pace }), true) });
             }
 
             // ── Assign realistic times with 2hr+ intervals ─────────────────────
@@ -931,11 +1349,30 @@ const Itinerary = () => {
 
             days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme, items: timedItems });
         }
-        setItinerary(days);
-        
-        // 검색 이력 저장
-        saveSearchHistory(data);
-        
+
+            // ── 백그라운드 이미지 비동기 동시 다발적 페칭 (API 활용) ──
+            const finalDays = await Promise.all(days.map(async (day) => {
+                const enhancedItems = await Promise.all(day.items.map(async (item) => {
+                    // Get city for the specific place (from item or from general data)
+                    const citySearch = data.destination.split('(')[0].trim() || data.destination;
+                    const placeImage = await fetchPlaceImage(citySearch, item.name);
+                    return { ...item, img: placeImage || item.img }; // Use fetched image, or fallback to the static getImg
+                }));
+                return { ...day, items: enhancedItems };
+            }));
+
+            setItinerary(finalDays);
+            
+            // 검색 이력 저장
+            saveSearchHistory(data);
+        } catch (error) {
+            console.error("Critical error in itinerary generation:", error);
+            // 에러 발생 시 빈 일정으로 세팅하여 크래시 방지
+            setItinerary([]);
+        }
+        };
+
+        generate();
     }, [data]);
 
 
@@ -954,7 +1391,7 @@ const Itinerary = () => {
     const deleteAct = (di, id) => setDayItems(di, itinerary[di].items.filter(x => x.id !== id));
     const addAct = (di) => {
         const nm = t('itinerary.newSpotName'), tp = 'City';
-        const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: t('itinerary.newSpotDesc'), type: tp, img: getImg(nm, tp), isNew: true };
+        const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: t('itinerary.newSpotDesc'), type: tp, img: getImg(nm, tp, data.destination), isNew: true };
         setDayItems(di, [...itinerary[di].items, item]);
     };
 
@@ -967,37 +1404,40 @@ const Itinerary = () => {
     );
 
     // ── SUMMARY TABLE (reads from itinerary state) ─────────────────────────────
-    const totalSpots = itinerary.reduce((s, d) => s + d.items.length, 0);
+    const totalSpots = (itinerary || []).reduce((s, d) => s + (d.items || []).length, 0);
 
     return (
         <div className="min-h-screen bg-slate-50 pb-20">
             <Navbar />
 
             {/* ── HEADER ── */}
-            {/* NAV */}
-            <nav className="h-20 px-8 md:px-14 flex items-center justify-between bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
+            {/* NAV - Mobile Optimized */}
+            <nav className="h-auto px-6 md:px-14 py-4 md:py-0 md:h-20 flex flex-col md:flex-row items-stretch md:items-center justify-between bg-white border-b border-gray-200 shadow-sm sticky top-[80px] z-40 gap-4 md:gap-0">
                 <Link to="/survey" className="flex items-center gap-3 group">
-                    <div className="p-2 bg-gray-50 rounded-xl group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                        <ChevronLeft size={22} />
+                    <div className="p-2.5 bg-gray-50 rounded-xl group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                        <ChevronLeft size={24} />
                     </div>
                     <div>
-                        <h1 className="font-black text-2xl text-secondary leading-none">{data.destination}</h1>
-                        <p className="text-xs font-bold text-gray-400 mt-0.5 flex items-center gap-1">
-                            <Calendar size={12} />
-                            {format(new Date(data.startDate), 'MMM dd')} – {format(new Date(data.endDate), 'MMM dd')} · {t('itinerary.days', { count: itinerary.length })}
+                        <h1 className="font-extrabold text-xl md:text-2xl text-secondary leading-tight truncate max-w-[200px] md:max-w-none">{displayDestination}</h1>
+                        <p className="text-[11px] md:text-xs font-bold text-gray-500 flex items-center gap-1.5 mt-0.5">
+                            <Calendar size={13} className="text-primary" />
+                            {safeFormat(data.startDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} – {safeFormat(data.endDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} · {t('itinerary.days', { count: (itinerary || []).length })}
                         </p>
                     </div>
                 </Link>
-                <div className="flex items-center gap-3">
-                    <div className="flex bg-gray-100 p-1.5 rounded-2xl">
+
+                <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
+                    {/* Tabs */}
+                    <div className="flex bg-gray-100 p-1.5 rounded-2xl w-full sm:w-auto">
                         {['itinerary', 'summary'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)}
-                                className={`px-7 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-400 hover:text-gray-600'}`}>
+                                className={`flex-1 sm:flex-none px-6 md:px-7 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-500 hover:text-secondary'}`}>
                                 {t(`itinerary.tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
                             </button>
                         ))}
                     </div>
-                    {/* Publish 버튼 */}
+
+                    {/* Publish Button - Full width on mobile */}
                     <button
                         onClick={() => {
                             if (!currentUser) {
@@ -1008,9 +1448,9 @@ const Itinerary = () => {
                             }
                             setPublishOpen(true);
                         }}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-sm rounded-xl shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-105 active:scale-95 transition-all"
+                        className="w-full md:w-auto flex items-center justify-center gap-2.5 px-8 py-3.5 md:py-2.5 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-sm uppercase tracking-wider rounded-2xl md:rounded-xl shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
                     >
-                        <Upload size={16} />
+                        <Upload size={18} />
                         {t('itinerary.publishBtn')}
                     </button>
                 </div>
@@ -1042,25 +1482,25 @@ const Itinerary = () => {
                                                 <span className="text-4xl leading-none">{day.dayNum}</span>
                                             </div>
                                             <div>
-                                                <h2 className="text-3xl font-black text-secondary">{format(day.date, 'EEEE, MMM do')}</h2>
-                                                <div className="flex items-center gap-3 mt-1">
-                                                    <p className="text-sm text-gray-400 font-bold">{t('itinerary.activitiesCount', { count: day.items.length })}</p>
+                                                <h2 className="text-2xl md:text-3xl font-black text-secondary">{safeFormat(day.date, 'EEEE, MMM do', i18n.language === 'ko' ? ko : enUS)}</h2>
+                                                <div className="flex flex-wrap items-center gap-3 mt-2">
+                                                    <p className="text-sm text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">{t('itinerary.activitiesCount', { count: (day.items || []).length })}</p>
                                                     {day.items.length > 0 && (
                                                         <a
                                                             href={getDayMapUrl(day.items, data.destination)}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="flex items-center gap-1.5 text-[11px] font-black text-primary hover:text-secondary hover:bg-primary transition-all bg-primary/10 px-3 py-1.5 rounded-full shadow-sm active:scale-95"
+                                                            className="flex items-center gap-1.5 text-xs font-black text-white bg-secondary hover:bg-primary transition-all px-4 py-1.5 rounded-full shadow-lg active:scale-95"
                                                         >
-                                                            <MapPin size={12} />
+                                                            <MapPin size={14} />
                                                             <span>{t('itinerary.routeMap')}</span>
                                                         </a>
                                                     )}
                                                 </div>
                                             </div>
                                         </div>
-                                        <Reorder.Group axis="y" values={day.items} onReorder={items => setDayItems(di, items)} className="space-y-4">
-                                            {day.items.map(act => (
+                                        <Reorder.Group axis="y" values={day.items || []} onReorder={items => setDayItems(di, items)} className="space-y-4">
+                                            {(day.items || []).map(act => (
                                                 <ActivityCard key={act.id} activity={act}
                                                     onSave={a => updateAct(di, act.id, a)}
                                                     onDelete={() => deleteAct(di, act.id)} />
@@ -1080,8 +1520,8 @@ const Itinerary = () => {
                             <motion.div key="sum" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
 
                                 {/* FLIGHTS */}
-                                <Section title={t('itinerary.flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('itinerary.addFlight')}>
-                                    {flights.map(f => (
+                                <Section title={t('itinerary.flights')} icon={Plane} count={(flights || []).length} onAdd={addFlight} addLabel={t('itinerary.addFlight')}>
+                                    {(flights || []).map(f => (
                                         <FlightCard key={f.id} f={f}
                                             onChange={(k, v) => updateFlight(f.id, k, v)}
                                             onRemove={() => removeFlight(f.id)}
@@ -1090,8 +1530,8 @@ const Itinerary = () => {
                                 </Section>
 
                                 {/* HOTELS */}
-                                <Section title={t('itinerary.accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('itinerary.addStay')}>
-                                    {hotels.map((h, i) => (
+                                <Section title={t('itinerary.accommodation')} icon={BedDouble} count={(hotels || []).length} onAdd={addHotel} addLabel={t('itinerary.addStay')}>
+                                    {(hotels || []).map((h, i) => (
                                         <HotelCard key={h.id} h={h} index={i}
                                             onChange={(k, v) => updateHotel(h.id, k, v)}
                                             onRemove={() => removeHotel(h.id)}
@@ -1120,8 +1560,8 @@ const Itinerary = () => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
-                                                {itinerary.map(day =>
-                                                    day.items.length > 0 ? day.items.map((item, idx) => (
+                                                {(itinerary || []).map(day =>
+                                                    (day.items || []).length > 0 ? (day.items || []).map((item, idx) => (
                                                         <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                                                             {idx === 0 && (
                                                                 <td rowSpan={day.items.length} className="px-6 py-6 align-top border-r border-gray-50 bg-gray-50/30">
@@ -1140,7 +1580,7 @@ const Itinerary = () => {
                                                                     </div>
                                                                 </td>
                                                             )}
-                                                            <td className="px-6 py-5 text-primary font-bold text-sm whitespace-nowrap">{fmtTime(item.time)}</td>
+                                                            <td className="px-6 py-5 text-primary font-bold text-sm whitespace-nowrap">{fmtTime(item.time, i18n.language)}</td>
                                                             <td className="px-6 py-5">
                                                                 <p className="font-black text-secondary text-sm">{item.name}</p>
                                                                 <p className="text-xs text-gray-400 truncate max-w-[200px]">{item.desc}</p>
@@ -1201,7 +1641,7 @@ const Itinerary = () => {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-black text-secondary truncate">{link.name}</p>
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Book now</p>
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{t('itinerary.bookNowLabel', { defaultValue: 'Book now' })}</p>
                                         </div>
                                         <ChevronRight size={14} className="text-gray-300 group-hover:text-primary transition-colors" />
                                     </a>
@@ -1214,9 +1654,9 @@ const Itinerary = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform duration-700">
                                 <Globe size={80} />
                             </div>
-                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">Travel Tip</p>
-                            <p className="text-sm font-bold leading-relaxed relative z-10">
-                                {data.destination} {t('itinerary.bookingShortcuts')}를 통해 최적의 가격으로 여행을 완성하세요!
+                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">{t('itinerary.tipLabel', { defaultValue: 'Travel Tip' })}</p>
+                             <p className="text-sm font-bold leading-relaxed relative z-10">
+                                {t('itinerary.tipText')}
                             </p>
                         </div>
                     </div>

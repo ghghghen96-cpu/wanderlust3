@@ -436,7 +436,11 @@ const resources = {
         tripsCount: "{{count}} trips planned",
         walletName: "Digital Wallet",
         revenueDashTitle: "Member Business Center",
-        revenueDashSubtitle: "Track your sales and manage your earnings."
+        revenueDashSubtitle: "Track your sales and manage your earnings.",
+        publishedTitle: "My Published Templates",
+        publishedDesc: "Your itineraries listed on the marketplace.",
+        deleteConfirm: "Are you sure you want to delete this template and its thumbnail?",
+        deleteSuccess: "Template and image deleted successfully."
       },
       marketplace: {
         title: "Discover Experiences",
@@ -528,7 +532,9 @@ const resources = {
         loading: "Loading...",
         confirm: "Confirm",
         moving: "Moving...",
-        backHome: "Back to Home"
+        backHome: "Back to Home",
+        delete: "Delete",
+        cancel: "Cancel"
       },
       regions: {
         All: "All",
@@ -1029,7 +1035,11 @@ const resources = {
         tripsCount: "{{count}}개의 여행 계획",
         walletName: "디지털 지갑",
         revenueDashTitle: "Member Business Center",
-        revenueDashSubtitle: "Track your sales and manage your earnings."
+        revenueDashSubtitle: "Track your sales and manage your earnings.",
+        publishedTitle: "내가 게시한 템플릿",
+        publishedDesc: "마켓플레이스에 등록된 나의 여행 일정들입니다.",
+        deleteConfirm: "정말로 이 템플릿과 썸네일을 삭제하시겠습니까?",
+        deleteSuccess: "템플릿과 이미지가 완전히 삭제되었습니다."
       },
       marketplace: {
         title: "새로운 경험 발견",
@@ -1121,7 +1131,9 @@ const resources = {
         loading: "로딩 중...",
         confirm: "확인",
         moving: "이동 중...",
-        backHome: "홈으로 돌아가기"
+        backHome: "홈으로 돌아가기",
+        delete: "삭제",
+        cancel: "취소"
       },
       regions: {
         All: "전체",
