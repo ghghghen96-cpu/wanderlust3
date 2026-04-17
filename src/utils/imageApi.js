@@ -11,7 +11,8 @@ const fetchGooglePlacesImage = async (query) => {
   try {
     // 1. Place Search (findplacefromtext)
     const searchUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=photos,name&key=${GOOGLE_PLACE_API_KEY}`;
-    const proxySearchUrl = `https://corsproxy.io/?${encodeURIComponent(searchUrl)}`;
+    // Vercel 생산 환경에서 corsproxy.io가 종종 차단되어 allorigins 사용으로 변경
+    const proxySearchUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
 
     const response = await fetch(proxySearchUrl);
     if (!response.ok) return null;
@@ -56,7 +57,7 @@ export const fetchPlaceImage = async (city, place) => {
     if (!imageUrl) {
       console.log("Falling back to SerpApi for query:", query);
       const searchUrl = `https://serpapi.com/search.json?engine=google_images&q=${encodeURIComponent(query + " high resolution")}&api_key=${SERPAPI_KEY}`;
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(searchUrl)}`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
 
       const response = await fetch(proxyUrl);
       if (response.ok) {
