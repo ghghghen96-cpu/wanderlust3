@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { auth, listenToUserEarnings, updateCreatorEarnings, requestPayout } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import PayoutModal from '../components/PayoutModal';
+import ExternalPlaceImage from '../components/ExternalPlaceImage';
 // ─── 히어로 섹션 ──────────────────────────────────────────────────
 const HeroSection = ({ slides, currentSlide, setCurrentSlide }) => {
     const navigate = useNavigate();
@@ -29,9 +30,10 @@ const HeroSection = ({ slides, currentSlide, setCurrentSlide }) => {
                         background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0.65) 100%)',
                         zIndex: 2
                     }} />
-                    <img
-                        src={slide.image}
-                        alt={t(slide.locKey)}
+                    <ExternalPlaceImage
+                        initialUrl={slide.image}
+                        placeName={t(slide.locKey)}
+                        className="w-full h-full object-cover"
                         style={{
                             width: '100%', height: '100%', objectFit: 'cover',
                             transform: index === currentSlide ? 'scale(1.08)' : 'scale(1)',
@@ -223,19 +225,19 @@ const Landing = () => {
 
     const slides = [
         {
-            image: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=2073&auto=format&fit=crop",
+            image: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=1600&auto=format&fit=crop",
             locKey: "landing.locParis"
         },
         {
-            image: "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?q=80&w=2074&auto=format&fit=crop",
+            image: "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?q=80&w=1600&auto=format&fit=crop",
             locKey: "landing.locSantorini"
         },
         {
-            image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=2073&auto=format&fit=crop",
+            image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1600&auto=format&fit=crop",
             locKey: "landing.locMaldives"
         },
         {
-            image: "https://images.unsplash.com/photo-1490644658840-3f2e3f8c5625?q=80&w=2067&auto=format&fit=crop",
+            image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?q=80&w=1600&auto=format&fit=crop",
             locKey: "landing.locNYC"
         },
     ];
@@ -279,6 +281,22 @@ const Landing = () => {
                 setCurrentSlide={setCurrentSlide}
             />
 
+            {/* ── Trust Section (Brand Logos) ── */}
+            <section className="bg-white py-20 border-b border-stone-100">
+                <div className="max-w-7xl mx-auto px-8">
+                    <p className="text-center text-stone-400 text-xs font-bold tracking-[0.3em] uppercase mb-12">
+                        {t('landing.trustedBy') || "Trusted by global explorers from"}
+                    </p>
+                    <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24 opacity-40 grayscale hover:grayscale-0 transition-all duration-700">
+                        <div className="text-2xl font-serif italic font-bold text-stone-900">Airbnb</div>
+                        <div className="text-2xl font-serif italic font-bold text-stone-900">Expedia</div>
+                        <div className="text-2xl font-serif italic font-bold text-stone-900">Booking.com</div>
+                        <div className="text-2xl font-serif italic font-bold text-stone-900">Tripadvisor</div>
+                        <div className="text-2xl font-serif italic font-bold text-stone-900">Skyscanner</div>
+                    </div>
+                </div>
+            </section>
+
             {/* ── Travel-to-Earn Section ── */}
             <section className="bg-stone-50 text-stone-900 py-40 px-8 md:px-16">
                 <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-24 items-center">
@@ -312,7 +330,6 @@ const Landing = () => {
                         <div className="absolute -inset-4 bg-gradient-to-r from-amber-200 to-orange-300 blur-2xl opacity-40 rounded-full"></div>
                         
                         <div className="relative bg-white border border-stone-100 shadow-2xl rounded-2xl overflow-hidden hover:-translate-y-1 transition-transform duration-500">
-                            {/* Dashboard Metrics Header */}
                             <div className="p-6 md:p-8 border-b border-stone-50 bg-[#FAF9F6]">
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
@@ -356,7 +373,6 @@ const Landing = () => {
                                 </div>
                             </div>
                             
-                            {/* Registration Form */}
                             <form onSubmit={handlePublish} className="p-6 md:p-8 space-y-5">
                                 <div>
                                     <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">{t('landing.earnSelectPlan')}</label>
@@ -443,6 +459,48 @@ const Landing = () => {
                 </div>
             </section>
 
+            {/* ── Stats Section ── */}
+            <section className="bg-[#FAF9F6] py-32 px-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
+                        {[
+                            { label: t('stats.users') || 'Active Travelers', value: '120K+' },
+                            { label: t('stats.itineraries') || 'Plans Created', value: '450K+' },
+                            { label: t('stats.destinations') || 'Destinations', value: '1,200+' },
+                            { label: t('stats.creators') || 'Expert Creators', value: '850+' }
+                        ].map((stat, i) => (
+                            <div key={i} className="space-y-2">
+                                <div className="text-4xl md:text-5xl font-serif italic text-amber-600 font-bold">{stat.value}</div>
+                                <div className="text-xs font-bold text-stone-400 uppercase tracking-widest">{stat.label}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* ── Testimonials Section ── */}
+            <section className="bg-white py-40 px-8 border-y border-stone-100">
+                <div className="max-w-5xl mx-auto text-center">
+                    <div className="inline-block text-amber-500 mb-10">
+                        {"★".repeat(5)}
+                    </div>
+                    <h2 className="text-3xl md:text-5xl font-serif italic leading-tight text-gray-900 mb-12">
+                        "{t('landing.testimonialText') || "The most intuitive travel planner I've ever used. The AI itineraries are surprisingly accurate and the marketplace templates are pure gold."}"
+                    </h2>
+                    <div className="flex items-center justify-center gap-4">
+                        <img 
+                            src="https://i.pravatar.cc/150?u=sarah" 
+                            className="w-12 h-12 rounded-full grayscale" 
+                            alt="Sarah J." 
+                        />
+                        <div className="text-left">
+                            <div className="font-bold text-stone-900 text-sm">Sarah Jenkins</div>
+                            <div className="text-stone-400 text-xs uppercase tracking-widest font-medium">Digital Nomad</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* ── Curated Experiences ── */}
             <section className="bg-white py-40 px-8 md:px-16">
                 <div className="max-w-7xl mx-auto">
@@ -452,16 +510,16 @@ const Landing = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
                         {[
-                            { title: t('landing.experience1Title'), image: "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&q=80&w=800", desc: t('landing.experience1Desc') },
-                            { title: t('landing.experience2Title'), image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=800", desc: t('landing.experience2Desc') },
-                            { title: t('landing.experience3Title'), image: "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&q=80&w=800", desc: t('landing.experience3Desc') }
+                            { title: t('landing.experience1Title'), image: "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=800&auto=format&fit=crop", desc: t('landing.experience1Desc') },
+                            { title: t('landing.experience2Title'), image: "https://images.unsplash.com/photo-1506197603052-3cc9c3a201bd?q=80&w=800&auto=format&fit=crop", desc: t('landing.experience2Desc') },
+                            { title: t('landing.experience3Title'), image: "https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?q=80&w=800&auto=format&fit=crop", desc: t('landing.experience3Desc') }
                         ].map((item, idx) => (
                             <div key={idx} className="group cursor-pointer">
                                 <div className="aspect-[4/5] overflow-hidden mb-8 relative shadow-lg rounded-sm">
                                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10" />
-                                    <img
-                                        src={item.image}
-                                        alt={item.title}
+                                    <ExternalPlaceImage
+                                        initialUrl={item.image}
+                                        placeName={item.title}
                                         className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-1000"
                                     />
                                     <div className="absolute bottom-8 left-8 text-white opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 z-20">
@@ -473,6 +531,33 @@ const Landing = () => {
                             </div>
                         ))}
                     </div>
+                </div>
+            </section>
+
+            {/* ── Final CTA Section ── */}
+            <section className="relative py-40 px-8 overflow-hidden bg-stone-900 border-t border-stone-800">
+                <div className="absolute inset-0 opacity-20">
+                    <img 
+                        src="https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1600&auto=format&fit=crop" 
+                        className="w-full h-full object-cover grayscale"
+                        alt="Adventure"
+                    />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-b from-stone-900 via-stone-900/80 to-stone-900" />
+                
+                <div className="relative z-10 max-w-4xl mx-auto text-center">
+                    <h2 className="text-4xl md:text-7xl font-serif italic text-white mb-10 leading-tight">
+                        {t('landing.finalCtaTitle') || "Ready to chase the horizon?"}
+                    </h2>
+                    <p className="text-xl text-stone-400 font-light mb-16 max-w-2xl mx-auto leading-relaxed">
+                        {t('landing.finalCtaDesc') || "Join a community of modern wanderers and start crafting your next masterpiece today."}
+                    </p>
+                    <button
+                        onClick={() => navigate('/survey')}
+                        className="px-12 py-6 bg-amber-500 hover:bg-amber-400 text-stone-900 font-bold text-lg rounded-full transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-amber-500/20"
+                    >
+                        {t('landing.ctaSmall') || "Start Planning Now"}
+                    </button>
                 </div>
             </section>
 

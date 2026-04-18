@@ -16,7 +16,7 @@ import { getImg, fmtTime } from '../../utils/itineraryHelpers';
  * @param {string} destinationId - 목적지 ID
  */
 const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }) => {
-    const { t, i18n } = useTranslation();
+    const { t, i18n } = useTranslation('translation', { keyPrefix: 'itinerary' });
     const [editing, setEditing] = useState(activity.isNew || false);
     const [ed, setEd] = useState(activity);
     const [timeEdit, setTimeEdit] = useState(false);
@@ -41,9 +41,9 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
         <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-primary/20 space-y-4">
             <div className="flex gap-3 items-center">
                 <input autoFocus value={ed.name} onChange={e => setEd({ ...ed, name: e.target.value })}
-                    className="flex-1 font-black text-2xl border-b-2 border-gray-200 focus:outline-none px-1 py-1 text-secondary" placeholder={t('itinerary.newSpotName')} />
+                    className="flex-1 font-black text-2xl border-b-2 border-gray-200 focus:outline-none px-1 py-1 text-secondary" placeholder={t('newSpotName')} />
                 <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('itinerary.colTime')}</span>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('colTime')}</span>
                     <input type="time" value={ed.time} onChange={e => setEd({ ...ed, time: e.target.value })}
                         className="font-bold text-base text-primary bg-primary/5 rounded-lg px-3 py-2 outline-none border border-primary/20 focus:ring-2 focus:ring-primary/30" />
                 </div>
@@ -51,8 +51,8 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
             <textarea value={ed.desc} onChange={e => setEd({ ...ed, desc: e.target.value })} rows={2}
                 className="w-full text-sm text-gray-600 border border-gray-200 rounded-xl p-3 focus:outline-none bg-gray-50 resize-none" />
             <div className="flex gap-2 justify-end">
-                <button onClick={() => setEditing(false)} className="px-5 py-2 text-gray-500 font-bold text-sm">{t('itinerary.btnCancel')}</button>
-                <button onClick={save} className="px-6 py-2 bg-primary text-secondary rounded-xl font-bold text-sm">{t('itinerary.btnSave')}</button>
+                <button onClick={() => setEditing(false)} className="px-5 py-2 text-gray-500 font-bold text-sm">{t('btnCancel')}</button>
+                <button onClick={save} className="px-6 py-2 bg-primary text-secondary rounded-xl font-bold text-sm">{t('btnSave')}</button>
             </div>
         </div>
     );
@@ -108,12 +108,12 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
                         ) : (
                             <button
                                 onClick={() => setTimeEdit(true)}
-                                title={t('itinerary.setTime')}
+                                title={t('setTime')}
                                 className="group/time flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-primary border border-gray-100 rounded-full hover:bg-primary/10 hover:border-primary/20 transition-all"
                             >
                                 <Clock size={14} className="group-hover/time:scale-110 transition-transform" />
                                 <span className="font-bold text-sm tracking-tight">
-                                    {fmtTime(activity.time, i18n.language) || t('itinerary.setTime')}
+                                    {fmtTime(activity.time, i18n.language) || t('setTime')}
                                 </span>
                                 <Edit2 size={10} className="opacity-0 group-hover/time:opacity-50 transition-opacity" />
                             </button>
@@ -129,7 +129,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
                                     <div className="flex items-start gap-2">
                                         <Sparkles size={16} className="text-primary mt-1 flex-shrink-0" />
                                         <p className="text-sm font-semibold text-gray-700">
-                                            <span className="font-bold text-primary">{t('itinerary.whySelected', { defaultValue: 'Why we recommend this:' })} </span>
+                                            <span className="font-bold text-primary">{t('whySelected', { defaultValue: 'Why we recommend this:' })} </span>
                                             {activity.recommendationReason}
                                         </p>
                                     </div>
@@ -151,7 +151,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
                                 {activity.localTip && (
                                     <div className="flex items-start gap-1.5 text-sm mt-1 bg-amber-50 rounded-xl p-2.5 border border-amber-100/50">
                                         <Info size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                                        <span className="text-amber-800 italic leading-snug"><span className="font-bold">{t('itinerary.localTip', { defaultValue: 'Local Tip:' })}</span> {activity.localTip}</span>
+                                        <span className="text-amber-800 italic leading-snug"><span className="font-bold">{t('localTip', { defaultValue: 'Local Tip:' })}</span> {activity.localTip}</span>
                                     </div>
                                 )}
                             </div>
@@ -165,7 +165,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
                                 className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-primary/10 hover:text-primary transition-all border border-slate-100"
                             >
                                 <MapPin size={12} />
-                                {t('itinerary.viewMap')}
+                                {t('viewMap')}
                             </a>
                             {activity.rating && (
                                 <div className="flex items-center gap-1 px-3 py-2 bg-amber-50 text-amber-600 rounded-xl text-xs font-bold border border-amber-100">

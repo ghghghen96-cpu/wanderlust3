@@ -6,7 +6,7 @@ import { BedDouble, MapPin, X } from 'lucide-react';
  * Accommodation/Hotel information card
  */
 const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => {
-    const { t } = useTranslation();
+    const { t } = useTranslation('translation', { keyPrefix: 'itinerary' });
     return (
         <div className="relative group bg-gradient-to-br from-amber-50 to-orange-50 border border-orange-100 rounded-2xl p-5 shadow-sm">
             {showRemove && (
@@ -26,14 +26,14 @@ const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => {
                 <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-black text-orange-400 uppercase tracking-widest">
-                            {t('itinerary.stay', { index: index + 1 })}
+                            {t('stay', { index: index + 1 })}
                         </span>
                     </div>
                     
                     <input 
                         value={h.name} 
                         onChange={e => onChange('name', e.target.value)}
-                        placeholder={t('itinerary.hotelNamePlaceholder')}
+                        placeholder={t('hotelNamePlaceholder')}
                         className="w-full bg-transparent text-lg font-black text-slate-800 outline-none border-b border-orange-200 pb-1 placeholder:text-gray-300" 
                     />
                     
@@ -42,7 +42,7 @@ const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => {
                             <input 
                                 value={h.address} 
                                 onChange={e => onChange('address', e.target.value)}
-                                placeholder={t('itinerary.addressPlaceholder')}
+                                placeholder={t('addressPlaceholder')}
                                 className="w-full bg-white/70 border border-orange-100 rounded-lg pl-3 pr-8 py-1.5 text-sm outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" 
                             />
                             {h.address && (
@@ -60,7 +60,7 @@ const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => {
                         <input 
                             value={h.confirmation} 
                             onChange={e => onChange('confirmation', e.target.value)}
-                            placeholder={t('itinerary.hotelConfirm')}
+                            placeholder={t('hotelConfirm')}
                             className="bg-white/70 border border-orange-100 rounded-lg px-3 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" 
                         />
                     </div>
@@ -69,13 +69,13 @@ const HotelCard = ({ h, onChange, onRemove, showRemove, index }) => {
                         <input 
                             value={h.checkin} 
                             onChange={e => onChange('checkin', e.target.value)}
-                            placeholder={t('itinerary.hotelCheckin')}
+                            placeholder={t('hotelCheckin')}
                             className="bg-white/70 border border-orange-100 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" 
                         />
                         <input 
                             value={h.checkout} 
                             onChange={e => onChange('checkout', e.target.value)}
-                            placeholder={t('itinerary.hotelCheckout')}
+                            placeholder={t('hotelCheckout')}
                             className="bg-white/70 border border-orange-100 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-orange-200 placeholder:text-gray-300" 
                         />
                     </div>

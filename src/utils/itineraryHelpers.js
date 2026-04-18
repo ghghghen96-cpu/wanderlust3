@@ -35,26 +35,9 @@ export const DEST_IMAGES = {
 };
 
 export const getImg = (name = '', type = '', dest = '', destId = '') => {
-    const n = name.toLowerCase();
-    let destKey = destId ? destId.toLowerCase().trim() : null;
-    
-    if (!destKey || !DEST_IMAGES[destKey]) {
-        const lowerDest = dest.toLowerCase();
-        destKey = Object.keys(DEST_IMAGES).find(k => lowerDest.includes(k));
-    }
-    
-    if (destKey && DEST_IMAGES[destKey] && (n.includes('landmark') || Math.random() > 0.1)) {
-        return DEST_IMAGES[destKey];
-    }
-
-    if (n.includes('market')) return IMAGE_LIBRARY.market[0];
-    if (n.includes('tower') || n.includes('tree') || n.includes('skytree')) return IMAGE_LIBRARY.tower[0];
-    if (n.includes('park') || n.includes('garden')) return IMAGE_LIBRARY.park[0];
-    
-    const arr = IMAGE_LIBRARY[type.toLowerCase()];
-    if (Array.isArray(arr)) return arr[Math.floor(Math.random() * arr.length)];
-    
-    return IMAGE_LIBRARY.default;
+    // Return null to trigger ExternalPlaceImage's dynamic fetching from Google Places API
+    // This satisfies the "User Request: Google Places API photos only"
+    return null;
 };
 
 export const safeFormat = (date, fmt, locale) => {

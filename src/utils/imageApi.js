@@ -11,9 +11,9 @@ const imageCache = new Map();
  * 보안 강화: 허용된 호스트인지 확인 (클라이언트 사이드 기초 보안)
  */
 const isValidOrigin = () => {
-    const allowedHosts = ['localhost', 'wanderlust-ai-planner', 'vercel.app'];
+    const allowedHosts = ['localhost', '127.0.0.1', 'wanderlust-ai-planner', 'vercel.app'];
     const hostname = window.location.hostname;
-    return allowedHosts.some(host => hostname.includes(host));
+    return allowedHosts.some(host => hostname.includes(host)) || hostname === '';
 };
 
 /**
@@ -79,7 +79,8 @@ export const fetchPlaceImage = async (city, place) => {
     // Fallback to SerpApi if Google fails
     if (!imageUrl) {
       console.log("Falling back to SerpApi for query:", query);
-      const searchUrl = `https://serpapi.com/search.json?engine=google_images&q=${encodeURIComponent(query + " scenic view high resolution")}&api_key=${SERPAPI_KEY}`;
+      const serpQuery = `${query} scenic landscape high resolution 4k`;
+      const searchUrl = `https://serpapi.com/search.json?engine=google_images&q=${encodeURIComponent(serpQuery)}&api_key=${SERPAPI_KEY}`;
       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
 
       const response = await fetch(proxyUrl);

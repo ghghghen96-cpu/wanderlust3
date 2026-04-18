@@ -7,8 +7,8 @@ import { Sparkles, X, Send } from 'lucide-react';
  * Provides simple rule-based replies for travel-related questions.
  */
 const AIChatModal = ({ isOpen, onClose, destination }) => {
-    const { t } = useTranslation();
-    const [msgs, setMsgs] = useState([{ role: 'assistant', text: t('itinerary.chatBotGreeting', { destination }) }]);
+    const { t } = useTranslation('translation', { keyPrefix: 'itinerary' });
+    const [msgs, setMsgs] = useState([{ role: 'assistant', text: t('chatBotGreeting', { destination }) }]);
     const [inp, setInp] = useState('');
     const [loading, setLoading] = useState(false);
     const endRef = useRef(null);
@@ -20,12 +20,12 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
     }, [msgs, isOpen]);
 
     const REPLIES = [
-        { keywords: ['food', 'eat', 'restaurant', 'dining', '맛집', '음식', '식사'], reply: t('itinerary.chatBotReplies.food') },
-        { keywords: ['hotel', 'stay', 'accommodation', 'sleep', '숙소', '호텔', '잠'], reply: t('itinerary.chatBotReplies.stay') },
-        { keywords: ['weather', 'climate', 'temperature', '날씨', '기온', '비'], reply: t('itinerary.chatBotReplies.weather') },
-        { keywords: ['transport', 'bus', 'train', 'taxi', 'metro', '교통', '버스', '지하철'], reply: t('itinerary.chatBotReplies.transport') },
-        { keywords: ['budget', 'cost', 'money', 'price', '예산', '비용', '돈'], reply: t('itinerary.chatBotReplies.budget') },
-        { keywords: ['safe', 'safety', 'crime', 'danger', '보안', '안전', '위험'], reply: t('itinerary.chatBotReplies.safety') },
+        { keywords: ['food', 'eat', 'restaurant', 'dining', '맛집', '음식', '식사'], reply: t('chatBotReplies.food') },
+        { keywords: ['hotel', 'stay', 'accommodation', 'sleep', '숙소', '호텔', '잠'], reply: t('chatBotReplies.stay') },
+        { keywords: ['weather', 'climate', 'temperature', '날씨', '기온', '비'], reply: t('chatBotReplies.weather') },
+        { keywords: ['transport', 'bus', 'train', 'taxi', 'metro', '교통', '버스', '지하철'], reply: t('chatBotReplies.transport') },
+        { keywords: ['budget', 'cost', 'money', 'price', '예산', '비용', '돈'], reply: t('chatBotReplies.budget') },
+        { keywords: ['safe', 'safety', 'crime', 'danger', '보안', '안전', '위험'], reply: t('chatBotReplies.safety') },
     ];
 
     const send = () => {
@@ -44,10 +44,10 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
                     const matched = REPLIES.find(r => r.keywords.some(k => lower.includes(k)));
                     const reply = matched
                         ? matched.reply
-                        : t('itinerary.chatBotReplyDefault', { text, destination });
+                        : t('chatBotReplyDefault', { text, destination });
                     setMsgs(prev => [...prev, { role: 'assistant', text: reply }]);
                 } catch (err) {
-                    setMsgs(prev => [...prev, { role: 'assistant', text: t('itinerary.chatBotError') }]);
+                    setMsgs(prev => [...prev, { role: 'assistant', text: t('chatBotError') }]);
                 } finally {
                     setLoading(false);
                 }
@@ -103,7 +103,7 @@ const AIChatModal = ({ isOpen, onClose, destination }) => {
                     onChange={e => setInp(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
                     className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none"
-                    placeholder={t('itinerary.chatPlaceholder')}
+                    placeholder={t('chatPlaceholder')}
                     disabled={loading}
                 />
                 <button

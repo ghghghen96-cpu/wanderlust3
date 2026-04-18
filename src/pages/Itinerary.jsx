@@ -40,7 +40,7 @@ import {
  */
 const Itinerary = () => {
     const { state: data } = useLocation();
-    const { t, i18n } = useTranslation();
+    const { t, i18n } = useTranslation('translation', { keyPrefix: 'itinerary' });
     const [displayDestination, setDisplayDestination] = useState('');
 
     // Pre-calculate display destination
@@ -60,7 +60,6 @@ const Itinerary = () => {
     const [chatOpen, setChatOpen] = useState(false);
     const [publishOpen, setPublishOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
-    const [isLoadingImages, setIsLoadingImages] = useState(false);
     const navigate = useNavigate();
 
     // ── Auth Observer ──
@@ -150,10 +149,10 @@ const Itinerary = () => {
                 const globalDiningUsed = new Set();
 
                 const generateItemExtras = (act, isDining) => {
-                    const tips = [t('itinerary.tipMorning'), t('itinerary.tipTrap'), t('itinerary.tipSpecialty'), t('itinerary.tipShoes'), t('itinerary.tipTickets')];
-                    const transports = [t('itinerary.tipWalk'), t('itinerary.tipBus'), t('itinerary.tipSubway'), t('itinerary.tipTaxi')];
+                    const tips = [t('tipMorning'), t('tipTrap'), t('tipSpecialty'), t('tipShoes'), t('tipTickets')];
+                    const transports = [t('tipWalk'), t('tipBus'), t('tipSubway'), t('tipTaxi')];
                     return { 
-                        recommendationReason: isDining ? t('itinerary.reasonDining', { style: data.dining || 'preferred' }) : t('itinerary.reasonGeneral', { rating: act.rating || 4.5 }),
+                        recommendationReason: isDining ? t('reasonDining', { style: data.dining || 'preferred' }) : t('reasonGeneral', { rating: act.rating || 4.5 }),
                         costEstimate: isDining ? '$$' : '$',
                         transportHint: transports[Math.floor(Math.random() * transports.length)],
                         localTip: tips[Math.floor(Math.random() * tips.length)]
@@ -173,34 +172,12 @@ const Itinerary = () => {
                         lastLat = next.latitude; lastLng = next.longitude;
                         dayItems.push({ ...next, ...generateItemExtras(next, false), img: getImg(next.name, next.type, data.destination, data.destinationId), id: `${i}-${j}-${Date.now()}`, time: `${9 + j * 2}:00` });
                     }
-                    days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme: t('itinerary.themeDefault'), items: dayItems });
+                    days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme: t('themeDefault'), items: dayItems });
                 }
 
-                // ── STEP 1: Text First! Render the itinerary immediately ──
+                // ── Text First! Render the itinerary immediately ──
                 setItinerary(days);
                 saveSearchHistory(data);
-
-                // ── STEP 2: Background Image Fetching (Non-blocking) ──
-                setIsLoadingImages(true);
-                const citySearch = data.destination.split('(')[0].trim() || data.destination;
-                
-                (async () => {
-                    try {
-                        const updatedDays = await Promise.all(days.map(async (day) => {
-                            const updatedItems = await Promise.all(day.items.map(async (item) => {
-                                // Only fetch if we don't have a specific high-quality dest image or if it's a generic one
-                                try {
-                                    const imgUrl = await fetchPlaceImage(citySearch, item.name);
-                                    return { ...item, img: imgUrl || item.img };
-                                } catch { return item; }
-                            }));
-                            return { ...day, items: updatedItems };
-                        }));
-                        setItinerary(updatedDays);
-                    } finally {
-                        setIsLoadingImages(false);
-                    }
-                })();
 
             } catch (error) {
                 console.error("Critical error in generation:", error);
@@ -215,15 +192,15 @@ const Itinerary = () => {
     const updateAct = (di, id, a) => setDayItems(di, itinerary[di].items.map(x => x.id === id ? a : x));
     const deleteAct = (di, id) => setDayItems(di, itinerary[di].items.filter(x => x.id !== id));
     const addAct = (di) => {
-        const nm = t('itinerary.newSpotName'), tp = 'City';
-        const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: t('itinerary.newSpotDesc'), type: tp, img: getImg(nm, tp, data.destination), isNew: true };
+        const nm = t('newSpotName'), tp = 'City';
+        const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: t('newSpotDesc'), type: tp, img: null, isNew: true };
         setDayItems(di, [...itinerary[di].items, item]);
     };
 
     if (!destData) return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6 p-6">
             <Navbar />
-            <div className="text-2xl font-black text-secondary animate-pulse mt-20">{t('itinerary.curating')}</div>
+            <div className="text-2xl font-black text-secondary animate-pulse mt-20">{t('curating')}</div>
             <AdPlaceholder className="w-full max-w-2xl h-[250px] shadow-sm" />
         </div>
     );
@@ -242,7 +219,7 @@ const Itinerary = () => {
                         <h1 className="font-extrabold text-xl md:text-2xl text-secondary">{displayDestination}</h1>
                         <p className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
                             <Calendar size={13} className="text-primary" />
-                            {safeFormat(data.startDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} – {safeFormat(data.endDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} · {t('itinerary.days', { count: itinerary.length })}
+                            {safeFormat(data.startDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} – {safeFormat(data.endDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} · {t('days', { count: itinerary.length })}
                         </p>
                     </div>
                 </Link>
@@ -251,13 +228,13 @@ const Itinerary = () => {
                     <div className="flex bg-gray-100 p-1.5 rounded-2xl">
                         {['itinerary', 'summary'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-500 hover:text-secondary'}`}>
-                                {t(`itinerary.tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
+                                {t(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
                             </button>
                         ))}
                     </div>
-                    <button onClick={() => currentUser ? setPublishOpen(true) : window.confirm(t('itinerary.publishLoginRequired')) && navigate('/login')}
+                    <button onClick={() => currentUser ? setPublishOpen(true) : window.confirm(t('publishLoginRequired')) && navigate('/login')}
                         className="flex items-center justify-center gap-2.5 px-8 py-3.5 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg hover:shadow-xl transition-all">
-                        <Upload size={18} /> {t('itinerary.publishBtn')}
+                        <Upload size={18} /> {t('publishBtn')}
                     </button>
                 </div>
             </nav>
@@ -266,7 +243,7 @@ const Itinerary = () => {
                 <aside className="hidden lg:flex flex-col w-72 shrink-0">
                     <div className="sticky top-28 space-y-6">
                         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">{t('itinerary.recommended')}</h3>
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">{t('recommended')}</h3>
                             <AdPlaceholder className="w-full h-[600px] shadow-inner" />
                         </div>
                     </div>
@@ -280,53 +257,62 @@ const Itinerary = () => {
                                     <div key={day.id}>
                                         <div className="flex items-center gap-5 mb-7">
                                             <div className="w-20 h-20 bg-secondary text-white rounded-3xl flex flex-col items-center justify-center font-black shadow-2xl border-4 border-white/10 shrink-0">
-                                                <span className="text-[10px] uppercase tracking-widest opacity-50 mb-0.5">{t('itinerary.dayLabel')}</span>
+                                                <span className="text-[10px] uppercase tracking-widest opacity-50 mb-0.5">{t('dayLabel')}</span>
                                                 <span className="text-4xl leading-none">{day.dayNum}</span>
                                             </div>
                                             <div>
                                                 <h2 className="text-2xl md:text-3xl font-black text-secondary">{safeFormat(day.date, 'EEEE, MMM do', i18n.language === 'ko' ? ko : enUS)}</h2>
                                                 <div className="flex items-center gap-3 mt-2">
-                                                    <p className="text-sm text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">{t('itinerary.activitiesCount', { count: (day.items || []).length })}</p>
-                                                    <a href={getDayMapUrl(day.items, data.destination)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs font-black text-white bg-secondary px-4 py-1.5 rounded-full shadow-lg"><MapPin size={14} /><span>{t('itinerary.routeMap')}</span></a>
+                                                    <p className="text-sm text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">{t('activitiesCount', { count: (day.items || []).length })}</p>
+                                                    <a href={getDayMapUrl(day.items, data.destination)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs font-black text-white bg-secondary px-4 py-1.5 rounded-full shadow-lg"><MapPin size={14} /><span>{t('routeMap')}</span></a>
                                                 </div>
                                             </div>
                                         </div>
                                         <Reorder.Group axis="y" values={day.items || []} onReorder={items => setDayItems(di, items)} className="space-y-4">
-                                            {day.items.map(act => <ActivityCard key={act.id} activity={act} onSave={a => updateAct(di, act.id, a)} onDelete={() => deleteAct(di, act.id)} />)}
+                                            {day.items.map(act => (
+                                                <ActivityCard 
+                                                    key={act.id} 
+                                                    activity={act} 
+                                                    onSave={a => updateAct(di, act.id, a)} 
+                                                    onDelete={() => deleteAct(di, act.id)} 
+                                                    destination={displayDestination}
+                                                    destinationId={data.destinationId}
+                                                />
+                                            ))}
                                         </Reorder.Group>
                                         <button onClick={() => addAct(di)} className="w-full mt-6 py-5 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400 font-bold hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2">
-                                            <Plus size={22} /> {t('itinerary.addSpot')}
+                                            <Plus size={22} /> {t('addSpot')}
                                         </button>
                                     </div>
                                 ))}
                             </motion.div>
                         ) : (
                             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                                <Section title={t('itinerary.flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('itinerary.addFlight')}>
+                                <Section title={t('flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('addFlight')}>
                                     {flights.map(f => <FlightCard key={f.id} f={f} onChange={(k, v) => updateFlight(f.id, k, v)} onRemove={() => removeFlight(f.id)} showRemove={flights.length > 1} />)}
                                 </Section>
-                                <Section title={t('itinerary.accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('itinerary.addStay')}>
+                                <Section title={t('accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('addStay')}>
                                     {hotels.map((h, i) => <HotelCard key={h.id} h={h} index={i} onChange={(k, v) => updateHotel(h.id, k, v)} onRemove={() => removeHotel(h.id)} showRemove={hotels.length > 1} />)}
                                 </Section>
                                 <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
                                      <div className="px-8 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                                        <h3 className="text-lg font-black text-secondary flex items-center gap-2.5"><List size={18} className="text-primary" /> {t('itinerary.journeyOverview')}</h3>
+                                        <h3 className="text-lg font-black text-secondary flex items-center gap-2.5"><List size={18} className="text-primary" /> {t('journeyOverview')}</h3>
                                         <div className="flex gap-3">
-                                            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold">{t('itinerary.days', { count: itinerary.length })}</span>
-                                            <span className="px-3 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-bold">{t('itinerary.spots', { count: totalSpots })}</span>
+                                            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold">{t('days', { count: itinerary.length })}</span>
+                                            <span className="px-3 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-bold">{t('spots', { count: totalSpots })}</span>
                                         </div>
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left">
                                             <thead>
                                                 <tr className="border-b border-gray-100">
-                                                    {['day', 'time', 'activity', 'type', 'map'].map(h => <th key={h} className="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest">{t(`itinerary.col${h.charAt(0).toUpperCase() + h.slice(1)}`)}</th>)}
+                                                    {['day', 'time', 'activity', 'type', 'map'].map(h => <th key={h} className="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest">{t(`col${h.charAt(0).toUpperCase() + h.slice(1)}`)}</th>)}
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
                                                 {itinerary.map(day => (day.items || []).map((item, idx) => (
                                                     <tr key={item.id} className="hover:bg-gray-50/50">
-                                                        {idx === 0 && <td rowSpan={day.items.length} className="px-6 py-6 align-top border-r bg-gray-50/30 text-center"><span className="font-black text-primary text-lg">{t('itinerary.dayShort', { count: day.dayNum })}</span></td>}
+                                                        {idx === 0 && <td rowSpan={day.items.length} className="px-6 py-6 align-top border-r bg-gray-50/30 text-center"><span className="font-black text-primary text-lg">{t('dayShort', { count: day.dayNum })}</span></td>}
                                                         <td className="px-6 py-5 text-primary font-bold text-sm">{fmtTime(item.time)}</td>
                                                         <td className="px-6 py-5"><p className="font-black text-secondary text-sm">{item.name}</p><p className="text-xs text-gray-400 truncate max-w-[200px]">{item.desc}</p></td>
                                                         <td className="px-6 py-5"><span className="px-2.5 py-1 bg-gray-100 rounded-full text-[10px] font-black uppercase text-gray-500">{item.type}</span></td>
@@ -345,7 +331,7 @@ const Itinerary = () => {
                 <aside className="hidden xl:flex flex-col w-72 shrink-0">
                     <div className="sticky top-28 space-y-6">
                         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><ExternalLink size={14} /> {t('itinerary.bookingShortcuts')}</h3>
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><ExternalLink size={14} /> {t('bookingShortcuts')}</h3>
                             <div className="space-y-3">
                                 {[
                                     { name: 'Skyscanner', icon: Plane, color: 'bg-blue-50 text-blue-600', url: 'https://www.skyscanner.net/' },
@@ -353,7 +339,7 @@ const Itinerary = () => {
                                 ].map((link, idx) => (
                                     <a key={idx} href={link.url} target="_blank" rel="noreferrer" className="flex items-center gap-4 p-4 rounded-2xl border border-gray-50 hover:shadow-md transition-all group">
                                         <div className={`w-10 h-10 ${link.color} rounded-xl flex items-center justify-center`}><link.icon size={20} /></div>
-                                        <div className="flex-1 min-w-0"><p className="text-sm font-black text-secondary truncate">{link.name}</p><p className="text-[10px] font-bold text-gray-400">{t('itinerary.bookNowLabel')}</p></div>
+                                        <div className="flex-1 min-w-0"><p className="text-sm font-black text-secondary truncate">{link.name}</p><p className="text-[10px] font-bold text-gray-400">{t('bookNowLabel')}</p></div>
                                         <ChevronRight size={14} className="text-gray-300 group-hover:text-primary" />
                                     </a>
                                 ))}

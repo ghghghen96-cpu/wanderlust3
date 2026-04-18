@@ -10,31 +10,42 @@ import { fetchPlaceImage } from '../utils/imageApi';
  * @param {string} className - 추가 CSS 클래스
  * @param {string} alt - 이미지 alt 텍스트
  */
-const ExternalPlaceImage = ({ name, initialUrl, region, className, alt }) => {
+const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, alt, style }) => {
+    const searchName = name || placeName;
     const [imgUrl, setImgUrl] = useState(initialUrl);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        // 이미지가 없거나, Unsplash의 일반적인 플레이스홀더인 경우 fetch 시도
-        const isPlaceholder = !initialUrl || (typeof initialUrl === 'string' && (initialUrl.includes('unsplash.com/photo') || initialUrl.includes('loremflickr.com')));
+        // 플레이스홀더 판별: URL이 없거나, 아주 작은 사이즈(w=20, w=16)의 명시적 플레이스홀더인 경우만 fetch
+        const isPlaceholder = !initialUrl || 
+            (typeof initialUrl === 'string' && (
+                initialUrl.includes('w=20&') || 
+                initialUrl.includes('w=16&') || 
+                initialUrl === 'w=20' ||
+                initialUrl === 'w=16' ||
+                initialUrl.includes('placeholder')
+            ));
         
-        if (isPlaceholder && name) {
+        if (isPlaceholder && searchName) {
             const loadImg = async () => {
                 setLoading(true);
                 setError(false);
                 try {
                     const searchRegion = region || '';
-                    const fetched = await fetchPlaceImage(searchRegion, name);
+                    const fetched = await fetchPlaceImage(searchRegion, searchName);
                     
                     if (fetched) {
                         setImgUrl(fetched);
-                    } else if (!initialUrl) {
+                    } else if (initialUrl) {
+                        setImgUrl(initialUrl);
+                    } else {
                         setError(true);
                     }
                 } catch (e) {
                     console.error("ExternalPlaceImage fetch failed:", name, e);
-                    if (!initialUrl) setError(true);
+                    if (initialUrl) setImgUrl(initialUrl);
+                    else setError(true);
                 } finally {
                     setLoading(false);
                 }
@@ -43,11 +54,12 @@ const ExternalPlaceImage = ({ name, initialUrl, region, className, alt }) => {
         } else {
             // initialUrl이 플레이스홀더가 아닌 실제 이미지인 경우 바로 설정
             setImgUrl(initialUrl);
+            setLoading(false);
         }
-    }, [name, region, initialUrl]);
+    }, [searchName, region, initialUrl]);
 
     return (
-        <div className={`relative overflow-hidden ${className} bg-gray-200`}>
+        <div className={`relative overflow-hidden ${className} bg-gray-200`} style={style}>
             {/* Loading State: Shimmer Skeleton */}
             <AnimatePresence>
                 {loading && (
@@ -88,14 +100,14 @@ const ExternalPlaceImage = ({ name, initialUrl, region, className, alt }) => {
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.5 }}
                     src={imgUrl} 
-                    alt={alt || name}
+                    alt={alt || searchName}
                     className="w-full h-full object-cover"
                     onLoad={() => setLoading(false)}
                     onError={(e) => {
                         e.target.onerror = null;
                         setError(true);
-                        // 최종 폴백: 여행 테마 이미지
-                        e.target.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=800';
+                        // 최종 폴백: 고화질 여행 테마 이미지
+                        e.target.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1600';
                     }}
                 />
             )}

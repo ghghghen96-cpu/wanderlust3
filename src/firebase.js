@@ -59,6 +59,7 @@ export const publishToMarketplace = async (templateData) => {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
             status: "Active",
+            is_published: true,   // 마켓플레이스 노출 여부 (비공개 시 false로 변경)
             reviews: 0,
             rating: 0,
             purchaseCount: 0,
@@ -89,22 +90,63 @@ export const uploadThumbnailToStorage = async (dataUrl, uid) => {
     }
 };
 
-// 사용자가 게시한 마켓플레이스 템플릿 목록 가져오기
+// 사용자가 게시한 마켓플레이스 템플릿 목록 가져오기 (상태 무관, 클라이언트 정렬)
 export const getUserPublishedTemplates = async (uid) => {
     if (!uid) return [];
     try {
+        // orderBy 없이 단순 where 쿼리 - 복합 인덱스 불필요
         const q = query(
             collection(db, "Marketplace_Templates"),
-            where("creatorUid", "==", uid),
-            orderBy("createdAt", "desc")
+            where("creatorUid", "==", uid)
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
+        const results = querySnapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data()
         }));
+        // 클라이언트에서 최신순 정렬
+        return results.sort((a, b) => {
+            const aTime = a.createdAt?.seconds ?? 0;
+            const bTime = b.createdAt?.seconds ?? 0;
+            return bTime - aTime;
+        });
     } catch (error) {
         console.error("Error fetching user templates:", error);
+        return []; // throw 대신 빈 배열 반환으로 앱 크래시 방지
+    }
+};
+
+// 마켓플레이스 템플릿 정보 수정 (가격, 설명, 썸네일 등)
+export const updateMarketplaceTemplate = async (templateId, updates) => {
+    if (!templateId) throw new Error("Template ID is required");
+    try {
+        const docRef = doc(db, "Marketplace_Templates", templateId);
+        await updateDoc(docRef, {
+            ...updates,
+            updatedAt: serverTimestamp()
+        });
+        console.log(`[Firebase] Template updated: ${templateId}`);
+        return true;
+    } catch (error) {
+        console.error("[Firebase] Error updating template:", error);
+        throw error;
+    }
+};
+
+// 마켓플레이스에서 비공개 처리 (완전 삭제 대신 상태만 변경)
+export const unpublishMarketplaceTemplate = async (templateId) => {
+    if (!templateId) throw new Error("Template ID is required");
+    try {
+        const docRef = doc(db, "Marketplace_Templates", templateId);
+        await updateDoc(docRef, {
+            status: "Inactive",
+            is_published: false,
+            updatedAt: serverTimestamp()
+        });
+        console.log(`[Firebase] Template unpublished: ${templateId}`);
+        return true;
+    } catch (error) {
+        console.error("[Firebase] Error unpublishing template:", error);
         throw error;
     }
 };
@@ -288,7 +330,11 @@ export const getMarketplaceTemplates = async () => {
         const querySnapshot = await getDocs(q);
         const templates = [];
         querySnapshot.forEach((doc) => {
-            templates.push({ id: doc.id, ...doc.data() });
+            const data = doc.data();
+            // is_published 필드가 명시적으로 false인 경우 제외 (이중 방어)
+            if (data.is_published !== false) {
+                templates.push({ id: doc.id, ...data });
+            }
         });
         return templates;
     } catch (error) {

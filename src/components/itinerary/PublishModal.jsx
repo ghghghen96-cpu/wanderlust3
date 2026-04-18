@@ -11,7 +11,8 @@ import { publishToMarketplace, uploadThumbnailToStorage } from '../../firebase';
  * PublishModal component for sharing itineraries to the marketplace.
  */
 const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user }) => {
-    const { t } = useTranslation();
+    const { t } = useTranslation('translation', { keyPrefix: 'itinerary' });
+    const { t: commonT } = useTranslation('translation');
     const navigate = useNavigate();
     const [price, setPrice] = useState('');
     const [description, setDescription] = useState('');
@@ -58,15 +59,15 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
         
         // 1. 유효성 검사 (Validation)
         if (!price || isNaN(parseFloat(price))) {
-            setPublishError(t('itinerary.publishErrorNoPrice') || 'Please enter a valid price.');
+            setPublishError(t('publishErrorNoPrice') || 'Please enter a valid price.');
             return;
         }
         if (!description || description.trim().length < 5) {
-            setPublishError(t('itinerary.publishErrorNoDesc') || 'Please enter a detailed description (min 5 chars).');
+            setPublishError(t('publishErrorNoDesc') || 'Please enter a detailed description (min 5 chars).');
             return;
         }
         if (!finalThumbnail) {
-            setPublishError(t('itinerary.publishErrorNoThumb') || '썸네일 이미지를 업로드하거나 선택해 주세요.');
+            setPublishError(t('publishErrorNoThumb') || '썸네일 이미지를 업로드하거나 선택해 주세요.');
             return;
         }
 
@@ -82,7 +83,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
             // 1. 기본 메타데이터 구성 (순환 참조 및 undefined 방지)
             const templateBase = {
                 creatorUid: user?.uid || 'anonymous',
-                creatorName: user?.displayName || t('nav.traveler', { defaultValue: 'Traveler' }),
+                creatorName: user?.displayName || commonT('nav.traveler', { defaultValue: 'Traveler' }),
                 creatorEmail: user?.email || '',
                 creatorAvatar: user?.photoURL || '',
                 title: String(description).trim(),
@@ -250,14 +251,14 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                         >
                             <CheckCircle2 size={40} className="text-green-500" />
                         </motion.div>
-                        <h2 className="text-2xl font-black text-secondary">{t('itinerary.publishSuccess')}</h2>
-                        <p className="text-gray-500">{t('itinerary.publishSuccessDesc')}</p>
+                        <h2 className="text-2xl font-black text-secondary">{t('publishSuccess')}</h2>
+                        <p className="text-gray-500">{t('publishSuccessDesc')}</p>
                         <p className="text-sm font-bold text-primary bg-primary/10 py-2 rounded-full">
-                            {t('payment.autoRedirect')} ({countdown}s)
+                            {commonT('payment.autoRedirect')} ({countdown}s)
                         </p>
                         <div className="flex gap-3 justify-center">
                             <button onClick={() => navigate('/marketplace')} className="px-6 py-3 bg-secondary text-white rounded-xl font-bold hover:bg-secondary/90 transition-colors">
-                                {t('itinerary.publishViewMarket')}
+                                {t('publishViewMarket')}
                             </button>
                         </div>
                     </div>
@@ -272,21 +273,21 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                     <Upload size={20} className="text-secondary" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black">{t('itinerary.publishTitle')}</h2>
-                                    <p className="text-white/60 text-xs font-bold">{t('itinerary.publishSubtitle')}</p>
+                                    <h2 className="text-xl font-black">{t('publishTitle')}</h2>
+                                    <p className="text-white/60 text-xs font-bold">{t('publishSubtitle')}</p>
                                 </div>
                             </div>
                             <div className="flex gap-3 mt-4">
                                 <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{data.destination}</span>
-                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{itinerary.length} {t('itinerary.days')}</span>
-                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{(itinerary || []).reduce((s, d) => s + (d.items?.length || 0), 0)} {t('itinerary.spots')}</span>
+                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{itinerary.length} {t('days')}</span>
+                                <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold">{(itinerary || []).reduce((s, d) => s + (d.items?.length || 0), 0)} {t('spots')}</span>
                             </div>
                         </div>
 
                         <div className="p-8 space-y-6">
                             <div className="space-y-2">
                                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                    <DollarSign size={14} className="text-primary" /> {t('itinerary.publishPrice')}
+                                    <DollarSign size={14} className="text-primary" /> {t('publishPrice')}
                                 </label>
                                 <input
                                     type="number"
@@ -294,20 +295,20 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                     min="0"
                                     value={price}
                                     onChange={e => setPrice(e.target.value)}
-                                    placeholder={t('itinerary.publishPricePlaceholder')}
+                                    placeholder={t('publishPricePlaceholder')}
                                     className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-lg font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
                                 />
                             </div>
 
                             <div className="space-y-2">
                                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                    <FileText size={14} className="text-primary" /> {t('itinerary.publishDesc')}
+                                    <FileText size={14} className="text-primary" /> {t('publishDesc')}
                                 </label>
                                 <input
                                     type="text"
                                     value={description}
                                     onChange={e => setDescription(e.target.value)}
-                                    placeholder={t('itinerary.publishDescPlaceholder')}
+                                    placeholder={t('publishDescPlaceholder')}
                                     className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
                                 />
                             </div>
@@ -428,12 +429,12 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                 {publishing ? (
                                     <>
                                         <div className="w-5 h-5 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />
-                                        {t('itinerary.publishSubmitting')}
+                                        {t('publishSubmitting')}
                                     </>
                                 ) : (
                                     <>
                                         <Upload size={20} />
-                                        {t('itinerary.publishSubmit')}
+                                        {t('publishSubmit')}
                                     </>
                                 )}
                             </button>

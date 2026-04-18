@@ -295,6 +295,7 @@ const resources = {
         btnCancel: "Cancel",
         btnSave: "Save",
         setTime: "Set time",
+        viewMap: "View Map",
         maps: "Maps",
         chatPlaceholder: "Ask anything about your trip…",
         newSpotName: "New Spot",
@@ -894,6 +895,7 @@ const resources = {
         btnCancel: "취소",
         btnSave: "저장",
         setTime: "시간 설정",
+        viewMap: "지도 보기",
         maps: "지도",
         chatPlaceholder: "여행에 대해 무엇이든 물어보세요…",
         newSpotName: "새로운 장소",
@@ -1212,6 +1214,14 @@ i18n
     fallbackLng: "en",
     interpolation: {
       escapeValue: false // react already safes from xss
+    },
+    parseMissingKeyHandler: (key) => {
+      // 키가 누락되었을 때 'itinerary.' 접두어가 있으면 제거하고 키 자체만 반환하여 
+      // 사용자에게 'itinerary.xxx'와 같은 코드가 노출되지 않도록 함.
+      if (key.startsWith('itinerary.')) {
+        return key.replace('itinerary.', '');
+      }
+      return key;
     }
   });
 
