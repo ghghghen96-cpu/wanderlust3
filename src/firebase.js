@@ -44,8 +44,8 @@ export const publishToMarketplace = async (templateData) => {
     console.log("[Firebase] Starting publishToMarketplace with data:", templateData);
     
     try {
-        // 필수 필드 체크 (Backend-side validation)
-        const requiredFields = ['creatorUid', 'title', 'price', 'thumbnail', 'itinerary'];
+        // thumbnail은 선택 필드 (업로드 실패해도 등록은 진행)
+        const requiredFields = ['creatorUid', 'title', 'price', 'itinerary'];
         for (const field of requiredFields) {
             if (!templateData[field]) {
                 const errMsg = `Missing required field: ${field}`;
@@ -73,20 +73,30 @@ export const publishToMarketplace = async (templateData) => {
     }
 };
 
-// 썸네일 이미지 Storage 업로드
+// 썸네일 이미지 Storage 업로드 (타임아웃 15초, 실패 시 빈 문자열 반환)
 export const uploadThumbnailToStorage = async (dataUrl, uid) => {
     if (!dataUrl || !dataUrl.startsWith("data:image")) return dataUrl;
     try {
-        const uniqueName = `thumbnails/${uid}_${Date.now()}.jpg`;
+        const uniqueName = `thumbnails/${uid || 'anon'}_${Date.now()}.jpg`;
         const storageRef = ref(storage, uniqueName);
-        console.log("Uploading thumbnail to storage:", uniqueName);
-        await uploadString(storageRef, dataUrl, 'data_url');
+        console.log("[Storage] Uploading thumbnail:", uniqueName);
+
+        // 15초 타임아웃 - 무한 대기 방지
+        const uploadWithTimeout = Promise.race([
+            uploadString(storageRef, dataUrl, 'data_url'),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Storage upload timeout (15s)')), 15000)
+            )
+        ]);
+        await uploadWithTimeout;
+
         const downloadUrl = await getDownloadURL(storageRef);
-        console.log("Thumbnail uploaded successfully:", downloadUrl);
+        console.log("[Storage] Upload success:", downloadUrl);
         return downloadUrl;
     } catch (error) {
-        console.error("Error uploading thumbnail:", error);
-        throw new Error('이미지 업로드에 실패했습니다. (Storage Error)');
+        // throw 대신 빈 문자열 반환 → 썸네일 없이 등록 진행
+        console.warn("[Storage] Upload failed, continuing without thumbnail:", error.message);
+        return '';
     }
 };
 

@@ -21,6 +21,23 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     const [success, setSuccess] = useState(false);
     const [publishError, setPublishError] = useState('');
     const [countdown, setCountdown] = useState(3);
+
+    // ── Canvas 이미지 압축 유틸 (최대 800px, JPEG 75%) ──────────────────
+    const compressImage = (dataUrl, maxSize = 800, quality = 0.75) => {
+        return new Promise((resolve) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+                const canvas = document.createElement('canvas');
+                canvas.width  = Math.round(img.width  * ratio);
+                canvas.height = Math.round(img.height * ratio);
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = () => resolve(dataUrl); // 압축 실패 시 원본 반환
+            img.src = dataUrl;
+        });
+    };
     
     // ─── 이미지 업로드 관련 상태 ─────────────────────────────────────────────────
     const [uploadedImage, setUploadedImage] = useState(null); // 사용자가 업로드한 이미지 DataURL
@@ -77,8 +94,12 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
         
         try {
             // 업로드된 이미지가 DataURL 형태일 경우 Firebase Storage에 업로드 (문서 크기 제한 1MB 방지)
-            console.log("Processing thumbnail...");
-            const safeThumbnail = await uploadThumbnailToStorage(finalThumbnail, user?.uid || 'anonymous');
+        console.log("Processing thumbnail...");
+            // 이미지가 DataURL이면 압축 후 업로드 (원본 그대로는 수 MB → 업로드 수십 초)
+            const compressedThumb = finalThumbnail.startsWith('data:image')
+                ? await compressImage(finalThumbnail)
+                : finalThumbnail;
+            const safeThumbnail = await uploadThumbnailToStorage(compressedThumb, user?.uid || 'anon');
 
             // 1. 기본 메타데이터 구성 (순환 참조 및 undefined 방지)
             const templateBase = {
@@ -192,15 +213,21 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
             setPublishError('JPG, PNG, GIF, WEBP 파일만 업로드 가능합니다.');
             return;
         }
-        if (file.size > 10 * 1024 * 1024) {
-            setPublishError('파일 크기가 10MB를 초과합니다.');
+        if (file.size > 20 * 1024 * 1024) { // 20MB로 제한 완화 (압축해서 올림)
+            setPublishError('파일 크기가 20MB를 초과합니다.');
             return;
         }
         setIsUploading(true);
         setPublishError('');
         const reader = new FileReader();
-        reader.onload = (e) => {
-            setUploadedImage(e.target.result);
+        reader.onload = async (e) => {
+            try {
+                // 압축 적용 (업로드 전 미리 줄여서 FileReader 후 즉시 압축)
+                const compressed = await compressImage(e.target.result);
+                setUploadedImage(compressed);
+            } catch {
+                setUploadedImage(e.target.result); // 압축 실패 시 원본
+            }
             setSelectedThumb(-1);
             setIsUploading(false);
         };
