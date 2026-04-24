@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sun, ArrowRight, Compass } from 'lucide-react';
+import { Sun, ArrowRight, Compass, Sparkles, Sliders, CheckCircle2, Star, BadgeCheck, DollarSign, Brain, Map, Store } from 'lucide-react';
+import { motion, animate, useMotionValue, useTransform } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import { useTranslation } from 'react-i18next';
 import { auth, listenToUserEarnings, updateCreatorEarnings, requestPayout } from '../firebase';
@@ -172,14 +173,6 @@ const Landing = () => {
         templatesSold: 0
     });
 
-    // Travel-to-Earn Form States
-    const [selectedPlan, setSelectedPlan] = useState('');
-    const [price, setPrice] = useState('');
-    const [description, setDescription] = useState('');
-    const [category, setCategory] = useState('');
-    const [isPublishing, setIsPublishing] = useState(false);
-    const [isPublished, setIsPublished] = useState(false);
-
     // Payout Modal State
     const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
 
@@ -194,33 +187,32 @@ const Landing = () => {
         }
     };
 
-    const mockPlans = [
-        { id: 'p1', title: t('landing.mockPlan1') },
-        { id: 'p2', title: t('landing.mockPlan2') },
-        { id: 'p3', title: t('landing.mockPlan3') }
-    ];
+    // AI Demo States
+    const [aiStyle, setAiStyle] = useState('healing');
+    const [aiDays, setAiDays] = useState('3');
+    const [isGenerating, setIsGenerating] = useState(false);
 
-    const handlePublish = async (e) => {
-        e.preventDefault();
-        if (!selectedPlan || !price || !category) return;
-        setIsPublishing(true);
-        setTimeout(async () => {
-            setIsPublishing(false);
-            setIsPublished(true);
-            
-            // 데모용으로 Publish 시 수익을 즉시 반영하여 실시간 업데이트 시연
-            if (auth.currentUser) {
-                await updateCreatorEarnings(auth.currentUser.uid, parseFloat(price));
+    // Simulator States
+    const [simPrice, setSimPrice] = useState(25);
+    const [simVolume, setSimVolume] = useState(50);
+    const estimatedIncome = Math.round(simPrice * simVolume * 0.8); // 80% payout
+    const [displayIncome, setDisplayIncome] = useState(0);
+
+    useEffect(() => {
+        const controls = animate(displayIncome, estimatedIncome, {
+            duration: 0.8,
+            ease: "easeOut",
+            onUpdate(value) {
+                setDisplayIncome(Math.round(value));
             }
+        });
+        return () => controls.stop();
+    }, [estimatedIncome]);
 
-            setTimeout(() => {
-                setIsPublished(false);
-                setSelectedPlan('');
-                setPrice('');
-                setDescription('');
-                setCategory('');
-            }, 3000);
-        }, 1500);
+    const handleGenerateMock = () => {
+        if (isGenerating) return;
+        setIsGenerating(true);
+        setTimeout(() => setIsGenerating(false), 3000);
     };
 
     const slides = [
@@ -281,232 +273,108 @@ const Landing = () => {
                 setCurrentSlide={setCurrentSlide}
             />
 
-            {/* ── Trust Section (Brand Logos) ── */}
-            <section className="bg-white py-20 border-b border-stone-100">
-                <div className="max-w-7xl mx-auto px-8">
-                    <p className="text-center text-stone-400 text-xs font-bold tracking-[0.3em] uppercase mb-12">
-                        {t('landing.trustedBy') || "Trusted by global explorers from"}
-                    </p>
-                    <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24 opacity-40 grayscale hover:grayscale-0 transition-all duration-700">
-                        <div className="text-2xl font-serif italic font-bold text-stone-900">Airbnb</div>
-                        <div className="text-2xl font-serif italic font-bold text-stone-900">Expedia</div>
-                        <div className="text-2xl font-serif italic font-bold text-stone-900">Booking.com</div>
-                        <div className="text-2xl font-serif italic font-bold text-stone-900">Tripadvisor</div>
-                        <div className="text-2xl font-serif italic font-bold text-stone-900">Skyscanner</div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── Travel-to-Earn Section ── */}
-            <section className="bg-stone-50 text-stone-900 py-40 px-8 md:px-16">
-                <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-24 items-center">
-                    <div>
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-[0.2em] uppercase mb-8">
-                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                            {t('landing.earnLabel')}
-                        </div>
-                        <h2 className="text-5xl md:text-7xl font-serif italic mb-10 leading-tight">
-                            {t('landing.earnTitle1')} <br /> 
-                            <span style={{ 
-                                background: 'linear-gradient(135deg, #d97706 0%, #ea580c 100%)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent'
-                            }}>
-                                {t('landing.earnTitle2')}
-                            </span>
-                        </h2>
-                        <div className="space-y-8 border-l-[3px] border-amber-200 pl-8 mb-10">
-                            <p className="text-xl md:text-2xl text-stone-600 leading-relaxed font-light break-keep">
-                                {t('landing.earnDesc1')}
-                            </p>
-                            <p className="text-xl md:text-2xl text-stone-600 leading-relaxed font-light break-keep">
-                                {t('landing.earnDesc2')}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    {/* Interactive Publish Form & Dashboard */}
-                    <div className="relative">
-                        <div className="absolute -inset-4 bg-gradient-to-r from-amber-200 to-orange-300 blur-2xl opacity-40 rounded-full"></div>
-                        
-                        <div className="relative bg-white border border-stone-100 shadow-2xl rounded-2xl overflow-hidden hover:-translate-y-1 transition-transform duration-500">
-                            <div className="p-6 md:p-8 border-b border-stone-50 bg-[#FAF9F6]">
-                                <div className="flex justify-between items-start mb-6">
-                                    <div>
-                                        <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-1">{t('landing.earnTag')}</p>
-                                        <h3 className="text-xl font-serif italic text-stone-800">@creator_dashboard</h3>
-                                    </div>
-                                    <div className="bg-green-50 text-emerald-600 border border-green-100 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase flex items-center gap-2 shadow-sm">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                        {t('dashboard.active')}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div>
-                                        <p className="text-xs font-medium text-stone-500 mb-1">Current Balance</p>
-                                        <div className="flex flex-col items-start gap-1.5">
-                                            <span className="text-2xl font-bold font-serif text-amber-600">${(earnings?.currentBalance || 0).toLocaleString()}</span>
-                                            <button 
-                                                onClick={(e) => { e.preventDefault(); setIsPayoutModalOpen(true); }}
-                                                disabled={(earnings?.currentBalance || 0) < 50}
-                                                className={`text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-md transition-all ${
-                                                    (earnings?.currentBalance || 0) >= 50 
-                                                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 cursor-pointer shadow-sm border border-amber-200' 
-                                                        : 'bg-stone-100 text-stone-400 cursor-not-allowed border border-stone-200'
-                                                }`}
-                                            >
-                                                Payout Ready
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-medium text-stone-500 mb-1">{t('landing.earnMetric1')}</p>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-2xl font-bold font-serif text-stone-900">${(earnings?.totalEarnings || 0).toLocaleString()}</span>
-                                            <span className="text-[10px] text-green-500 font-semibold bg-green-50 px-1 py-0.5 rounded">+12%</span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-medium text-stone-500 mb-1">{t('landing.earnMetric2')}</p>
-                                        <span className="text-2xl font-bold font-serif text-stone-900">{earnings?.templatesSold || 0}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <form onSubmit={handlePublish} className="p-6 md:p-8 space-y-5">
-                                <div>
-                                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">{t('landing.earnSelectPlan')}</label>
-                                    <select 
-                                        className="w-full p-3 border border-stone-200 rounded-lg text-stone-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all"
-                                        value={selectedPlan}
-                                        onChange={(e) => setSelectedPlan(e.target.value)}
-                                        required
-                                    >
-                                        <option value="" disabled>{t('dashboard.itineraryPlaceholder')}</option>
-                                        {mockPlans.map(plan => (
-                                            <option key={plan.id} value={plan.id}>{plan.title}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">{t('landing.earnPrice')}</label>
-                                        <input 
-                                            type="number" 
-                                            step="0.01"
-                                            className="w-full p-3 border border-stone-200 rounded-lg text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all"
-                                            placeholder={t('landing.earnPricePlaceholder')}
-                                            value={price}
-                                            onChange={(e) => setPrice(e.target.value)}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">{t('landing.earnCategory')}</label>
-                                        <select 
-                                            className="w-full p-3 border border-stone-200 rounded-lg text-stone-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all"
-                                            value={category}
-                                            onChange={(e) => setCategory(e.target.value)}
-                                            required
-                                        >
-                                            <option value="" disabled>{t('dashboard.categoryPlaceholder')}</option>
-                                            <option value="couple">{t('landing.earnCatCouple')}</option>
-                                            <option value="family">{t('landing.earnCatFamily')}</option>
-                                            <option value="solo">{t('landing.earnCatSolo')}</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">{t('landing.earnFormDesc')}</label>
-                                    <textarea 
-                                        rows="2"
-                                        className="w-full p-3 border border-stone-200 rounded-lg text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all resize-none"
-                                        placeholder={t('landing.earnDescPlaceholder')}
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
-                                        required
-                                    ></textarea>
-                                </div>
-
-                                <button 
-                                    type="submit" 
-                                    disabled={isPublishing || isPublished}
-                                    className={`w-full py-4 rounded-lg text-center font-bold text-white tracking-widest uppercase transition-all duration-300 ${
-                                        isPublished ? 'bg-emerald-500 hover:bg-emerald-600' :
-                                        isPublishing ? 'bg-amber-400 cursor-not-allowed' :
-                                        'bg-stone-900 hover:bg-amber-500 shadow-md hover:shadow-xl'
-                                    }`}
-                                >
-                                    {isPublished ? (
-                                        <span className="flex items-center justify-center gap-2">✓ {t('landing.earnSuccess')}</span>
-                                    ) : isPublishing ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            {t('landing.earnPublishing')}
-                                        </span>
-                                    ) : (
-                                        t('landing.earnPublishBtn')
-                                    )}
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── Stats Section ── */}
-            <section className="bg-[#FAF9F6] py-32 px-8">
+            {/* ── Section 2: 3-Step Guide ── */}
+            <section className="bg-stone-900 py-32 px-8 border-b border-stone-800 relative overflow-hidden">
+                <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-[120px] mix-blend-screen pointer-events-none" />
                 <div className="max-w-7xl mx-auto">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
+                    <div className="text-center mb-24 relative z-10">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-stone-800 text-stone-300 text-xs font-bold tracking-[0.2em] uppercase mb-8 rounded-full border border-stone-700">
+                            <Sparkles size={12} className="text-amber-500" />
+                            How It Works
+                        </div>
+                        <h2 className="text-4xl md:text-5xl font-serif italic mb-6 leading-tight text-white">
+                            3 Steps to Your Perfect Journey
+                        </h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
                         {[
-                            { label: t('stats.users') || 'Active Travelers', value: '120K+' },
-                            { label: t('stats.itineraries') || 'Plans Created', value: '450K+' },
-                            { label: t('stats.destinations') || 'Destinations', value: '1,200+' },
-                            { label: t('stats.creators') || 'Expert Creators', value: '850+' }
-                        ].map((stat, i) => (
-                            <div key={i} className="space-y-2">
-                                <div className="text-4xl md:text-5xl font-serif italic text-amber-600 font-bold">{stat.value}</div>
-                                <div className="text-xs font-bold text-stone-400 uppercase tracking-widest">{stat.label}</div>
+                            { step: "01", icon: <Brain size={32} className="text-amber-500" />, title: t('landing.step1Title'), desc: t('landing.step1Desc') },
+                            { step: "02", icon: <Map size={32} className="text-amber-500" />, title: t('landing.step2Title'), desc: t('landing.step2Desc') },
+                            { step: "03", icon: <Store size={32} className="text-amber-500" />, title: t('landing.step3Title'), desc: t('landing.step3Desc') }
+                        ].map((item, idx) => (
+                            <div key={idx} className="group relative p-1 rounded-3xl bg-gradient-to-b from-stone-800 to-stone-900 overflow-hidden">
+                                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 to-orange-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                                <div className="absolute -inset-2 bg-amber-500/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 rounded-full" />
+                                <div className="relative h-full bg-stone-900 rounded-[1.4rem] p-10 flex flex-col items-start border border-stone-800 group-hover:border-stone-700 transition-colors">
+                                    <div className="text-5xl font-serif italic text-stone-800 mb-8 font-black select-none">{item.step}</div>
+                                    <div className="mb-6 p-4 bg-stone-800 rounded-2xl group-hover:scale-110 transition-transform duration-500 border border-stone-700/50">
+                                        {item.icon}
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white mb-4 leading-snug">{item.title}</h3>
+                                    <p className="text-stone-400 font-light leading-relaxed text-[15px]">{item.desc}</p>
+                                </div>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* ── Testimonials Section ── */}
-            <section className="bg-white py-40 px-8 border-y border-stone-100">
-                <div className="max-w-5xl mx-auto text-center">
-                    <div className="inline-block text-amber-500 mb-10">
-                        {"★".repeat(5)}
+            {/* ── Section 3: Monetization Simulator ── */}
+            <section className="bg-black py-40 px-8 relative">
+                <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-20">
+                    <div className="flex-1 space-y-12">
+                        <div>
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 text-amber-500 text-xs font-bold tracking-[0.2em] uppercase mb-8 rounded-full border border-amber-500/20">
+                                <DollarSign size={12} />
+                                {t('landing.earnLabel') || "Monetization"}
+                            </div>
+                            <h2 className="text-4xl md:text-6xl font-serif italic mb-6 leading-tight text-white tracking-tight">
+                                {t('landing.earnTitle')}
+                            </h2>
+                            <p className="text-xl text-stone-400 font-light leading-relaxed">
+                                {t('landing.earnDesc')}
+                            </p>
+                        </div>
+
+                        <div className="space-y-10 bg-stone-900 p-10 rounded-3xl border border-stone-800 shadow-2xl">
+                            <div>
+                                <div className="flex justify-between mb-4">
+                                    <label className="text-sm font-bold text-stone-400 uppercase tracking-widest">Price per itinerary</label>
+                                    <span className="text-amber-500 font-bold font-serif text-xl">${simPrice}</span>
+                                </div>
+                                <input 
+                                    type="range" min="5" max="50" step="1" 
+                                    value={simPrice} 
+                                    onChange={(e) => setSimPrice(Number(e.target.value))}
+                                    className="w-full h-3 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                                />
+                            </div>
+                            <div>
+                                <div className="flex justify-between mb-4">
+                                    <label className="text-sm font-bold text-stone-400 uppercase tracking-widest">Expected monthly sales</label>
+                                    <span className="text-amber-500 font-bold font-serif text-xl">{simVolume} buys</span>
+                                </div>
+                                <input 
+                                    type="range" min="10" max="500" step="5" 
+                                    value={simVolume} 
+                                    onChange={(e) => setSimVolume(Number(e.target.value))}
+                                    className="w-full h-3 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <h2 className="text-3xl md:text-5xl font-serif italic leading-tight text-gray-900 mb-12">
-                        "{t('landing.testimonialText') || "The most intuitive travel planner I've ever used. The AI itineraries are surprisingly accurate and the marketplace templates are pure gold."}"
-                    </h2>
-                    <div className="flex items-center justify-center gap-4">
-                        <img 
-                            src="https://i.pravatar.cc/150?u=sarah" 
-                            className="w-12 h-12 rounded-full grayscale" 
-                            alt="Sarah J." 
-                        />
-                        <div className="text-left">
-                            <div className="font-bold text-stone-900 text-sm">Sarah Jenkins</div>
-                            <div className="text-stone-400 text-xs uppercase tracking-widest font-medium">Digital Nomad</div>
+
+                    <div className="flex-1 flex flex-col items-center justify-center p-12 relative group w-full">
+                        <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/10 via-orange-500/20 to-transparent rounded-[3rem] blur-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-1000" />
+                        <div className="relative text-center w-full">
+                            <h3 className="text-stone-500 text-sm font-bold tracking-[0.3em] uppercase mb-6">Estimated Monthly Passive Income</h3>
+                            <div className="text-[5rem] md:text-[8rem] font-serif font-bold text-transparent bg-clip-text bg-gradient-to-br from-amber-200 via-amber-500 to-orange-500 leading-none drop-shadow-2xl">
+                                $\{displayIncome.toLocaleString()}
+                            </div>
+                            <p className="mt-8 text-stone-400 text-[15px] font-sans">Based on an 80% payout rate. Actual earnings may vary.</p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* ── Curated Experiences ── */}
-            <section className="bg-white py-40 px-8 md:px-16">
-                <div className="max-w-7xl mx-auto">
+            {/* ── Section 4: Curated Experiences (Interactive Gallery) ── */}
+            <section className="bg-stone-950 py-40 px-8 md:px-16 border-t border-stone-800 relative overflow-hidden">
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 bg-blue-500/5 rounded-full blur-[150px] mix-blend-screen pointer-events-none" />
+                <div className="max-w-7xl mx-auto relative z-10">
                     <div className="text-center mb-24">
-                        <h2 className="text-4xl md:text-6xl font-serif mb-6 text-gray-900">{t('landing.curatedTitle')}</h2>
-                        <div className="w-16 h-[1px] bg-stone-300 mx-auto" />
+                        <h2 className="text-4xl md:text-6xl font-serif mb-6 text-white">{t('landing.curatedTitle')}</h2>
+                        <div className="w-16 h-[1px] bg-stone-700 mx-auto" />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
                         {[
@@ -514,20 +382,28 @@ const Landing = () => {
                             { title: t('landing.experience2Title'), image: "https://images.unsplash.com/photo-1506197603052-3cc9c3a201bd?q=80&w=800&auto=format&fit=crop", desc: t('landing.experience2Desc') },
                             { title: t('landing.experience3Title'), image: "https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?q=80&w=800&auto=format&fit=crop", desc: t('landing.experience3Desc') }
                         ].map((item, idx) => (
-                            <div key={idx} className="group cursor-pointer">
-                                <div className="aspect-[4/5] overflow-hidden mb-8 relative shadow-lg rounded-sm">
-                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10" />
+                            <div key={idx} className="group cursor-pointer" onClick={() => navigate('/survey')}>
+                                <div className="aspect-[4/5] overflow-hidden mb-8 relative rounded-2xl shadow-2xl">
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-60 transition-opacity duration-500 z-10" />
+                                    <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-10" />
                                     <ExternalPlaceImage
                                         initialUrl={item.image}
                                         placeName={item.title}
-                                        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-1000"
+                                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-1000 ease-out"
                                     />
-                                    <div className="absolute bottom-8 left-8 text-white opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 z-20">
-                                        <div className="border border-white/50 rounded-full px-5 py-2 text-xs uppercase tracking-widest backdrop-blur-sm">{t('landing.explore')}</div>
+                                    <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-2xl z-20 pointer-events-none group-hover:ring-amber-500/30 transition-colors duration-700" />
+                                    
+                                    <div className="absolute bottom-8 left-8 text-white transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 z-30">
+                                        <div className="flex items-center gap-2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
+                                            <span className="w-8 h-[1px] bg-amber-500" />
+                                            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-amber-500">Generate Now</span>
+                                        </div>
+                                        <h3 className="text-4xl font-serif italic group-hover:text-amber-400 transition-colors duration-500">{item.title}</h3>
                                     </div>
                                 </div>
-                                <h3 className="text-3xl font-serif italic mb-3 group-hover:text-amber-600 transition-colors text-gray-900">{item.title}</h3>
-                                <p className="text-lg font-sans text-stone-500 tracking-wide font-light">{item.desc}</p>
+                                <div className="px-2">
+                                    <p className="text-[17px] font-sans text-stone-400 tracking-wide font-light leading-relaxed">{item.desc}</p>
+                                </div>
                             </div>
                         ))}
                     </div>
