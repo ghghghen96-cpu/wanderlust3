@@ -280,10 +280,10 @@ const Landing = () => {
                     <div className="text-center mb-24 relative z-10">
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-stone-800 text-stone-300 text-xs font-bold tracking-[0.2em] uppercase mb-8 rounded-full border border-stone-700">
                             <Sparkles size={12} className="text-amber-500" />
-                            How It Works
+                            {t('landing.howItWorks')}
                         </div>
                         <h2 className="text-4xl md:text-5xl font-serif italic mb-6 leading-tight text-white">
-                            3 Steps to Your Perfect Journey
+                            {t('landing.threeStepsTitle')}
                         </h2>
                     </div>
 
@@ -330,7 +330,7 @@ const Landing = () => {
                         <div className="space-y-10 bg-stone-900 p-10 rounded-3xl border border-stone-800 shadow-2xl">
                             <div>
                                 <div className="flex justify-between mb-4">
-                                    <label className="text-sm font-bold text-stone-400 uppercase tracking-widest">Price per itinerary</label>
+                                    <label className="text-sm font-bold text-stone-400 uppercase tracking-widest">{t('landing.pricePerItinerary')}</label>
                                     <span className="text-amber-500 font-bold font-serif text-xl">${simPrice}</span>
                                 </div>
                                 <input 
@@ -342,8 +342,8 @@ const Landing = () => {
                             </div>
                             <div>
                                 <div className="flex justify-between mb-4">
-                                    <label className="text-sm font-bold text-stone-400 uppercase tracking-widest">Expected monthly sales</label>
-                                    <span className="text-amber-500 font-bold font-serif text-xl">{simVolume} buys</span>
+                                    <label className="text-sm font-bold text-stone-400 uppercase tracking-widest">{t('landing.expectedSales')}</label>
+                                    <span className="text-amber-500 font-bold font-serif text-xl">{simVolume} {t('landing.buys')}</span>
                                 </div>
                                 <input 
                                     type="range" min="10" max="500" step="5" 
@@ -358,11 +358,11 @@ const Landing = () => {
                     <div className="flex-1 flex flex-col items-center justify-center p-12 relative group w-full">
                         <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/10 via-orange-500/20 to-transparent rounded-[3rem] blur-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-1000" />
                         <div className="relative text-center w-full">
-                            <h3 className="text-stone-500 text-sm font-bold tracking-[0.3em] uppercase mb-6">Estimated Monthly Passive Income</h3>
+                            <h3 className="text-stone-500 text-sm font-bold tracking-[0.3em] uppercase mb-6">{t('landing.estimatedIncome')}</h3>
                             <div className="text-[5rem] md:text-[8rem] font-serif font-bold text-transparent bg-clip-text bg-gradient-to-br from-amber-200 via-amber-500 to-orange-500 leading-none drop-shadow-2xl">
                                 $\{displayIncome.toLocaleString()}
                             </div>
-                            <p className="mt-8 text-stone-400 text-[15px] font-sans">Based on an 80% payout rate. Actual earnings may vary.</p>
+                            <p className="mt-8 text-stone-400 text-[15px] font-sans">{t('landing.payoutNote')}</p>
                         </div>
                     </div>
                 </div>
@@ -396,7 +396,7 @@ const Landing = () => {
                                     <div className="absolute bottom-8 left-8 text-white transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 z-30">
                                         <div className="flex items-center gap-2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
                                             <span className="w-8 h-[1px] bg-amber-500" />
-                                            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-amber-500">Generate Now</span>
+                                            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-amber-500">{t('landing.generateNow')}</span>
                                         </div>
                                         <h3 className="text-4xl font-serif italic group-hover:text-amber-400 transition-colors duration-500">{item.title}</h3>
                                     </div>
@@ -411,28 +411,24 @@ const Landing = () => {
             </section>
 
             {/* ── Final CTA Section ── */}
-            <section className="relative py-40 px-8 overflow-hidden bg-stone-900 border-t border-stone-800">
-                <div className="absolute inset-0 opacity-20">
-                    <img 
-                        src="https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1600&auto=format&fit=crop" 
-                        className="w-full h-full object-cover grayscale"
-                        alt="Adventure"
-                    />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-b from-stone-900 via-stone-900/80 to-stone-900" />
+            <section className="relative py-40 px-8 overflow-hidden bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 flex items-center justify-center">
+                <div className="absolute inset-0 bg-white/10 backdrop-blur-[2px]"></div>
+                <div className="absolute -top-32 -left-32 w-96 h-96 bg-white/20 rounded-full blur-3xl mix-blend-overlay"></div>
+                <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-black/10 rounded-full blur-3xl mix-blend-overlay"></div>
                 
                 <div className="relative z-10 max-w-4xl mx-auto text-center">
-                    <h2 className="text-4xl md:text-7xl font-serif italic text-white mb-10 leading-tight">
-                        {t('landing.finalCtaTitle') || "Ready to chase the horizon?"}
+                    <h2 className="text-5xl md:text-7xl font-serif italic text-stone-900 mb-8 leading-tight tracking-tight drop-shadow-sm">
+                        {t('landing.finalCtaTitle')}
                     </h2>
-                    <p className="text-xl text-stone-400 font-light mb-16 max-w-2xl mx-auto leading-relaxed">
-                        {t('landing.finalCtaDesc') || "Join a community of modern wanderers and start crafting your next masterpiece today."}
+                    <p className="text-xl text-stone-900/80 font-medium mb-12 max-w-2xl mx-auto leading-relaxed">
+                        {t('landing.finalCtaDesc')}
                     </p>
                     <button
                         onClick={() => navigate('/survey')}
-                        className="px-12 py-6 bg-amber-500 hover:bg-amber-400 text-stone-900 font-bold text-lg rounded-full transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-amber-500/20"
+                        className="px-12 py-5 bg-stone-900 hover:bg-black text-amber-400 font-bold text-lg tracking-wide rounded-full transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-stone-900/30 flex items-center justify-center gap-3 mx-auto"
                     >
-                        {t('landing.ctaSmall') || "Start Planning Now"}
+                        {t('landing.ctaSmall')}
+                        <ArrowRight size={20} />
                     </button>
                 </div>
             </section>

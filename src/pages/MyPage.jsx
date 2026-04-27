@@ -37,20 +37,50 @@ const getDays = (start, end, t) => {
 
 // ── 수정 모달 컴포넌트 ──────────────────────────────────────────────────
 const EditTemplateModal = ({ template, onClose, onSave, t }) => {
-    const [price, setPrice] = useState(String(template.price || ''));
     const [description, setDescription] = useState(template.description || '');
-    const [previewImg, setPreviewImg] = useState(template.thumbnail || '');
-    const [newThumb, setNewThumb] = useState(null); // data URL (변경 시에만)
+    const [price, setPrice] = useState(template.price || '');
+    const [title, setTitle] = useState(template.title || '');
+    const [previewImg, setPreviewImg] = useState(template.thumbnail || template.image || '');
+    const [newThumb, setNewThumb] = useState(null); // data URL
     const [loading, setLoading] = useState(false);
     const fileRef = useRef(null);
+
+    useEffect(() => {
+        setDescription(template.description || '');
+        setPrice(template.price || '');
+        setTitle(template.title || '');
+        setPreviewImg(template.thumbnail || template.image || '');
+        setNewThumb(null);
+    }, [template]);
 
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
         const reader = new FileReader();
-        reader.onloadend = () => {
-            setPreviewImg(reader.result);
-            setNewThumb(reader.result);
+        reader.onload = (event) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 800;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > MAX_WIDTH) {
+                    height = Math.round((height * MAX_WIDTH) / width);
+                    width = MAX_WIDTH;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                setPreviewImg(dataUrl);
+                setNewThumb(dataUrl);
+            };
+            img.src = event.target.result;
         };
         reader.readAsDataURL(file);
     };
@@ -65,11 +95,17 @@ const EditTemplateModal = ({ template, onClose, onSave, t }) => {
             alert('설명을 5자 이상 입력해주세요.');
             return;
         }
+        if (!title || title.trim().length < 2) {
+            alert('제목을 2자 이상 입력해주세요.');
+            return;
+        }
+
         setLoading(true);
         try {
             await onSave(template.id, {
                 price: numPrice,
                 description: description.trim(),
+                title: title.trim(),
                 thumbnail: newThumb || template.thumbnail,
             }, newThumb);
         } finally {
@@ -104,60 +140,19 @@ const EditTemplateModal = ({ template, onClose, onSave, t }) => {
                     </button>
                 </div>
 
-                {/* 썸네일 */}
-                <div style={{ marginBottom: '18px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: '700', color: '#44403c', fontFamily: 'sans-serif', display: 'block', marginBottom: '8px' }}>
-                        대표 썸네일
-                    </label>
-                    <div
-                        onClick={() => fileRef.current?.click()}
-                        style={{
-                            width: '100%', height: '160px', borderRadius: '14px',
-                            overflow: 'hidden', border: '2px dashed #d1d5db',
-                            cursor: 'pointer', position: 'relative', background: '#f9fafb',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            transition: 'border-color 0.2s'
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = '#6366f1'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = '#d1d5db'}
-                    >
-                        {previewImg ? (
-                            <img src={previewImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                            <div style={{ textAlign: 'center', color: '#9ca3af' }}>
-                                <Image size={36} style={{ margin: '0 auto 8px', display: 'block' }} />
-                                <span style={{ fontSize: '13px' }}>클릭하여 이미지 선택</span>
-                            </div>
-                        )}
-                        <div style={{
-                            position: 'absolute', bottom: 0, left: 0, right: 0,
-                            background: 'linear-gradient(transparent, rgba(0,0,0,0.6))',
-                            padding: '20px 12px 10px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                            color: 'white', fontSize: '12px', fontWeight: '700'
-                        }}>
-                            <Upload size={13} /> 이미지 변경하기
-                        </div>
-                    </div>
-                    <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
-                </div>
-
-                {/* 가격 */}
-                <div style={{ marginBottom: '16px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: '700', color: '#44403c', fontFamily: 'sans-serif', display: 'block', marginBottom: '6px' }}>
-                        판매 가격 (USD)
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', fontWeight: '700', fontSize: '15px' }}>$</span>
+                <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '10px' }}>
+                    {/* 제목 수정 */}
+                    <div style={{ marginBottom: '18px' }}>
+                        <label style={{ fontSize: '13px', fontWeight: '700', color: '#44403c', fontFamily: 'sans-serif', display: 'block', marginBottom: '8px' }}>
+                            템플릿 제목
+                        </label>
                         <input
-                            type="number"
-                            min="0.5"
-                            step="0.5"
-                            value={price}
-                            onChange={e => setPrice(e.target.value)}
-                            placeholder="예: 9.99"
+                            type="text"
+                            value={title}
+                            onChange={e => setTitle(e.target.value)}
+                            placeholder="템플릿 제목을 입력하세요"
                             style={{
-                                width: '100%', padding: '11px 14px 11px 30px',
+                                width: '100%', padding: '11px 14px',
                                 border: '1.5px solid #e5e7eb', borderRadius: '12px',
                                 fontFamily: 'sans-serif', fontSize: '15px', outline: 'none',
                                 boxSizing: 'border-box', transition: 'border-color 0.2s'
@@ -166,32 +161,96 @@ const EditTemplateModal = ({ template, onClose, onSave, t }) => {
                             onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                         />
                     </div>
-                </div>
 
-                {/* 한 줄 설명 */}
-                <div style={{ marginBottom: '28px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: '700', color: '#44403c', fontFamily: 'sans-serif', display: 'block', marginBottom: '6px' }}>
-                        한 줄 소개
-                    </label>
-                    <textarea
-                        value={description}
-                        onChange={e => setDescription(e.target.value)}
-                        placeholder="이 여행 일정만의 특별한 매력을 한 줄로 설명해주세요..."
-                        rows={3}
-                        style={{
-                            width: '100%', padding: '11px 14px',
-                            border: '1.5px solid #e5e7eb', borderRadius: '12px',
-                            fontFamily: 'sans-serif', fontSize: '14px',
-                            outline: 'none', resize: 'vertical', boxSizing: 'border-box',
-                            lineHeight: '1.6', transition: 'border-color 0.2s'
-                        }}
-                        onFocus={e => e.target.style.borderColor = '#6366f1'}
-                        onBlur={e => e.target.style.borderColor = '#e5e7eb'}
-                    />
+                    {/* 썸네일 */}
+                    <div style={{ marginBottom: '18px' }}>
+                        <label style={{ fontSize: '13px', fontWeight: '700', color: '#44403c', fontFamily: 'sans-serif', display: 'block', marginBottom: '8px' }}>
+                            대표 썸네일
+                        </label>
+                        <div
+                            onClick={() => fileRef.current?.click()}
+                            style={{
+                                width: '100%', height: '160px', borderRadius: '14px',
+                                overflow: 'hidden', border: '2px dashed #d1d5db',
+                                cursor: 'pointer', position: 'relative', background: '#f9fafb',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                transition: 'border-color 0.2s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.borderColor = '#6366f1'}
+                            onMouseLeave={e => e.currentTarget.style.borderColor = '#d1d5db'}
+                        >
+                            {previewImg ? (
+                                <img src={previewImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                                <div style={{ textAlign: 'center', color: '#9ca3af' }}>
+                                    <Image size={36} style={{ margin: '0 auto 8px', display: 'block' }} />
+                                    <span style={{ fontSize: '13px' }}>클릭하여 이미지 선택</span>
+                                </div>
+                            )}
+                            <div style={{
+                                position: 'absolute', bottom: 0, left: 0, right: 0,
+                                background: 'linear-gradient(transparent, rgba(0,0,0,0.6))',
+                                padding: '20px 12px 10px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                color: 'white', fontSize: '12px', fontWeight: '700'
+                            }}>
+                                <Upload size={13} /> 이미지 변경하기
+                            </div>
+                        </div>
+                        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+                    </div>
+
+                    {/* 가격 */}
+                    <div style={{ marginBottom: '16px' }}>
+                        <label style={{ fontSize: '13px', fontWeight: '700', color: '#44403c', fontFamily: 'sans-serif', display: 'block', marginBottom: '6px' }}>
+                            판매 가격 (USD)
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                            <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', fontWeight: '700', fontSize: '15px' }}>$</span>
+                            <input
+                                type="number"
+                                min="0.5"
+                                step="0.5"
+                                value={price}
+                                onChange={e => setPrice(e.target.value)}
+                                placeholder="예: 9.99"
+                                style={{
+                                    width: '100%', padding: '11px 14px 11px 30px',
+                                    border: '1.5px solid #e5e7eb', borderRadius: '12px',
+                                    fontFamily: 'sans-serif', fontSize: '15px', outline: 'none',
+                                    boxSizing: 'border-box', transition: 'border-color 0.2s'
+                                }}
+                                onFocus={e => e.target.style.borderColor = '#6366f1'}
+                                onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                            />
+                        </div>
+                    </div>
+
+                    {/* 한 줄 설명 */}
+                    <div style={{ marginBottom: '28px' }}>
+                        <label style={{ fontSize: '13px', fontWeight: '700', color: '#44403c', fontFamily: 'sans-serif', display: 'block', marginBottom: '6px' }}>
+                            한 줄 소개
+                        </label>
+                        <textarea
+                            value={description}
+                            onChange={e => setDescription(e.target.value)}
+                            placeholder="이 여행 일정만의 특별한 매력을 한 줄로 설명해주세요..."
+                            rows={3}
+                            style={{
+                                width: '100%', padding: '11px 14px',
+                                border: '1.5px solid #e5e7eb', borderRadius: '12px',
+                                fontFamily: 'sans-serif', fontSize: '14px',
+                                outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+                                lineHeight: '1.6', transition: 'border-color 0.2s'
+                            }}
+                            onFocus={e => e.target.style.borderColor = '#6366f1'}
+                            onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                        />
+                    </div>
                 </div>
 
                 {/* 버튼 */}
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                     <button
                         onClick={onClose}
                         style={{
@@ -682,8 +741,12 @@ const MyPage = () => {
                                             <div style={{ display: 'flex' }}>
                                                 {/* 썸네일 */}
                                                 <div style={{ width: '140px', minHeight: '140px', background: '#f1f5f9', position: 'relative', flexShrink: 0 }}>
-                                                    {tpl.thumbnail ? (
-                                                        <img src={tpl.thumbnail} alt={tpl.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', minHeight: '140px' }} />
+                                                    {tpl.thumbnail || tpl.image ? (
+                                                        <img 
+                                                            src={tpl.thumbnail || tpl.image} 
+                                                            alt={tpl.title} 
+                                                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', minHeight: '140px' }} 
+                                                        />
                                                     ) : (
                                                         <div style={{ width: '100%', minHeight: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                             <Image size={28} color="#9ca3af" />

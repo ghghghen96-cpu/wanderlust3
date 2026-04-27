@@ -19,12 +19,21 @@ const getFallbackImage = (tmpl) => {
 
 // 화면에 최초로 보여줄 이미지 (1차적으로 매핑)
 const getTemplateImage = (tmpl) => {
-    // 1. 업로드된 이미지가 정상적인 URL인 경우
-    const stored = tmpl.thumbnail || tmpl.image;
-    // Unsplash 기본 이미지가 아닌 경우만 사용
-    if (stored && !stored.startsWith('data:') && stored.startsWith('http') && !stored.includes('unsplash.com')) return stored;
+    // 1. 사용자가 직접 설정한 썸네일이 있으면 최우선 사용 (URL 또는 base64 데이터)
+    if (tmpl.thumbnail && typeof tmpl.thumbnail === 'string' && (tmpl.thumbnail.startsWith('http') || tmpl.thumbnail.startsWith('data:'))) {
+        return tmpl.thumbnail;
+    }
+    
+    // 2. 기본 이미지(image)가 있는 경우
+    const stored = tmpl.image;
+    if (stored && typeof stored === 'string' && stored.startsWith('http')) {
+        // 데이터 URL이 아니고, 플레이스홀더 성격의 Unsplash 이미지가 아닌 경우 사용
+        if (!stored.startsWith('data:') && (!stored.includes('unsplash.com') || stored.includes('w=1000') || stored.includes('q=80'))) {
+            return stored;
+        }
+    }
 
-    // 없으면 null 반환하여 동적 로딩 유도
+    // 없으면 null 반환하여 동적 로딩(ExternalPlaceImage) 유도
     return null;
 };
 
@@ -111,18 +120,37 @@ const Marketplace = () => {
             let rawTitle = tmpl.title;
             let rawDest = tmpl.destination || '';
             
-            // 만약 타이틀이 아예 없거나, 번역 키 형태라면 목적지 필드로 대체 시도
-            if (!rawTitle || (rawTitle.includes('.') && rawTitle.toLowerCase().startsWith('survey'))) {
-                rawTitle = rawDest;
+            let translatedTitle = rawTitle;
+            // 만약 타이틀이 번역 키 형태라면 번역 수행
+            if (rawTitle && rawTitle.includes('survey.destinations.')) {
+                translatedTitle = t(rawTitle) + " " + (t('marketplace.itinerary') || "Itinerary");
+            } else if (!rawTitle) {
+                // 타이틀이 없으면 목적지로 시도
+                if (rawDest.includes('survey.destinations.')) {
+                    translatedTitle = t(rawDest) + " " + (t('marketplace.itinerary') || "Itinerary");
+                } else if (rawDest) {
+                    // 목적지가 일반 텍스트면 번역 시도
+                    const translated = t('survey.destinations.' + rawDest.toLowerCase());
+                    if (translated && translated !== 'survey.destinations.' + rawDest.toLowerCase()) {
+                        translatedTitle = translated + " " + (t('marketplace.itinerary') || "Itinerary");
+                    } else {
+                        translatedTitle = rawDest + " " + (t('marketplace.itinerary') || "Itinerary");
+                    }
+                } else {
+                    translatedTitle = "Travel Itinerary";
+                }
             }
 
-            // 대체한 타이틀(목적지 텍스트)이 여전히 번역 키라면 t() 함수로 변환
-            let translatedTitle = rawTitle;
-            if (rawTitle && rawTitle.includes('survey.destinations.')) {
-                // Translated Name + "Itinerary" 형태로 조합 (원하는 언어로 깔끔하게 노출)
-                translatedTitle = t(rawTitle) + " " + (t('marketplace.itinerary') || "Itinerary");
-            } else if (!translatedTitle) {
-                translatedTitle = "Travel Itinerary";
+            // 목적지 표시 이름 정제
+            let displayDest = rawDest;
+            if (rawDest.includes('survey.destinations.')) {
+                displayDest = t(rawDest);
+            } else if (rawDest && !rawDest.includes(' ') && !rawDest.includes('(')) {
+                // 단순 ID 형태인 경우 번역 시도 (예: amsterdam)
+                const translated = t('survey.destinations.' + rawDest.toLowerCase());
+                if (translated && translated !== 'survey.destinations.' + rawDest.toLowerCase()) {
+                    displayDest = translated;
+                }
             }
 
             return {
@@ -131,7 +159,7 @@ const Marketplace = () => {
                 fallbackImage: getFallbackImage(tmpl), 
                 title: translatedTitle,
                 // 검색용 실제 지명 (번역된 텍스트 전달)
-                displayDestination: rawDest.includes('survey.destinations.') ? t(rawDest) : (rawDest || translatedTitle.split(' ')[0]),
+                displayDestination: displayDest || translatedTitle.split(' ')[0],
                 creator: tmpl.creatorName || tmpl.creatorEmail || "Anonymous",
                 avatar: tmpl.creatorAvatar || `https://i.pravatar.cc/150?u=${tmpl.creatorUid || tmpl.id}`
             };
@@ -347,11 +375,15 @@ const Marketplace = () => {
                                                 onClick={() => handleCardClick(template)}
                                             >
                                                 <div className="relative aspect-[4/3] overflow-hidden bg-slate-800">
-                                                    <ExternalPlaceImage 
-                                                        initialUrl={template.image} 
-                                                        placeName={template.destination || template.title.split(' ')[0]} 
-                                                        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" 
-                                                    />
+                                                    {template.thumbnail ? (
+                                                        <img src={template.thumbnail} alt={template.title} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" />
+                                                    ) : (
+                                                        <ExternalPlaceImage 
+                                                            initialUrl={template.image} 
+                                                            placeName={template.destination || template.title.split(' ')[0]} 
+                                                            className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" 
+                                                        />
+                                                    )}
                                                     <div className="absolute top-0 left-0 w-full p-3 flex justify-between items-start">
                                                         <div className="flex flex-col gap-1.5">
                                                             {template.tags && template.tags.map(tag => {

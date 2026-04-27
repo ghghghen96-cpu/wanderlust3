@@ -57,6 +57,9 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
         </div>
     );
 
+    const displayName = (i18n.language === 'ko' && activity.name_ko) ? activity.name_ko : activity.name;
+    const displayDesc = (i18n.language === 'ko' && activity.desc_ko) ? activity.desc_ko : activity.desc;
+
     return (
         <Reorder.Item value={activity} id={activity.id} dragListener={false} dragControls={dc} className="group">
             <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col sm:flex-row gap-5 items-start sm:items-center">
@@ -81,7 +84,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
 
                 <div className="flex-1 min-w-0 w-full">
                     <div className="flex items-start justify-between">
-                        <h3 className="font-black text-[#006400] text-2xl truncate group-hover:opacity-80 transition-opacity mb-2">{activity.name}</h3>
+                        <h3 className="font-black text-[#006400] text-2xl truncate group-hover:opacity-80 transition-opacity mb-2">{displayName}</h3>
                         <div className="hidden sm:flex gap-1">
                             <button onClick={() => setEditing(true)} className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"><Edit2 size={16} /></button>
                             <button onClick={onDelete} className="p-2 text-red-400 hover:bg-red-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
@@ -121,7 +124,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
                     </div>
 
                     <div className="space-y-3">
-                        <p className="text-base font-semibold text-[#4A4A4A] leading-relaxed">{activity.desc}</p>
+                        <p className="text-base font-semibold text-[#4A4A4A] leading-relaxed">{displayDesc}</p>
                         
                         {(activity.recommendationReason || activity.costEstimate || activity.transportHint || activity.localTip) && (
                             <div className="flex flex-col gap-2 mt-3 bg-gray-50/80 p-4 rounded-2xl border border-gray-100">

@@ -82,34 +82,38 @@ const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, al
                 )}
             </AnimatePresence>
 
-            {/* Error or Empty State */}
+            {/* Error or Empty State (Wanderlust Placeholder) */}
             {error && !imgUrl && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center mb-2">
-                        <span className="text-gray-400 text-xs text-secondary font-bold">!</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-indigo-900">
+                    <div className="flex flex-col items-center p-4 text-center">
+                        <span className="text-white text-2xl font-black tracking-widest opacity-80 mb-2">WANDERLUST</span>
+                        <div className="w-12 h-1 bg-white/30 rounded-full mb-3" />
+                        <span className="text-white/60 text-xs font-medium uppercase tracking-wider">Adventure Awaits</span>
                     </div>
-                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">No Image Found</span>
                 </div>
             )}
 
             {/* Main Image */}
             {imgUrl && (
-                <motion.img 
-                    key={imgUrl}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.5 }}
-                    src={imgUrl} 
-                    alt={alt || searchName}
-                    className="w-full h-full object-cover"
-                    onLoad={() => setLoading(false)}
-                    onError={(e) => {
-                        e.target.onerror = null;
-                        setError(true);
-                        // 최종 폴백: 고화질 여행 테마 이미지
-                        e.target.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1600';
-                    }}
-                />
+                <>
+                    <motion.img 
+                        key={imgUrl}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                        src={imgUrl} 
+                        alt={alt || searchName}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onLoad={() => setLoading(false)}
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            setImgUrl(null);
+                            setError(true);
+                        }}
+                    />
+                    {/* 은은한 그라데이션 오버레이 (가독성 향상) */}
+                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
+                </>
             )}
         </div>
     );

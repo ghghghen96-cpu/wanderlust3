@@ -68,6 +68,7 @@ const ALL_DESTINATIONS = [
     { id: 'rio', cityKey: 'rio', countryKey: 'brazil', emoji: '🇧🇷', imgId: 'photo-1483729558449-99ef09a8c325', climates: ['Tropical', 'Urban'] },
     { id: 'machupicchu', cityKey: 'machupicchu', countryKey: 'peru', emoji: '🇵🇪', imgId: 'photo-1526392060635-9d6019884377', climates: ['Alpine'] },
     { id: 'danang', cityKey: 'danang', countryKey: 'vietnam', emoji: '🇻🇳', imgId: 'photo-1555432322-3832c9693769', climates: ['Tropical', 'Oceanic'] },
+    { id: 'amsterdam', cityKey: 'amsterdam', countryKey: 'netherlands', emoji: '🌷', imgId: 'photo-1514936034176-a4f65345686d', climates: ['Urban', 'Oceanic'] },
     { id: 'fukuoka', cityKey: 'fukuoka', countryKey: 'japan', emoji: '🇯🇵', imgId: 'photo-1590274853856-f22d5ee3d228', climates: ['Urban', 'Oceanic'] },
     { id: 'nagoya', cityKey: 'nagoya', countryKey: 'japan', emoji: '🇯🇵', imgId: 'photo-1585437648316-dbd23605b0a3', climates: ['Urban'] },
 ];
@@ -130,6 +131,14 @@ const Survey = () => {
             }
         }
     }, [location.state?.prefillDestination]);
+
+    useEffect(() => {
+        // 단계 이동 시 페이지 최상단으로 스크롤 (레이아웃 렌더링 후 실행되도록 지연 시간 추가)
+        const scrollTimer = setTimeout(() => {
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        }, 0);
+        return () => clearTimeout(scrollTimer);
+    }, [step]);
 
     // 언어 변경 시 선택된 목적지 텍스트 동적 업데이트
     useEffect(() => {

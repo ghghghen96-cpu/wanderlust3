@@ -15,12 +15,20 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
     const { t: commonT } = useTranslation('translation');
     const navigate = useNavigate();
     const [price, setPrice] = useState('');
+    const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [selectedThumb, setSelectedThumb] = useState(0);
     const [publishing, setPublishing] = useState(false);
     const [success, setSuccess] = useState(false);
     const [publishError, setPublishError] = useState('');
     const [countdown, setCountdown] = useState(3);
+
+    // 초기 제목 설정
+    useEffect(() => {
+        if (data.destination) {
+            setTitle(`${data.destination} ${t('marketplace.itinerary') || 'Itinerary'}`);
+        }
+    }, [data.destination]);
 
     // ── Canvas 이미지 압축 유틸 (최대 800px, JPEG 75%) ──────────────────
     const compressImage = (dataUrl, maxSize = 800, quality = 0.75) => {
@@ -107,7 +115,7 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                 creatorName: user?.displayName || commonT('nav.traveler', { defaultValue: 'Traveler' }),
                 creatorEmail: user?.email || '',
                 creatorAvatar: user?.photoURL || '',
-                title: String(description).trim(),
+                title: String(title || description).trim(),
                 price: parseFloat(price),
                 thumbnail: safeThumbnail,
                 destination: String(data.destination || ''),
@@ -324,6 +332,19 @@ const PublishModal = ({ isOpen, onClose, itinerary, data, flights, hotels, user 
                                     onChange={e => setPrice(e.target.value)}
                                     placeholder={t('publishPricePlaceholder')}
                                     className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-lg font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <Tag size={14} className="text-primary" /> {commonT('itinerary.publishTitleInput') || "TITLE"}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={title}
+                                    onChange={e => setTitle(e.target.value)}
+                                    placeholder="Enter itinerary title..."
+                                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-secondary outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-gray-300"
                                 />
                             </div>
 

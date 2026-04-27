@@ -1,10 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
-    ChevronLeft, Calendar, Send, MapPin, Star, Plus, Trash2, Edit2, List,
-    Clock, MessageCircle, Sparkles, X, Plane, BedDouble, PlusCircle, ChevronDown, ChevronUp,
-    Globe, ExternalLink, ChevronRight, Upload, CheckCircle2, DollarSign, Image, FileText, Tag,
-    Wallet, Bus, Info
+    ChevronLeft, Calendar, MapPin, Plus, List,
+    MessageCircle, X, Plane, BedDouble,
+    ExternalLink, ChevronRight, Upload, Map
 } from 'lucide-react';
 import { addDays, differenceInDays } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
@@ -23,6 +22,7 @@ import AIChatModal from '../components/itinerary/AIChatModal';
 import PublishModal from '../components/itinerary/PublishModal';
 import FlightCard from '../components/itinerary/FlightCard';
 import HotelCard from '../components/itinerary/HotelCard';
+import MapView from '../components/itinerary/MapView';
 import { Section, AdPlaceholder } from '../components/itinerary/ItineraryComponents';
 
 // Helpers
@@ -47,28 +47,42 @@ const Itinerary = () => {
     useEffect(() => {
         const raw = data.destination || '';
         const id = data.destinationId || '';
-        if (raw.toLowerCase().includes('select destination') || raw.toLowerCase().includes('목적지 선택')) {
+
+        // If we have a destinationId, try to get the translated name first
+        if (id) {
+            const cityKey = id.toLowerCase();
+            const translatedCity = i18n.t(`survey.destinations.${cityKey}`);
+            
+            // Check if translation exists (not returning the key itself)
+            if (translatedCity && translatedCity !== `survey.destinations.${cityKey}`) {
+                setDisplayDestination(translatedCity);
+                return;
+            }
+        }
+
+        if (raw.toLowerCase().includes('select destination') || raw.toLowerCase().includes('紐⑹쟻吏 ?좏깮')) {
             setDisplayDestination(id ? (id.charAt(0).toUpperCase() + id.slice(1)) : '');
             return;
         }
         setDisplayDestination(raw);
-    }, [data.destination, data.destinationId, i18n.language]);
+    }, [data.destination, data.destinationId, i18n.language, t]);
 
     const [itinerary, setItinerary] = useState([]);
     const [destData, setDestData] = useState(null);
-    const [activeTab, setActiveTab] = useState('itinerary');
+    const [activeTab, setActiveTab] = useState('map'); // 湲곕낯 ?? 吏??紐⑤뱶
+    const [activeDayIndex, setActiveDayIndex] = useState(0);
     const [chatOpen, setChatOpen] = useState(false);
     const [publishOpen, setPublishOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     const navigate = useNavigate();
 
-    // ── Auth Observer ──
+    // ?? Auth Observer ??
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
         return () => unsub();
     }, []);
 
-    // ── Flights & Hotels State ──
+    // ?? Flights & Hotels State ??
     const [flights, setFlights] = useState(() => {
         try { const s = localStorage.getItem(`flights_v2_${data.destination}`); if (s) return JSON.parse(s); } catch { }
         return [{ id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '' }];
@@ -90,7 +104,7 @@ const Itinerary = () => {
     const removeHotel = (id) => setHotels(hs => hs.filter(h => h.id !== id));
     const updateHotel = (id, k, v) => setHotels(hs => hs.map(h => h.id === id ? { ...h, [k]: v } : h));
 
-    // ── SMART TRAVEL ROUTE PLANNER ENGINE (CORE LOGIC) ──
+    // ?? SMART TRAVEL ROUTE PLANNER ENGINE (CORE LOGIC) ??
     useEffect(() => {
         const generate = async () => {
             try {
@@ -151,11 +165,58 @@ const Itinerary = () => {
                 const generateItemExtras = (act, isDining) => {
                     const tips = [t('tipMorning'), t('tipTrap'), t('tipSpecialty'), t('tipShoes'), t('tipTickets')];
                     const transports = [t('tipWalk'), t('tipBus'), t('tipSubway'), t('tipTaxi')];
+                    
+                    // Identify which user interest this matches for personalized reasoning
+                    const matchedFocus = focusTypes.find(f => act.type?.toLowerCase().includes(f.toLowerCase()));
+                    
+                    let recReason = t('reasonGeneral', { rating: act.rating || 4.5 });
+                    if (isDining) {
+                        recReason = t('reasonDining', { style: data.dining || 'preferred' });
+                    } else if (matchedFocus) {
+                        // Localize the focus name for the reason string
+                        const focusLabel = t(`theme${matchedFocus}`) || matchedFocus;
+                        recReason = t('reasonFocusMatch', { focus: focusLabel });
+                    }
+
                     return { 
-                        recommendationReason: isDining ? t('reasonDining', { style: data.dining || 'preferred' }) : t('reasonGeneral', { rating: act.rating || 4.5 }),
+                        recommendationReason: recReason,
                         costEstimate: isDining ? '$$' : '$',
                         transportHint: transports[Math.floor(Math.random() * transports.length)],
                         localTip: tips[Math.floor(Math.random() * tips.length)]
+                    };
+                };
+
+                const foodPool = allActivities.filter(a => a.type === 'Food' || a.category === 'Food');
+                const usedFood = new Set();
+
+                const getMealRecommendation = (mealType, lastLat, lastLng) => {
+                    const pool = foodPool.filter(a => !usedFood.has(a.name));
+                    let picks = [];
+                    if (pool.length >= 2) {
+                        picks = pool.sort((a, b) => {
+                            const da = lastLat ? calcDist(lastLat, lastLng, a.latitude, a.longitude) : 0;
+                            const db = lastLat ? calcDist(lastLat, lastLng, b.latitude, b.longitude) : 0;
+                            return da - db;
+                        }).slice(0, 2);
+                    } else {
+                        picks = [
+                            { name: `${data.destination} Popular ${mealType} 1`, type: 'Food', rating: 4.8, desc: "A top-rated spot from Google Maps popular lists.", desc_ko: "Google Maps 추천 인기 맛집입니다." },
+                            { name: `${data.destination} Local ${mealType} 2`, type: 'Food', rating: 4.7, desc: "Traditional flavors with excellent atmosphere.", desc_ko: "분위기와 맛을 모두 갖춘 현지 추천 장소입니다." }
+                        ];
+                    }
+                    picks.forEach(p => usedFood.add(p.name));
+                    
+                    const time = mealType === 'Breakfast' ? '08:30' : (mealType === 'Lunch' ? '12:30' : '18:30');
+                    return {
+                        id: `meal-${mealType}-${Date.now()}-${Math.random()}`,
+                        name: t(`meal${mealType}`, { defaultValue: `${mealType} Recommendation` }),
+                        type: 'Food',
+                        time,
+                        desc: `- ${t('mealOptionTitle') || 'Meal Options'}:\n1. ${picks[0].name} (${picks[0].rating} / 5.0)\n2. ${picks[1].name} (${picks[1].rating} / 5.0)\n\n* ${t('mealSource') || 'Data from Google Places'}`,
+                        desc_ko: `- ${t('mealOptionTitle') || '식사 옵션'}:\n1. ${picks[0].name_ko || picks[0].name} (${picks[0].rating} / 5.0)\n2. ${picks[1].name_ko || picks[1].name} (${picks[1].rating} / 5.0)\n\n* ${t('mealSource') || 'Google Maps 기반 추천'}`,
+                        img: getImg(picks[0].name, 'Food', data.destination, data.destinationId),
+                        latitude: picks[0].latitude,
+                        longitude: picks[0].longitude
                     };
                 };
 
@@ -163,19 +224,63 @@ const Itinerary = () => {
                 for (let i = 0; i < dayCount; i++) {
                     let lastLat = null, lastLng = null;
                     const dayItems = [];
+                    
+                    // Add Breakfast if Packed
+                    if (data.pace === 'Packed') {
+                        dayItems.push(getMealRecommendation('Breakfast', lastLat, lastLng));
+                    }
+
+                    // Activities & Lunch/Dinner
+                    const actsForDay = [];
                     for (let j = 0; j < basePerDay; j++) {
-                        const pool = allActivities.filter(a => !globalUsed.has(a.name));
+                        const pool = allActivities.filter(a => !globalUsed.has(a.name) && a.type !== 'Food');
                         if (!pool.length) break;
-                        const scored = pool.map(act => ({ act, score: scoreActivity(act, lastLat !== null ? calcDist(lastLat, lastLng, act.latitude, act.longitude) : null) })).sort((a, b) => b.score - a.score);
-                        const next = scored[0].act;
+                        
+                        const scored = pool.map(act => ({ 
+                            act, 
+                            score: scoreActivity(act, lastLat !== null ? calcDist(lastLat, lastLng, act.latitude, act.longitude) : null) 
+                        })).sort((a, b) => b.score - a.score);
+                        
+                        let next = scored[0].act;
                         globalUsed.add(next.name);
                         lastLat = next.latitude; lastLng = next.longitude;
-                        dayItems.push({ ...next, ...generateItemExtras(next, false), img: getImg(next.name, next.type, data.destination, data.destinationId), id: `${i}-${j}-${Date.now()}`, time: `${9 + j * 2}:00` });
+                        
+                        const extras = generateItemExtras(next, false);
+                        const itemTime = `${10 + j * 2.5}:00`; // Dynamic time based on index
+                        
+                        actsForDay.push({ 
+                            ...next, 
+                            ...extras, 
+                            img: getImg(next.name, next.type, data.destination, data.destinationId), 
+                            id: `${i}-${j}-${Date.now()}`, 
+                            time: itemTime
+                        });
                     }
-                    days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme: t('themeDefault'), items: dayItems });
+
+                    // Construct final day list with meals injected between activities
+                    if (actsForDay.length > 0) {
+                        dayItems.push(actsForDay[0]); // Morning activity
+                        dayItems.push(getMealRecommendation('Lunch', actsForDay[0].latitude, actsForDay[0].longitude));
+                        
+                        if (actsForDay.length > 1) {
+                            dayItems.push(actsForDay[1]); // Afternoon activity
+                        }
+                        
+                        // Add more activities if any
+                        for (let k = 2; k < actsForDay.length; k++) {
+                            dayItems.push(actsForDay[k]);
+                        }
+
+                        dayItems.push(getMealRecommendation('Dinner', dayItems[dayItems.length-1].latitude, dayItems[dayItems.length-1].longitude));
+                    }
+
+                    // Sort by time just in case
+                    const sortedDayItems = dayItems.sort((a, b) => a.time.localeCompare(b.time));
+
+                    days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme: t('themeDefault'), items: sortedDayItems });
                 }
 
-                // ── Text First! Render the itinerary immediately ──
+                // ?? Text First! Render the itinerary immediately ??
                 setItinerary(days);
                 saveSearchHistory(data);
 
@@ -187,7 +292,7 @@ const Itinerary = () => {
         generate();
     }, [data, t]);
 
-    // ── Mutators ──
+    // ?? Mutators ??
     const setDayItems = (di, items) => setItinerary(prev => { const n = [...prev]; n[di] = { ...n[di], items }; return n; });
     const updateAct = (di, id, a) => setDayItems(di, itinerary[di].items.map(x => x.id === id ? a : x));
     const deleteAct = (di, id) => setDayItems(di, itinerary[di].items.filter(x => x.id !== id));
@@ -196,6 +301,14 @@ const Itinerary = () => {
         const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: t('newSpotDesc'), type: tp, img: null, isNew: true };
         setDayItems(di, [...itinerary[di].items, item]);
     };
+    // 吏?꾩뿉??洹쇱쿂 ?μ냼瑜??쇱젙??異붽?
+    const addItemToDay = useCallback((di, newItem) => {
+        setItinerary(prev => {
+            const n = [...prev];
+            if (n[di]) n[di] = { ...n[di], items: [...(n[di].items || []), newItem] };
+            return n;
+        });
+    }, []);
 
     if (!destData) return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6 p-6">
@@ -207,151 +320,143 @@ const Itinerary = () => {
 
     const totalSpots = itinerary.reduce((s, d) => s + (d.items || []).length, 0);
 
+    const activeDay = itinerary[activeDayIndex];
+
     return (
-        <div className="min-h-screen bg-slate-50 pb-20">
+        <div className="min-h-screen bg-white flex flex-col">
             <Navbar />
             
-            {/* ── STICKY HEADER ── */}
-            <nav className="px-6 md:px-14 py-4 md:h-20 flex flex-col md:flex-row items-stretch md:items-center justify-between bg-white border-b border-gray-200 shadow-sm sticky top-[80px] z-40 gap-4">
+            {/* ?? ?ㅽ겕 ?ㅻ뜑 ?? */}
+            <nav className="px-5 h-16 flex items-center justify-between bg-white border-b border-gray-100 shadow-sm sticky top-[80px] z-40">
                 <Link to="/survey" className="flex items-center gap-3 group">
-                    <div className="p-2.5 bg-gray-50 rounded-xl group-hover:bg-primary/10 transition-all"><ChevronLeft size={24} /></div>
+                    <div className="p-2 bg-gray-50 rounded-xl group-hover:bg-amber-50 transition-all"><ChevronLeft size={20} className="text-gray-600"/></div>
                     <div>
-                        <h1 className="font-extrabold text-xl md:text-2xl text-secondary">{displayDestination}</h1>
+                        <h1 className="font-extrabold text-xl text-gray-900">{displayDestination}</h1>
                         <p className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
-                            <Calendar size={13} className="text-primary" />
-                            {safeFormat(data.startDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} – {safeFormat(data.endDate, 'MMM dd', i18n.language === 'ko' ? ko : enUS)} · {t('days', { count: itinerary.length })}
+                            <Calendar size={11} className="text-amber-400"/>
+                            {safeFormat(data.startDate,'MMM dd',i18n.language==='ko'?ko:enUS)} - {safeFormat(data.endDate,'MMM dd',i18n.language==='ko'?ko:enUS)} | {t('days',{count:itinerary.length, defaultValue: itinerary.length + ' days'})}
                         </p>
                     </div>
                 </Link>
-
-                <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-3">
-                    <div className="flex bg-gray-100 p-1.5 rounded-2xl">
-                        {['itinerary', 'summary'].map(tab => (
-                            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-white shadow text-secondary' : 'text-gray-500 hover:text-secondary'}`}>
-                                {t(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
-                            </button>
+                <div className="flex items-center gap-3">
+                    <div className="flex bg-gray-100 p-1 rounded-xl">
+                        {[{id:'map',label:'Map'},{id:'itinerary',label:'List'},{id:'summary',label:'Summary'}].map(tab=>(
+                            <button key={tab.id} onClick={()=>setActiveTab(tab.id)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab===tab.id?'bg-amber-400 text-gray-900':'text-gray-400 hover:text-white'}`}>{tab.label}</button>
                         ))}
                     </div>
-                    <button onClick={() => currentUser ? setPublishOpen(true) : window.confirm(t('publishLoginRequired')) && navigate('/login')}
-                        className="flex items-center justify-center gap-2.5 px-8 py-3.5 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg hover:shadow-xl transition-all">
-                        <Upload size={18} /> {t('publishBtn')}
+                    <button onClick={()=>currentUser?setPublishOpen(true):window.confirm(t('publishLoginRequired'))&&navigate('/login')}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 to-orange-400 text-gray-900 font-black text-xs rounded-xl shadow-lg hover:shadow-xl transition-all">
+                        <Upload size={15}/> {t('publishBtn')}
                     </button>
                 </div>
             </nav>
 
-            <main className="w-full max-w-[1440px] mx-auto px-6 md:px-12 py-10 flex flex-col lg:flex-row gap-10">
-                <aside className="hidden lg:flex flex-col w-72 shrink-0">
-                    <div className="sticky top-28 space-y-6">
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">{t('recommended')}</h3>
-                            <AdPlaceholder className="w-full h-[600px] shadow-inner" />
-                        </div>
-                    </div>
-                </aside>
-
-                <div className="flex-1 min-w-0">
-                    <AnimatePresence mode="wait">
-                        {activeTab === 'itinerary' ? (
-                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-14">
-                                {itinerary.map((day, di) => (
-                                    <div key={day.id}>
-                                        <div className="flex items-center gap-5 mb-7">
-                                            <div className="w-20 h-20 bg-secondary text-white rounded-3xl flex flex-col items-center justify-center font-black shadow-2xl border-4 border-white/10 shrink-0">
-                                                <span className="text-[10px] uppercase tracking-widest opacity-50 mb-0.5">{t('dayLabel')}</span>
-                                                <span className="text-4xl leading-none">{day.dayNum}</span>
-                                            </div>
-                                            <div>
-                                                <h2 className="text-2xl md:text-3xl font-black text-secondary">{safeFormat(day.date, 'EEEE, MMM do', i18n.language === 'ko' ? ko : enUS)}</h2>
-                                                <div className="flex items-center gap-3 mt-2">
-                                                    <p className="text-sm text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">{t('activitiesCount', { count: (day.items || []).length })}</p>
-                                                    <a href={getDayMapUrl(day.items, data.destination)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs font-black text-white bg-secondary px-4 py-1.5 rounded-full shadow-lg"><MapPin size={14} /><span>{t('routeMap')}</span></a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <Reorder.Group axis="y" values={day.items || []} onReorder={items => setDayItems(di, items)} className="space-y-4">
-                                            {day.items.map(act => (
-                                                <ActivityCard 
-                                                    key={act.id} 
-                                                    activity={act} 
-                                                    onSave={a => updateAct(di, act.id, a)} 
-                                                    onDelete={() => deleteAct(di, act.id)} 
-                                                    destination={displayDestination}
-                                                    destinationId={data.destinationId}
-                                                />
-                                            ))}
-                                        </Reorder.Group>
-                                        <button onClick={() => addAct(di)} className="w-full mt-6 py-5 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400 font-bold hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2">
-                                            <Plus size={22} /> {t('addSpot')}
-                                        </button>
-                                    </div>
-                                ))}
-                            </motion.div>
-                        ) : (
-                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                                <Section title={t('flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('addFlight')}>
-                                    {flights.map(f => <FlightCard key={f.id} f={f} onChange={(k, v) => updateFlight(f.id, k, v)} onRemove={() => removeFlight(f.id)} showRemove={flights.length > 1} />)}
-                                </Section>
-                                <Section title={t('accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('addStay')}>
-                                    {hotels.map((h, i) => <HotelCard key={h.id} h={h} index={i} onChange={(k, v) => updateHotel(h.id, k, v)} onRemove={() => removeHotel(h.id)} showRemove={hotels.length > 1} />)}
-                                </Section>
-                                <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-                                     <div className="px-8 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                                        <h3 className="text-lg font-black text-secondary flex items-center gap-2.5"><List size={18} className="text-primary" /> {t('journeyOverview')}</h3>
-                                        <div className="flex gap-3">
-                                            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold">{t('days', { count: itinerary.length })}</span>
-                                            <span className="px-3 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-bold">{t('spots', { count: totalSpots })}</span>
-                                        </div>
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left">
-                                            <thead>
-                                                <tr className="border-b border-gray-100">
-                                                    {['day', 'time', 'activity', 'type', 'map'].map(h => <th key={h} className="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest">{t(`col${h.charAt(0).toUpperCase() + h.slice(1)}`)}</th>)}
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-50">
-                                                {itinerary.map(day => (day.items || []).map((item, idx) => (
-                                                    <tr key={item.id} className="hover:bg-gray-50/50">
-                                                        {idx === 0 && <td rowSpan={day.items.length} className="px-6 py-6 align-top border-r bg-gray-50/30 text-center"><span className="font-black text-primary text-lg">{t('dayShort', { count: day.dayNum })}</span></td>}
-                                                        <td className="px-6 py-5 text-primary font-bold text-sm">{fmtTime(item.time)}</td>
-                                                        <td className="px-6 py-5"><p className="font-black text-secondary text-sm">{item.name}</p><p className="text-xs text-gray-400 truncate max-w-[200px]">{item.desc}</p></td>
-                                                        <td className="px-6 py-5"><span className="px-2.5 py-1 bg-gray-100 rounded-full text-[10px] font-black uppercase text-gray-500">{item.type}</span></td>
-                                                        <td className="px-6 py-5 text-center"><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name)}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-primary"><MapPin size={14} /></a></td>
-                                                    </tr>
-                                                )))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-
-                <aside className="hidden xl:flex flex-col w-72 shrink-0">
-                    <div className="sticky top-28 space-y-6">
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><ExternalLink size={14} /> {t('bookingShortcuts')}</h3>
-                            <div className="space-y-3">
-                                {[
-                                    { name: 'Skyscanner', icon: Plane, color: 'bg-blue-50 text-blue-600', url: 'https://www.skyscanner.net/' },
-                                    { name: 'Agoda', icon: BedDouble, color: 'bg-emerald-50 text-emerald-600', url: `https://www.agoda.com/search?city=${encodeURIComponent(data.destination)}` }
-                                ].map((link, idx) => (
-                                    <a key={idx} href={link.url} target="_blank" rel="noreferrer" className="flex items-center gap-4 p-4 rounded-2xl border border-gray-50 hover:shadow-md transition-all group">
-                                        <div className={`w-10 h-10 ${link.color} rounded-xl flex items-center justify-center`}><link.icon size={20} /></div>
-                                        <div className="flex-1 min-w-0"><p className="text-sm font-black text-secondary truncate">{link.name}</p><p className="text-[10px] font-bold text-gray-400">{t('bookNowLabel')}</p></div>
-                                        <ChevronRight size={14} className="text-gray-300 group-hover:text-primary" />
-                                    </a>
+            {/* ?? 硫붿씤 肄섑뀗痢??? */}
+            <div className="flex-1 flex overflow-hidden" style={{height:'calc(100vh - 80px - 64px)', minHeight: 0}}>
+                <AnimatePresence mode="wait">
+                {activeTab==='map' ? (
+                    <motion.div key="map" initial={{opacity:0}} animate={{opacity:1}} className="flex w-full h-full">
+                        {/* ?쇱そ: ?쇱옄蹂???꾨씪??(35%) */}
+                        <div className="w-[35%] flex flex-col bg-gray-50 border-r border-gray-100 overflow-hidden">
+                            {/* ?좎쭨 ??*/}
+                            <div className="flex overflow-x-auto gap-2 p-3 border-b border-gray-100 scrollbar-hide bg-white">
+                                {itinerary.map((day,di)=>(
+                                    <button key={day.id} onClick={()=>setActiveDayIndex(di)}
+                                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black transition-all ${activeDayIndex===di?'bg-amber-400 text-white shadow':'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}>
+                                        Day {day.dayNum}
+                                    </button>
                                 ))}
                             </div>
+                            {/* ?좎쭨 ?쒕ぉ */}
+                            {activeDay && (
+                                <div className="px-4 py-3 border-b border-gray-100 bg-white">
+                                    <h2 className="text-gray-900 font-black text-sm">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
+                                    <p className="text-gray-500 text-xs">{(activeDay.items||[]).length} places</p>
+                                </div>
+                            )}
+                            {/* ??꾨씪???꾩씠??*/}
+                            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                                {(activeDay?.items||[]).map((act,idx)=>(
+                                    <motion.div key={act.id} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:idx*0.05}}
+                                        className="flex items-start gap-3 p-3 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all group shadow-sm">
+                                        {/* ?쒕쾲 ??*/}
+                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 shadow-lg"
+                                            style={{backgroundColor:['#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'][idx%8],color:'#fff'}}>
+                                            {idx+1}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-gray-900 font-bold text-sm truncate">{act.name}</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-amber-500 text-xs font-bold">{act.time||'09:00'}</span>
+                                                <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 font-bold uppercase">{act.type}</span>
+                                            </div>
+                                            {act.desc&&<p className="text-gray-400 text-xs mt-1 line-clamp-2">{act.desc}</p>}
+                                        </div>
+                                        <button onClick={()=>deleteAct(activeDayIndex,act.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-400 hover:bg-red-500 hover:text-white transition-all shrink-0">
+                                            <X size={12}/>
+                                        </button>
+                                    </motion.div>
+                                ))}
+                                <button onClick={()=>addAct(activeDayIndex)} className="w-full py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 text-xs font-bold">
+                                    <Plus size={14}/> {t('addSpot')}
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                </aside>
-            </main>
+                        {/* ?ㅻⅨ履? 吏??(65%) */}
+                        <div className="flex-1 relative">
+                            <MapView
+                                key={`map-day-${activeDayIndex}`}
+                                dayItems={activeDay?.items||[]}
+                                activeDayIndex={activeDayIndex}
+                                destination={displayDestination}
+                                onAddPlace={addItemToDay}
+                            />
+                        </div>
+                    </motion.div>
+                ) : activeTab==='itinerary' ? (
+                    <motion.div key="list" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 overflow-y-auto bg-slate-50">
+                        <div className="max-w-4xl mx-auto px-6 py-10 space-y-14">
+                            {itinerary.map((day,di)=>(
+                                <div key={day.id}>
+                                    <div className="flex items-center gap-5 mb-7">
+                                        <div className="w-20 h-20 bg-secondary text-white rounded-3xl flex flex-col items-center justify-center font-black shadow-2xl shrink-0">
+                                            <span className="text-[10px] uppercase tracking-widest opacity-50 mb-0.5">{t('dayLabel')}</span>
+                                            <span className="text-4xl leading-none">{day.dayNum}</span>
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-black text-secondary">{safeFormat(day.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
+                                            <p className="text-sm text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full mt-2 inline-block">{t('activitiesCount',{count:(day.items||[]).length})}</p>
+                                        </div>
+                                    </div>
+                                    <Reorder.Group axis="y" values={day.items||[]} onReorder={items=>setDayItems(di,items)} className="space-y-4">
+                                        {day.items.map(act=>(
+                                            <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(di,act.id,a)} onDelete={()=>deleteAct(di,act.id)} destination={displayDestination} destinationId={data.destinationId}/>
+                                        ))}
+                                    </Reorder.Group>
+                                    <button onClick={()=>addAct(di)} className="w-full mt-6 py-5 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400 font-bold hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2">
+                                        <Plus size={22}/> {t('addSpot')}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                ) : (
+                    <motion.div key="summary" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 overflow-y-auto bg-slate-50">
+                        <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
+                            <Section title={t('flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('addFlight')}>
+                                {flights.map(f=><FlightCard key={f.id} f={f} onChange={(k,v)=>updateFlight(f.id,k,v)} onRemove={()=>removeFlight(f.id)} showRemove={flights.length>1}/>)}
+                            </Section>
+                            <Section title={t('accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('addStay')}>
+                                {hotels.map((h,i)=><HotelCard key={h.id} h={h} index={i} onChange={(k,v)=>updateHotel(h.id,k,v)} onRemove={()=>removeHotel(h.id)} showRemove={hotels.length>1}/>)}
+                            </Section>
+                        </div>
+                    </motion.div>
+                )}
+                </AnimatePresence>
+            </div>
 
-            <button onClick={() => setChatOpen(true)} className="fixed bottom-7 right-7 w-14 h-14 bg-primary text-secondary rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-40"><MessageCircle size={28} /></button>
-            <AIChatModal isOpen={chatOpen} onClose={() => setChatOpen(false)} destination={data.destination} />
-            <PublishModal isOpen={publishOpen} onClose={() => setPublishOpen(false)} itinerary={itinerary} data={data} flights={flights} hotels={hotels} user={currentUser} />
+            {/* Chat icon removed per user request */}
+            <PublishModal isOpen={publishOpen} onClose={()=>setPublishOpen(false)} itinerary={itinerary} data={data} flights={flights} hotels={hotels} user={currentUser}/>
         </div>
     );
 };
