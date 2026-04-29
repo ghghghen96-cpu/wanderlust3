@@ -361,7 +361,10 @@ const Itinerary = () => {
                 </div>
             </nav>
 
-            {/* ?? 硫붿씤 肄섑뀗痢??                {activeTab==='map' ? (
+            {/* 탭별 메인 콘텐츠 */}
+            <div className="flex-1 overflow-hidden flex flex-col relative bg-slate-50">
+                <AnimatePresence mode="wait">
+                {activeTab==='map' ? (
                     <motion.div key="map" initial={{opacity:0}} animate={{opacity:1}} className="flex w-full h-full relative overflow-hidden">
                         
                         {/* 지도 영역 (모바일: 전체화면, 데스크톱: 우측 65%) */}
