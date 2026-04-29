@@ -77,11 +77,19 @@ const Itinerary = () => {
     const navigate = useNavigate();
 
     // 모바일 바텀시트 관련 상태
-    const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    const [isMobile, setIsMobile] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return window.matchMedia('(max-width: 767px)').matches || window.innerWidth < 768;
+        }
+        return false;
+    });
     const [isSheetExpanded, setIsSheetExpanded] = useState(false);
 
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        const handleResize = () => {
+            setIsMobile(window.matchMedia('(max-width: 767px)').matches || window.innerWidth < 768);
+        };
+        handleResize(); // 마운트 시 즉시 한 번 더 확인
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -336,26 +344,38 @@ const Itinerary = () => {
         <div className="min-h-screen bg-white flex flex-col">
             <Navbar />
             
-            {/* ?? ?ㅽ겕 ?ㅻ뜑 ?? */}
-            <nav className="px-5 h-16 flex items-center justify-between bg-white border-b border-gray-100 shadow-sm sticky top-[80px] z-40">
-                <Link to="/survey" className="flex items-center gap-3 group">
-                    <div className="p-2 bg-gray-50 rounded-xl group-hover:bg-amber-50 transition-all"><ChevronLeft size={20} className="text-gray-600"/></div>
-                    <div>
-                        <h1 className="font-extrabold text-xl text-gray-900">{displayDestination}</h1>
-                        <p className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
-                            <Calendar size={11} className="text-amber-400"/>
-                            {safeFormat(data.startDate,'MMM dd',i18n.language==='ko'?ko:enUS)} - {safeFormat(data.endDate,'MMM dd',i18n.language==='ko'?ko:enUS)} | {t('days',{count:itinerary.length, defaultValue: itinerary.length + ' days'})}
-                        </p>
-                    </div>
-                </Link>
-                <div className="flex items-center gap-3">
-                    <div className="flex bg-gray-100 p-1 rounded-xl">
+            {/* 상단 네비게이션 (반응형) */}
+            <nav className="px-3 md:px-5 py-2 md:h-16 flex flex-col md:flex-row md:items-center justify-between bg-white border-b border-gray-100 shadow-sm sticky top-[60px] md:top-[80px] z-40 gap-3 md:gap-0">
+                {/* 상단 (모바일에서는 타이틀 + 업로드 아이콘) */}
+                <div className="flex items-center justify-between w-full md:w-auto">
+                    <Link to="/survey" className="flex items-center gap-3 group overflow-hidden">
+                        <div className="p-2 bg-gray-50 rounded-xl group-hover:bg-amber-50 transition-all shrink-0">
+                            <ChevronLeft size={20} className="text-gray-600"/>
+                        </div>
+                        <div className="min-w-0">
+                            <h1 className="font-extrabold text-lg md:text-xl text-gray-900 truncate">{displayDestination}</h1>
+                            <p className="text-[10px] md:text-xs font-bold text-gray-500 flex items-center gap-1.5 truncate">
+                                <Calendar size={11} className="text-amber-400 shrink-0"/>
+                                <span className="truncate">{safeFormat(data.startDate,'MMM dd',i18n.language==='ko'?ko:enUS)} - {safeFormat(data.endDate,'MMM dd',i18n.language==='ko'?ko:enUS)}</span>
+                                <span className="shrink-0">| {t('days',{count:itinerary.length, defaultValue: itinerary.length + ' days'})}</span>
+                            </p>
+                        </div>
+                    </Link>
+                    <button onClick={()=>currentUser?setPublishOpen(true):window.confirm(t('publishLoginRequired'))&&navigate('/login')}
+                        className="md:hidden flex items-center justify-center p-2.5 bg-gradient-to-r from-amber-400 to-orange-400 text-gray-900 rounded-xl shadow-md shrink-0 ml-2">
+                        <Upload size={16}/>
+                    </button>
+                </div>
+                
+                {/* 하단 (모바일에서는 탭 버튼 전체 너비) */}
+                <div className="flex items-center justify-between gap-3 w-full md:w-auto">
+                    <div className="flex bg-gray-100 p-1 rounded-xl w-full md:w-auto justify-center">
                         {[{id:'map',label:'Map'},{id:'itinerary',label:'List'},{id:'summary',label:'Summary'}].map(tab=>(
-                            <button key={tab.id} onClick={()=>setActiveTab(tab.id)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab===tab.id?'bg-amber-400 text-gray-900':'text-gray-400 hover:text-white'}`}>{tab.label}</button>
+                            <button key={tab.id} onClick={()=>setActiveTab(tab.id)} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab===tab.id?'bg-amber-400 text-gray-900':'text-gray-400 hover:text-gray-700'}`}>{tab.label}</button>
                         ))}
                     </div>
                     <button onClick={()=>currentUser?setPublishOpen(true):window.confirm(t('publishLoginRequired'))&&navigate('/login')}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 to-orange-400 text-gray-900 font-black text-xs rounded-xl shadow-lg hover:shadow-xl transition-all">
+                        className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 to-orange-400 text-gray-900 font-black text-xs rounded-xl shadow-lg hover:shadow-xl transition-all shrink-0">
                         <Upload size={15}/> {t('publishBtn')}
                     </button>
                 </div>
