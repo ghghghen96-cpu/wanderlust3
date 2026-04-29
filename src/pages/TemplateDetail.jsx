@@ -198,13 +198,50 @@ const TemplateDetail = () => {
                         {t('itinerary.readyToWander') || 'Ready to start your own journey?'}
                     </h3>
                     <p className="text-[#44403c]/60 max-w-lg mx-auto mb-8 text-sm">
-                        {t('itinerary.readySubtitle') || 'Create a personalized travel plan designed just for you with our AI.'}
+                        {t('marketplace.importDescription') || 'Import this itinerary to your own plan and customize it as you wish.'}
                     </p>
                     <button 
-                        onClick={() => navigate('/survey')}
+                        onClick={() => {
+                            const itineraryData = template.itinerary || template.days || [];
+                            
+                            const startDate = new Date();
+                            const endDate = new Date();
+                            endDate.setDate(startDate.getDate() + Math.max(0, itineraryData.length - 1));
+                            
+                            const searchData = {
+                                destination: template.region || 'Template Destination',
+                                destinationId: (template.region || '').toLowerCase(),
+                                startDate: startDate.toISOString(),
+                                endDate: endDate.toISOString(),
+                                vibe: template.category || 'Balanced',
+                                pace: 'Balanced',
+                                companions: 'Solo',
+                                focus: []
+                            };
+                            
+                            // Itinerary.jsx가 읽어들일 수 있도록 storageKey 생성 (v4 형식)
+                            const storageKey = `itinerary_v4_${searchData.destination}_${searchData.startDate}_${searchData.endDate}_${searchData.vibe}_${searchData.pace}`;
+                            
+                            // 날짜 재조정
+                            const adjustedItinerary = itineraryData.map((day, idx) => {
+                                const dayDate = new Date(startDate);
+                                dayDate.setDate(startDate.getDate() + idx);
+                                return {
+                                    ...day,
+                                    date: dayDate.toISOString()
+                                };
+                            });
+
+                            localStorage.setItem(storageKey, JSON.stringify(adjustedItinerary));
+                            
+                            if (template.flights) localStorage.setItem(`flights_v2_${searchData.destination}`, JSON.stringify(template.flights));
+                            if (template.hotels) localStorage.setItem(`hotels_v2_${searchData.destination}`, JSON.stringify(template.hotels));
+                            
+                            navigate('/itinerary', { state: searchData });
+                        }}
                         className="px-8 py-3 bg-[#1c1917] text-white font-bold rounded-xl hover:bg-[#FF8A71] transition-all transform hover:-translate-y-1 shadow-lg hover:shadow-[#FF8A71]/20"
                     >
-                        {t('landing.heroButton') || t('nav.createTrip')}
+                        {t('marketplace.importButton') || '가져와서 수정하기 (Import & Edit)'}
                     </button>
                 </div>
             </div>
