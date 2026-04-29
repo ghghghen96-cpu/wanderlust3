@@ -39,7 +39,19 @@ import {
  * High-performance, progressive rendering architecture.
  */
 const Itinerary = () => {
-    const { state: data } = useLocation();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const data = location.state || JSON.parse(localStorage.getItem('last_search_data') || '{}');
+
+    // 새로고침 시에도 state 유지, 데이터가 없으면 설문으로 이동
+    useEffect(() => {
+        if (location.state) {
+            localStorage.setItem('last_search_data', JSON.stringify(location.state));
+        } else if (!data.destination) {
+            navigate('/survey', { replace: true });
+        }
+    }, [location.state, data.destination, navigate]);
+
     const { t, i18n } = useTranslation('translation', { keyPrefix: 'itinerary' });
     const [displayDestination, setDisplayDestination] = useState('');
 
@@ -60,7 +72,7 @@ const Itinerary = () => {
             }
         }
 
-        if (raw.toLowerCase().includes('select destination') || raw.toLowerCase().includes('紐⑹쟻吏 ?좏깮')) {
+        if (raw.toLowerCase().includes('select destination') || raw.toLowerCase().includes('목적지 선택') || raw.toLowerCase().includes('紐⑹쟻吏')) {
             setDisplayDestination(id ? (id.charAt(0).toUpperCase() + id.slice(1)) : '');
             return;
         }
@@ -74,7 +86,6 @@ const Itinerary = () => {
     const [chatOpen, setChatOpen] = useState(false);
     const [publishOpen, setPublishOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
-    const navigate = useNavigate();
 
     // 모바일 바텀시트 관련 상태
     const [isMobile, setIsMobile] = useState(() => {
@@ -122,9 +133,13 @@ const Itinerary = () => {
     const removeHotel = (id) => setHotels(hs => hs.filter(h => h.id !== id));
     const updateHotel = (id, k, v) => setHotels(hs => hs.map(h => h.id === id ? { ...h, [k]: v } : h));
 
-    // ?? SMART TRAVEL ROUTE PLANNER ENGINE (CORE LOGIC) ??
+    // 동선 최적화 알고리즘 업데이트에 따른 스토리지 키 버전 변경 (v4)
+    const storageKey = `itinerary_v4_${data.destination}_${data.startDate}_${data.endDate}_${data.vibe}_${data.pace}`;
+
+    // ?€?€ SMART TRAVEL ROUTE PLANNER ENGINE (CORE LOGIC) ?€?€
     useEffect(() => {
         const generate = async () => {
+            if (!data.destination) return;
             try {
                 const raw = (data.destination || '').toLowerCase().trim();
                 const idMatch = (data.destinationId || '').toLowerCase().trim();
@@ -142,6 +157,18 @@ const Itinerary = () => {
 
                 const sd = (matchKey && DESTINATION_DATA[matchKey]) || DESTINATION_DATA['default'];
                 setDestData(sd);
+
+                // 이미 생성된 일정이 있다면 로드하고 새로 생성하지 않음
+                try {
+                    const saved = localStorage.getItem(storageKey);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (parsed && parsed.length > 0) {
+                            setItinerary(parsed);
+                            return;
+                        }
+                    }
+                } catch(e) {}
 
                 const start = new Date(data.startDate);
                 const end = new Date(data.endDate);
@@ -168,7 +195,9 @@ const Itinerary = () => {
                     let score = (act.rating || 4.0) * 10;
                     if (focusTypes.some(f => act.type?.toLowerCase().includes(f.toLowerCase()))) score += 30;
                     if (prefTypes.includes(act.type)) score += 20;
-                    if (distKm !== null) score += Math.max(0, 50 - distKm * 2.5);
+                    // 동선 최적화를 위해 이전 장소와의 거리(distKm)에 대한 가중치 대폭 상향
+                    // 가까울수록(예: 1~2km) 높은 점수(최대 150점)를 부여하여, 테마보다 거리를 우선시하도록 설정
+                    if (distKm !== null) score += Math.max(0, 150 - distKm * 15);
                     return score + Math.random() * 5;
                 };
 
@@ -298,7 +327,7 @@ const Itinerary = () => {
                     days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme: t('themeDefault'), items: sortedDayItems });
                 }
 
-                // ?? Text First! Render the itinerary immediately ??
+                // ?€?€ Text First! Render the itinerary immediately ?€?€
                 setItinerary(days);
                 saveSearchHistory(data);
 
@@ -308,9 +337,16 @@ const Itinerary = () => {
             }
         };
         generate();
-    }, [data, t]);
+    }, [data, t, storageKey]);
 
-    // ?? Mutators ??
+    // 일정이 변경될 때마다 로컬 스토리지 업데이트
+    useEffect(() => {
+        if (itinerary.length > 0) {
+            localStorage.setItem(storageKey, JSON.stringify(itinerary));
+        }
+    }, [itinerary, storageKey]);
+
+    // ?€?€ Mutators ?€?€
     const setDayItems = (di, items) => setItinerary(prev => { const n = [...prev]; n[di] = { ...n[di], items }; return n; });
     const updateAct = (di, id, a) => setDayItems(di, itinerary[di].items.map(x => x.id === id ? a : x));
     const deleteAct = (di, id) => setDayItems(di, itinerary[di].items.filter(x => x.id !== id));
@@ -403,68 +439,68 @@ const Itinerary = () => {
                             <motion.div
                                 drag="y"
                                 dragConstraints={{ top: 0, bottom: 0 }}
-                                dragElastic={0.2}
+                                dragElastic={0.1}
                                 onDragEnd={(e, info) => {
-                                    if (info.offset.y < -50) setIsSheetExpanded(true);
-                                    if (info.offset.y > 50) setIsSheetExpanded(false);
+                                    if (info.offset.y < -30) setIsSheetExpanded(true);
+                                    if (info.offset.y > 30) setIsSheetExpanded(false);
                                 }}
                                 animate={isSheetExpanded ? "expanded" : "collapsed"}
                                 variants={{
-                                    collapsed: { y: "calc(100% - 140px)" }, // 140px만 보이게
-                                    expanded: { y: "15%" } // 전체의 85% 차지
+                                    collapsed: { y: "calc(100% - 120px)" }, // 120px만 노출
+                                    expanded: { y: 0 } // 바닥에서부터 h-[85%]를 차지
                                 }}
                                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                                className="absolute bottom-0 left-0 w-full h-full bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-20 flex flex-col overflow-hidden"
+                                className="absolute bottom-0 left-0 w-full h-[85%] bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-20 flex flex-col overflow-hidden"
                             >
                                 {/* 드래그 핸들 */}
-                                <div className="w-full flex justify-center py-3 cursor-grab active:cursor-grabbing shrink-0 bg-white" onClick={() => setIsSheetExpanded(!isSheetExpanded)}>
-                                    <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
+                                <div className="w-full flex justify-center py-2.5 cursor-grab active:cursor-grabbing shrink-0 bg-white" onClick={() => setIsSheetExpanded(!isSheetExpanded)}>
+                                    <div className="w-10 h-1 bg-gray-300 rounded-full" />
                                 </div>
                                 {/* 콘텐츠 영역 */}
                                 <div className="flex-1 overflow-hidden flex flex-col pointer-events-auto">
                                     {/* 날짜 탭 */}
-                                    <div className="flex overflow-x-auto gap-2 px-4 pb-3 border-b border-gray-100 scrollbar-hide shrink-0">
+                                    <div className="flex overflow-x-auto gap-2 px-3 pb-2 border-b border-gray-100 scrollbar-hide shrink-0">
                                         {itinerary.map((day,di)=>(
                                             <button key={day.id} onClick={(e)=>{ e.stopPropagation(); setActiveDayIndex(di); }}
-                                                className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black transition-all ${activeDayIndex===di?'bg-amber-400 text-white shadow':'bg-gray-100 text-gray-500'}`}>
+                                                className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all ${activeDayIndex===di?'bg-amber-400 text-white shadow':'bg-gray-100 text-gray-500'}`}>
                                                 Day {day.dayNum}
                                             </button>
                                         ))}
                                     </div>
                                     {/* 날짜 제목 */}
                                     {activeDay && (
-                                        <div className="px-4 py-3 border-b border-gray-100 bg-white shrink-0">
-                                            <h2 className="text-gray-900 font-black text-sm">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
-                                            <p className="text-gray-500 text-xs">{(activeDay.items||[]).length} places</p>
+                                        <div className="px-3 py-2 border-b border-gray-100 bg-white shrink-0 flex items-center justify-between">
+                                            <h2 className="text-gray-900 font-black text-xs">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
+                                            <p className="text-gray-500 text-[10px]">{(activeDay.items||[]).length} places</p>
                                         </div>
                                     )}
                                     {/* 타임라인 */}
-                                    <div className="flex-1 overflow-y-auto p-4 space-y-3" onPointerDownCapture={(e) => {
+                                    <div className="flex-1 overflow-y-auto p-3 space-y-2" onPointerDownCapture={(e) => {
                                         // 리스트 내부 스크롤 시 바텀시트 드래그가 방해받지 않도록 중단
                                         e.stopPropagation();
                                     }}>
                                         {(activeDay?.items||[]).map((act,idx)=>(
                                             <motion.div key={act.id} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:idx*0.05}}
-                                                className="flex items-start gap-3 p-3 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all group shadow-sm">
-                                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 shadow-lg"
+                                                className="flex items-start gap-2.5 p-2.5 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all group shadow-sm">
+                                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 shadow-lg"
                                                     style={{backgroundColor:['#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'][idx%8],color:'#fff'}}>
                                                     {idx+1}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-gray-900 font-bold text-sm truncate">{act.name}</p>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className="text-amber-500 text-xs font-bold">{act.time||'09:00'}</span>
-                                                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 font-bold uppercase">{act.type}</span>
+                                                    <p className="text-gray-900 font-bold text-xs truncate">{act.name}</p>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        <span className="text-amber-500 text-[10px] font-bold">{act.time||'09:00'}</span>
+                                                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[9px] text-gray-500 font-bold uppercase">{act.type}</span>
                                                     </div>
-                                                    {act.desc&&<p className="text-gray-400 text-xs mt-1 line-clamp-2">{act.desc}</p>}
+                                                    {act.desc&&<p className="text-gray-400 text-[10px] mt-1 line-clamp-1">{act.desc}</p>}
                                                 </div>
-                                                <button onClick={(e)=>{ e.stopPropagation(); deleteAct(activeDayIndex,act.id); }} className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-red-500 hover:text-white transition-all shrink-0">
-                                                    <X size={12}/>
+                                                <button onClick={(e)=>{ e.stopPropagation(); deleteAct(activeDayIndex,act.id); }} className="w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-red-500 hover:text-white transition-all shrink-0">
+                                                    <X size={10}/>
                                                 </button>
                                             </motion.div>
                                         ))}
-                                        <button onClick={()=>addAct(activeDayIndex)} className="w-full py-4 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 text-xs font-bold">
-                                            <Plus size={14}/> {t('addSpot')}
+                                        <button onClick={()=>addAct(activeDayIndex)} className="w-full py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-1.5 text-[10px] font-bold">
+                                            <Plus size={12}/> {t('addSpot')}
                                         </button>
                                     </div>
                                 </div>
