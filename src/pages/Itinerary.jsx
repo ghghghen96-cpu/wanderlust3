@@ -95,6 +95,18 @@ const Itinerary = () => {
         return false;
     });
     const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+    // 상단 nav 높이 동적 측정
+    const topNavRef = React.useRef(null);
+    const [topNavHeight, setTopNavHeight] = useState(100);
+
+    useEffect(() => {
+        const measure = () => {
+            if (topNavRef.current) setTopNavHeight(topNavRef.current.offsetHeight);
+        };
+        measure();
+        window.addEventListener('resize', measure);
+        return () => window.removeEventListener('resize', measure);
+    }, []);
 
     useEffect(() => {
         const handleResize = () => {
@@ -377,11 +389,11 @@ const Itinerary = () => {
     const activeDay = itinerary[activeDayIndex];
 
     return (
-        <div className="min-h-screen bg-white flex flex-col">
+        <div className="h-dvh overflow-hidden bg-white flex flex-col">
             <Navbar />
             
             {/* 상단 네비게이션 (반응형) */}
-            <nav className="px-3 md:px-5 py-2 md:h-16 flex flex-col md:flex-row md:items-center justify-between bg-white border-b border-gray-100 shadow-sm sticky top-[60px] md:top-[80px] z-40 gap-3 md:gap-0">
+            <nav ref={topNavRef} className="px-3 md:px-5 py-2 md:h-16 flex flex-col md:flex-row md:items-center justify-between bg-white border-b border-gray-100 shadow-sm sticky top-[80px] z-40 gap-3 md:gap-0">
                 {/* 상단 (모바일에서는 타이틀 + 업로드 아이콘) */}
                 <div className="flex items-center justify-between w-full md:w-auto">
                     <Link to="/survey" className="flex items-center gap-3 group overflow-hidden">
@@ -417,14 +429,14 @@ const Itinerary = () => {
                 </div>
             </nav>
 
-            {/* 탭별 메인 콘텐츠 */}
-            <div className="flex-1 overflow-hidden flex flex-col relative bg-slate-50">
+            {/* 탭별 메인 콘텐츠 - 남은 공간을 flex-1로 채움 */}
+            <div className="flex-1 flex flex-col overflow-hidden">
                 <AnimatePresence mode="wait">
                 {activeTab==='map' ? (
-                    <motion.div key="map" initial={{opacity:0}} animate={{opacity:1}} className="flex w-full h-full relative overflow-hidden">
+                    <motion.div key="map" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 relative overflow-hidden" style={{ display: 'flex', minHeight: 0 }}>
                         
                         {/* 지도 영역 (모바일: 전체화면, 데스크톱: 우측 65%) */}
-                        <div className={`relative ${isMobile ? 'w-full h-full absolute inset-0 z-0' : 'flex-1 order-2'}`}>
+                        <div className={`relative ${isMobile ? 'w-full h-full absolute inset-0 z-0' : 'flex-1 order-2 h-full'}`}>
                             <MapView
                                 key={`map-day-${activeDayIndex}`}
                                 dayItems={activeDay?.items||[]}
@@ -553,7 +565,7 @@ const Itinerary = () => {
                         )}
                     </motion.div>
                 ) : activeTab==='itinerary' ? (
-                    <motion.div key="list" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 overflow-y-auto bg-slate-50">
+                    <motion.div key="list" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 overflow-y-auto bg-slate-50" style={{ minHeight: 0 }}>
                         <div className="max-w-4xl mx-auto px-6 py-10 space-y-14">
                             {itinerary.map((day,di)=>(
                                 <div key={day.id}>
@@ -580,7 +592,7 @@ const Itinerary = () => {
                         </div>
                     </motion.div>
                 ) : (
-                    <motion.div key="summary" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 overflow-y-auto bg-slate-50">
+                    <motion.div key="summary" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 overflow-y-auto bg-slate-50" style={{ minHeight: 0 }}>
                         <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
                             <Section title={t('flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('addFlight')}>
                                 {flights.map(f=><FlightCard key={f.id} f={f} onChange={(k,v)=>updateFlight(f.id,k,v)} onRemove={()=>removeFlight(f.id)} showRemove={flights.length>1}/>)}
