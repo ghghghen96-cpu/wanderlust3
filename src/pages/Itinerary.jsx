@@ -69,14 +69,24 @@ const Itinerary = () => {
 
     const [itinerary, setItinerary] = useState([]);
     const [destData, setDestData] = useState(null);
-    const [activeTab, setActiveTab] = useState('map'); // 湲곕낯 ?? 吏??紐⑤뱶
+    const [activeTab, setActiveTab] = useState('map'); // 기본 맵 모드
     const [activeDayIndex, setActiveDayIndex] = useState(0);
     const [chatOpen, setChatOpen] = useState(false);
     const [publishOpen, setPublishOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     const navigate = useNavigate();
 
-    // ?? Auth Observer ??
+    // 모바일 바텀시트 관련 상태
+    const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // ?€?€ Auth Observer ?€?€
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
         return () => unsub();
@@ -351,59 +361,11 @@ const Itinerary = () => {
                 </div>
             </nav>
 
-            {/* ?? 硫붿씤 肄섑뀗痢??? */}
-            <div className="flex-1 flex overflow-hidden" style={{height:'calc(100vh - 80px - 64px)', minHeight: 0}}>
-                <AnimatePresence mode="wait">
-                {activeTab==='map' ? (
-                    <motion.div key="map" initial={{opacity:0}} animate={{opacity:1}} className="flex w-full h-full">
-                        {/* ?쇱そ: ?쇱옄蹂???꾨씪??(35%) */}
-                        <div className="w-[35%] flex flex-col bg-gray-50 border-r border-gray-100 overflow-hidden">
-                            {/* ?좎쭨 ??*/}
-                            <div className="flex overflow-x-auto gap-2 p-3 border-b border-gray-100 scrollbar-hide bg-white">
-                                {itinerary.map((day,di)=>(
-                                    <button key={day.id} onClick={()=>setActiveDayIndex(di)}
-                                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black transition-all ${activeDayIndex===di?'bg-amber-400 text-white shadow':'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}>
-                                        Day {day.dayNum}
-                                    </button>
-                                ))}
-                            </div>
-                            {/* ?좎쭨 ?쒕ぉ */}
-                            {activeDay && (
-                                <div className="px-4 py-3 border-b border-gray-100 bg-white">
-                                    <h2 className="text-gray-900 font-black text-sm">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
-                                    <p className="text-gray-500 text-xs">{(activeDay.items||[]).length} places</p>
-                                </div>
-                            )}
-                            {/* ??꾨씪???꾩씠??*/}
-                            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                                {(activeDay?.items||[]).map((act,idx)=>(
-                                    <motion.div key={act.id} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:idx*0.05}}
-                                        className="flex items-start gap-3 p-3 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all group shadow-sm">
-                                        {/* ?쒕쾲 ??*/}
-                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 shadow-lg"
-                                            style={{backgroundColor:['#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'][idx%8],color:'#fff'}}>
-                                            {idx+1}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-gray-900 font-bold text-sm truncate">{act.name}</p>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-amber-500 text-xs font-bold">{act.time||'09:00'}</span>
-                                                <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 font-bold uppercase">{act.type}</span>
-                                            </div>
-                                            {act.desc&&<p className="text-gray-400 text-xs mt-1 line-clamp-2">{act.desc}</p>}
-                                        </div>
-                                        <button onClick={()=>deleteAct(activeDayIndex,act.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-400 hover:bg-red-500 hover:text-white transition-all shrink-0">
-                                            <X size={12}/>
-                                        </button>
-                                    </motion.div>
-                                ))}
-                                <button onClick={()=>addAct(activeDayIndex)} className="w-full py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 text-xs font-bold">
-                                    <Plus size={14}/> {t('addSpot')}
-                                </button>
-                            </div>
-                        </div>
-                        {/* ?ㅻⅨ履? 吏??(65%) */}
-                        <div className="flex-1 relative">
+            {/* ?? 硫붿씤 肄섑뀗痢??                {activeTab==='map' ? (
+                    <motion.div key="map" initial={{opacity:0}} animate={{opacity:1}} className="flex w-full h-full relative overflow-hidden">
+                        
+                        {/* 지도 영역 (모바일: 전체화면, 데스크톱: 우측 65%) */}
+                        <div className={`relative ${isMobile ? 'w-full h-full absolute inset-0 z-0' : 'flex-1 order-2'}`}>
                             <MapView
                                 key={`map-day-${activeDayIndex}`}
                                 dayItems={activeDay?.items||[]}
@@ -412,6 +374,124 @@ const Itinerary = () => {
                                 onAddPlace={addItemToDay}
                             />
                         </div>
+
+                        {/* 사이드바 / 바텀시트 콘텐츠 (일정 리스트) */}
+                        {isMobile ? (
+                            <motion.div
+                                drag="y"
+                                dragConstraints={{ top: 0, bottom: 0 }}
+                                dragElastic={0.2}
+                                onDragEnd={(e, info) => {
+                                    if (info.offset.y < -50) setIsSheetExpanded(true);
+                                    if (info.offset.y > 50) setIsSheetExpanded(false);
+                                }}
+                                animate={isSheetExpanded ? "expanded" : "collapsed"}
+                                variants={{
+                                    collapsed: { y: "calc(100% - 140px)" }, // 140px만 보이게
+                                    expanded: { y: "15%" } // 전체의 85% 차지
+                                }}
+                                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                                className="absolute bottom-0 left-0 w-full h-full bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-20 flex flex-col overflow-hidden"
+                            >
+                                {/* 드래그 핸들 */}
+                                <div className="w-full flex justify-center py-3 cursor-grab active:cursor-grabbing shrink-0 bg-white" onClick={() => setIsSheetExpanded(!isSheetExpanded)}>
+                                    <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
+                                </div>
+                                {/* 콘텐츠 영역 */}
+                                <div className="flex-1 overflow-hidden flex flex-col pointer-events-auto">
+                                    {/* 날짜 탭 */}
+                                    <div className="flex overflow-x-auto gap-2 px-4 pb-3 border-b border-gray-100 scrollbar-hide shrink-0">
+                                        {itinerary.map((day,di)=>(
+                                            <button key={day.id} onClick={(e)=>{ e.stopPropagation(); setActiveDayIndex(di); }}
+                                                className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black transition-all ${activeDayIndex===di?'bg-amber-400 text-white shadow':'bg-gray-100 text-gray-500'}`}>
+                                                Day {day.dayNum}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {/* 날짜 제목 */}
+                                    {activeDay && (
+                                        <div className="px-4 py-3 border-b border-gray-100 bg-white shrink-0">
+                                            <h2 className="text-gray-900 font-black text-sm">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
+                                            <p className="text-gray-500 text-xs">{(activeDay.items||[]).length} places</p>
+                                        </div>
+                                    )}
+                                    {/* 타임라인 */}
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-3" onPointerDownCapture={(e) => {
+                                        // 리스트 내부 스크롤 시 바텀시트 드래그가 방해받지 않도록 중단
+                                        e.stopPropagation();
+                                    }}>
+                                        {(activeDay?.items||[]).map((act,idx)=>(
+                                            <motion.div key={act.id} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:idx*0.05}}
+                                                className="flex items-start gap-3 p-3 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all group shadow-sm">
+                                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 shadow-lg"
+                                                    style={{backgroundColor:['#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'][idx%8],color:'#fff'}}>
+                                                    {idx+1}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-gray-900 font-bold text-sm truncate">{act.name}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="text-amber-500 text-xs font-bold">{act.time||'09:00'}</span>
+                                                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 font-bold uppercase">{act.type}</span>
+                                                    </div>
+                                                    {act.desc&&<p className="text-gray-400 text-xs mt-1 line-clamp-2">{act.desc}</p>}
+                                                </div>
+                                                <button onClick={(e)=>{ e.stopPropagation(); deleteAct(activeDayIndex,act.id); }} className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-red-500 hover:text-white transition-all shrink-0">
+                                                    <X size={12}/>
+                                                </button>
+                                            </motion.div>
+                                        ))}
+                                        <button onClick={()=>addAct(activeDayIndex)} className="w-full py-4 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 text-xs font-bold">
+                                            <Plus size={14}/> {t('addSpot')}
+                                        </button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <div className="w-[35%] flex flex-col bg-gray-50 border-r border-gray-100 overflow-hidden order-1">
+                                {/* 날짜 탭 */}
+                                <div className="flex overflow-x-auto gap-2 p-3 border-b border-gray-100 scrollbar-hide bg-white">
+                                    {itinerary.map((day,di)=>(
+                                        <button key={day.id} onClick={()=>setActiveDayIndex(di)}
+                                            className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black transition-all ${activeDayIndex===di?'bg-amber-400 text-white shadow':'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}>
+                                            Day {day.dayNum}
+                                        </button>
+                                    ))}
+                                </div>
+                                {/* 날짜 제목 */}
+                                {activeDay && (
+                                    <div className="px-4 py-3 border-b border-gray-100 bg-white">
+                                        <h2 className="text-gray-900 font-black text-sm">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
+                                        <p className="text-gray-500 text-xs">{(activeDay.items||[]).length} places</p>
+                                    </div>
+                                )}
+                                {/* 타임라인 (데스크톱) */}
+                                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                                    {(activeDay?.items||[]).map((act,idx)=>(
+                                        <motion.div key={act.id} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:idx*0.05}}
+                                            className="flex items-start gap-3 p-3 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all group shadow-sm">
+                                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 shadow-lg"
+                                                style={{backgroundColor:['#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'][idx%8],color:'#fff'}}>
+                                                {idx+1}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-gray-900 font-bold text-sm truncate">{act.name}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-amber-500 text-xs font-bold">{act.time||'09:00'}</span>
+                                                    <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 font-bold uppercase">{act.type}</span>
+                                                </div>
+                                                {act.desc&&<p className="text-gray-400 text-xs mt-1 line-clamp-2">{act.desc}</p>}
+                                            </div>
+                                            <button onClick={()=>deleteAct(activeDayIndex,act.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-400 hover:bg-red-500 hover:text-white transition-all shrink-0">
+                                                <X size={12}/>
+                                            </button>
+                                        </motion.div>
+                                    ))}
+                                    <button onClick={()=>addAct(activeDayIndex)} className="w-full py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 text-xs font-bold">
+                                        <Plus size={14}/> {t('addSpot')}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </motion.div>
                 ) : activeTab==='itinerary' ? (
                     <motion.div key="list" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 overflow-y-auto bg-slate-50">
