@@ -55,32 +55,32 @@ const FlightCard = ({ f, onChange, onRemove, showRemove }) => {
             </div>
             
             {/* details row */}
-            <div className="grid grid-cols-3 gap-2 text-xs">
-                <div>
-                    <div className="text-white/40 uppercase tracking-wider mb-1">{t('flightNo')}</div>
+            <div className="flex items-end justify-between gap-4 mt-2">
+                <div className="flex-1">
+                    <div className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t('flightNo')}</div>
                     <input 
-                        value={f.number} 
+                        value={f.number || ''} 
                         onChange={e => onChange('number', e.target.value)}
                         placeholder="KE1234" 
-                        className="w-full bg-transparent font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" 
+                        className="w-full bg-transparent text-sm font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" 
                     />
                 </div>
-                <div>
-                    <div className="text-white/40 uppercase tracking-wider mb-1">{t('departure')}</div>
+                <div className="flex-[1.5] text-center">
+                    <div className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t('departure', { defaultValue: '출발시간' })}</div>
                     <input 
-                        value={f.time} 
+                        value={f.time || ''} 
                         onChange={e => onChange('time', e.target.value)}
                         placeholder="14:30" 
-                        className="w-full bg-transparent font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" 
+                        className="w-full bg-transparent text-2xl font-black text-amber-400 outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5 text-center" 
                     />
                 </div>
-                <div>
-                    <div className="text-white/40 uppercase tracking-wider mb-1">{t('gateSeat')}</div>
+                <div className="flex-[1.5] text-center">
+                    <div className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t('arrival', { defaultValue: '도착시간' })}</div>
                     <input 
-                        value={f.notes} 
-                        onChange={e => onChange('notes', e.target.value)}
-                        placeholder="B22 / 32A" 
-                        className="w-full bg-transparent font-bold outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5" 
+                        value={f.arrivalTime !== undefined ? f.arrivalTime : (f.notes || '')} 
+                        onChange={e => onChange('arrivalTime', e.target.value)}
+                        placeholder="16:45" 
+                        className="w-full bg-transparent text-2xl font-black text-amber-400 outline-none placeholder:text-white/30 border-b border-white/20 pb-0.5 text-center" 
                     />
                 </div>
             </div>

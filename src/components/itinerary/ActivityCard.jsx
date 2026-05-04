@@ -14,8 +14,9 @@ import { getImg, fmtTime } from '../../utils/itineraryHelpers';
  * @param {function} onDelete - 삭제 콜백
  * @param {string} destination - 목적지 명칭
  * @param {string} destinationId - 목적지 ID
+ * @param {boolean} compact - 컴팩트 뷰 여부 (Map 뷰 사이드바용)
  */
-const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }) => {
+const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId, compact = false }) => {
     const { t, i18n } = useTranslation('translation', { keyPrefix: 'itinerary' });
     const [editing, setEditing] = useState(activity.isNew || false);
     const [ed, setEd] = useState(activity);
@@ -59,6 +60,42 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
 
     const displayName = (i18n.language === 'ko' && activity.name_ko) ? activity.name_ko : activity.name;
     const displayDesc = (i18n.language === 'ko' && activity.desc_ko) ? activity.desc_ko : activity.desc;
+    // 음식 카드: 실제 식당 이름이 따로 있으면 서브타이틀로 표시
+    const isFood = activity.type === 'Food';
+    const restaurantName = activity.restaurantName || null;
+
+    if (compact) {
+        return (
+            <Reorder.Item value={activity} id={activity.id} dragListener={false} dragControls={dc} className="group">
+                <div className="flex items-start gap-2.5 p-2.5 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all shadow-sm relative pr-8">
+                    <div onPointerDown={e => dc.start(e)} className="cursor-move p-1 text-gray-300 hover:text-gray-500 transition-colors mt-0.5">
+                        <List size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-gray-900 font-bold text-xs truncate group-hover:text-amber-600 transition-colors">{displayName}</p>
+                        {isFood && restaurantName && (
+                            <p className="text-[10px] font-bold text-orange-600 truncate">{restaurantName}</p>
+                        )}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            <button onClick={() => setTimeEdit(true)} className="text-amber-500 text-[10px] font-bold hover:underline">
+                                {fmtTime(activity.time, i18n.language) || t('setTime')}
+                            </button>
+                            <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[9px] text-gray-500 font-bold uppercase">{activity.type}</span>
+                        </div>
+                        {activity.desc && <p className="text-gray-400 text-[10px] mt-1 line-clamp-1">{displayDesc}</p>}
+                    </div>
+                    <div className="absolute right-2 top-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setEditing(true)} className="w-5 h-5 flex items-center justify-center rounded-full bg-blue-50 text-blue-400 hover:bg-blue-500 hover:text-white transition-all">
+                            <Edit2 size={10} />
+                        </button>
+                        <button onClick={onDelete} className="w-5 h-5 flex items-center justify-center rounded-full bg-red-50 text-red-400 hover:bg-red-500 hover:text-white transition-all">
+                            <Trash2 size={10} />
+                        </button>
+                    </div>
+                </div>
+            </Reorder.Item>
+        );
+    }
 
     return (
         <Reorder.Item value={activity} id={activity.id} dragListener={false} dragControls={dc} className="group">
@@ -84,7 +121,13 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
 
                 <div className="flex-1 min-w-0 w-full">
                     <div className="flex items-start justify-between">
-                        <h3 className="font-black text-[#006400] text-2xl truncate group-hover:opacity-80 transition-opacity mb-2">{displayName}</h3>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-black text-[#006400] text-2xl truncate group-hover:opacity-80 transition-opacity mb-0.5">{displayName}</h3>
+                            {/* 음식 카드: 실제 식당 이름을 서브타이틀로 표시 */}
+                            {isFood && restaurantName && (
+                                <p className="text-base font-bold text-orange-600 truncate mb-2">{restaurantName}</p>
+                            )}
+                        </div>
                         <div className="hidden sm:flex gap-1">
                             <button onClick={() => setEditing(true)} className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"><Edit2 size={16} /></button>
                             <button onClick={onDelete} className="p-2 text-red-400 hover:bg-red-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
@@ -161,8 +204,12 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
                         )}
 
                         <div className="flex flex-wrap items-center gap-2 pt-1">
+                            {/* 지도 보기 버튼: mapsUrl(place_id 기반) 우선 사용 */}
                             <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${activity.latitude && activity.longitude ? `${activity.latitude},${activity.longitude}` : encodeURIComponent(activity.name + ' ' + (destination || ''))}`}
+                                href={
+                                    activity.mapsUrl ||
+                                    `https://www.google.com/maps/search/?api=1&query=${activity.latitude && activity.longitude ? `${activity.latitude},${activity.longitude}` : encodeURIComponent(activity.name + ' ' + (destination || ''))}`
+                                }
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-primary/10 hover:text-primary transition-all border border-slate-100"
@@ -170,10 +217,17 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId }
                                 <MapPin size={12} />
                                 {t('viewMap')}
                             </a>
+                            {/* 평점 뱃지 */}
                             {activity.rating && (
                                 <div className="flex items-center gap-1 px-3 py-2 bg-amber-50 text-amber-600 rounded-xl text-xs font-bold border border-amber-100">
                                     <Star size={12} className="fill-amber-500 text-amber-500" />
                                     {activity.rating}
+                                </div>
+                            )}
+                            {/* 음식 카드: 리뷰 수 뱃지 */}
+                            {isFood && activity.reviewCount > 0 && (
+                                <div className="flex items-center gap-1 px-3 py-2 bg-green-50 text-green-700 rounded-xl text-xs font-bold border border-green-100">
+                                    리뷰 {activity.reviewCount.toLocaleString()}개
                                 </div>
                             )}
                         </div>

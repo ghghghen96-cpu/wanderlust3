@@ -98,7 +98,7 @@ const Survey = () => {
         startDate: '',
         endDate: '',
         vibe: '',
-        dining: '',
+        dining: [],
         pace: '',
         accommodation: '',
         companions: 'Solo',
@@ -218,7 +218,7 @@ const Survey = () => {
                         formData.startDate && 
                         formData.endDate &&
                         formData.vibe && 
-                        formData.dining && 
+                        formData.dining.length > 0 && 
                         formData.pace && 
                         formData.accommodation)
                 }
@@ -535,9 +535,9 @@ const Survey = () => {
                                         { id: 'Casual Dining', label: t('survey.diningCasual'), icon: '🍝' },
                                         { id: 'Fine Dining', label: t('survey.diningFine'), icon: '🥂' }
                                     ].map(opt => (
-                                        <button key={opt.id} onClick={() => updateData('dining', opt.id)}
+                                        <button key={opt.id} onClick={() => toggleArrayItem('dining', opt.id)}
                                             className={`py-3 px-2 rounded-xl border-2 font-black transition-all flex flex-col items-center gap-1 text-xs
-                                            ${formData.dining === opt.id 
+                                            ${formData.dining.includes(opt.id) 
                                                 ? 'bg-primary text-secondary border-primary shadow-md' 
                                                 : 'bg-white text-gray-500 border-gray-100 hover:border-primary/30'}`}>
                                             <span className="text-lg">{opt.icon}</span>

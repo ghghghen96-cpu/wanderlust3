@@ -15,6 +15,7 @@ import { saveSearchHistory } from '../utils/history';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { fetchPlaceImage } from '../utils/imageApi';
+import { fetchRealRestaurants } from '../utils/placeApi';
 
 // Modular Components
 import ActivityCard from '../components/itinerary/ActivityCard';
@@ -126,7 +127,7 @@ const Itinerary = () => {
     // ?? Flights & Hotels State ??
     const [flights, setFlights] = useState(() => {
         try { const s = localStorage.getItem(`flights_v2_${data.destination}`); if (s) return JSON.parse(s); } catch { }
-        return [{ id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '' }];
+        return [{ id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '', arrivalTime: '' }];
     });
 
     const [hotels, setHotels] = useState(() => {
@@ -137,7 +138,7 @@ const Itinerary = () => {
     useEffect(() => { localStorage.setItem(`flights_v2_${data.destination}`, JSON.stringify(flights)); }, [flights, data.destination]);
     useEffect(() => { localStorage.setItem(`hotels_v2_${data.destination}`, JSON.stringify(hotels)); }, [hotels, data.destination]);
 
-    const addFlight = () => setFlights(fs => [...fs, { id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '' }]);
+    const addFlight = () => setFlights(fs => [...fs, { id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '', arrivalTime: '' }]);
     const removeFlight = (id) => setFlights(fs => fs.filter(f => f.id !== id));
     const updateFlight = (id, k, v) => setFlights(fs => fs.map(f => f.id === id ? { ...f, [k]: v } : f));
 
@@ -248,7 +249,81 @@ const Itinerary = () => {
                 const foodPool = allActivities.filter(a => a.type === 'Food' || a.category === 'Food');
                 const usedFood = new Set();
 
-                const getMealRecommendation = (mealType, lastLat, lastLng) => {
+                /**
+                 * 식사 추천 아이템을 생성합니다.
+                 * 1순위: 구글 플레이스 API 실시간 결과 (평점 4.2+, 리뷰 100+)
+                 * 2순위: 목적지 데이터의 Food 풀
+                 * 3순위: 기본 더미 텍스트
+                 */
+                const getMealRecommendation = async (mealType, lastLat, lastLng) => {
+                    const diningPrefs = Array.isArray(data.dining) ? data.dining : [data.dining || 'Casual'];
+                    const time = mealType === 'Breakfast' ? '08:30' : (mealType === 'Lunch' ? '12:30' : '18:30');
+
+                    // ── 1순위: 구글 플레이스 API 실시간 검색 ──────────────────────────────
+                    if (lastLat && lastLng) {
+                        try {
+                            const realPlaces = await fetchRealRestaurants(lastLat, lastLng, diningPrefs);
+                            // 이미 일정에 사용된 식당 제외
+                            const freshPlaces = realPlaces.filter(p => !usedFood.has(p.name));
+
+                            if (freshPlaces.length >= 1) {
+                                // Best Pick: 1위 식당
+                                const best = freshPlaces[0];
+                                // 2번째 후보 (있으면)
+                                const second = freshPlaces[1] || null;
+
+                                // 사용 목록에 등록
+                                usedFood.add(best.name);
+                                if (second) usedFood.add(second.name);
+
+                                // 한국어 설명 (vicinity = 간략 주소 → 현지인 팁으로 활용)
+                                const localTipText = best.vicinity
+                                    ? `📍 ${best.vicinity}`
+                                    : '구글 플레이스 인기 추천 맛집입니다.';
+
+                                const ratingStars = best.rating ? `⭐ ${best.rating}` : '';
+                                const reviewText = best.reviewCount ? `(리뷰 ${best.reviewCount.toLocaleString()}개)` : '';
+
+                                // desc: 식당 이름 + 평점 + 2번째 후보
+                                const descMain = `🏆 추천: ${best.name}${ratingStars ? ' ' + ratingStars : ''}${reviewText ? ' ' + reviewText : ''}`;
+                                const descSecond = second ? `\n2. ${second.name}${second.rating ? ' ⭐' + second.rating : ''}` : '';
+                                const descSource = '\n\n* Google Maps 실시간 추천';
+
+                                return {
+                                    id: `meal-${mealType}-${Date.now()}-${Math.random()}`,
+                                    name: t(`meal${mealType}`, { defaultValue: `${mealType} 추천` }),
+                                    type: 'Food',
+                                    time,
+                                    // 실제 식당 이름 (카드 타이틀 오버라이드용)
+                                    restaurantName: best.name,
+                                    rating: best.rating,
+                                    reviewCount: best.reviewCount,
+                                    // 구글 지도 상세 페이지 링크 (place_id 기반)
+                                    mapsUrl: best.mapsUrl,
+                                    // 현지인 팁: vicinity 주소
+                                    localTip: localTipText,
+                                    desc: descMain + descSecond + descSource,
+                                    desc_ko: descMain + descSecond + descSource,
+                                    // 구글 플레이스 실제 사진 URL
+                                    img: best.photoUrl || getImg(best.name, 'Food', data.destination, data.destinationId),
+                                    latitude: best.latitude,
+                                    longitude: best.longitude,
+                                    placeId: best.placeId,
+                                    // 2순위 후보 정보 (UI 확장에 활용 가능)
+                                    alternativeRestaurant: second ? {
+                                        name: second.name,
+                                        rating: second.rating,
+                                        mapsUrl: second.mapsUrl,
+                                        photoUrl: second.photoUrl,
+                                    } : null,
+                                };
+                            }
+                        } catch (apiErr) {
+                            console.warn('[Itinerary] PlaceAPI 호출 실패, Fallback으로 전환:', apiErr);
+                        }
+                    }
+
+                    // ── 2순위: 목적지 데이터 Food 풀 ─────────────────────────────────────
                     const pool = foodPool.filter(a => !usedFood.has(a.name));
                     let picks = [];
                     if (pool.length >= 2) {
@@ -258,24 +333,29 @@ const Itinerary = () => {
                             return da - db;
                         }).slice(0, 2);
                     } else {
+                        // ── 3순위: 기본 더미 ───────────────────────────────────────────────
                         picks = [
-                            { name: `${data.destination} Popular ${mealType} 1`, type: 'Food', rating: 4.8, desc: "A top-rated spot from Google Maps popular lists.", desc_ko: "Google Maps 추천 인기 맛집입니다." },
-                            { name: `${data.destination} Local ${mealType} 2`, type: 'Food', rating: 4.7, desc: "Traditional flavors with excellent atmosphere.", desc_ko: "분위기와 맛을 모두 갖춘 현지 추천 장소입니다." }
+                            { name: `${data.destination} Popular ${mealType}`, type: 'Food', rating: 4.8 },
+                            { name: `${data.destination} Local Favorite`, type: 'Food', rating: 4.7 },
                         ];
                     }
                     picks.forEach(p => usedFood.add(p.name));
-                    
-                    const time = mealType === 'Breakfast' ? '08:30' : (mealType === 'Lunch' ? '12:30' : '18:30');
+
                     return {
                         id: `meal-${mealType}-${Date.now()}-${Math.random()}`,
-                        name: t(`meal${mealType}`, { defaultValue: `${mealType} Recommendation` }),
+                        name: t(`meal${mealType}`, { defaultValue: `${mealType} 추천` }),
                         type: 'Food',
                         time,
-                        desc: `- ${t('mealOptionTitle') || 'Meal Options'}:\n1. ${picks[0].name} (${picks[0].rating} / 5.0)\n2. ${picks[1].name} (${picks[1].rating} / 5.0)\n\n* ${t('mealSource') || 'Data from Google Places'}`,
-                        desc_ko: `- ${t('mealOptionTitle') || '식사 옵션'}:\n1. ${picks[0].name_ko || picks[0].name} (${picks[0].rating} / 5.0)\n2. ${picks[1].name_ko || picks[1].name} (${picks[1].rating} / 5.0)\n\n* ${t('mealSource') || 'Google Maps 기반 추천'}`,
+                        restaurantName: picks[0].name,
+                        rating: picks[0].rating,
+                        desc: `- 식사 옵션:\n1. ${picks[0].name} (⭐ ${picks[0].rating})\n2. ${picks[1].name} (⭐ ${picks[1].rating})\n\n* 현지 추천 맛집`,
+                        desc_ko: `- 식사 옵션:\n1. ${picks[0].name} (⭐ ${picks[0].rating})\n2. ${picks[1].name} (⭐ ${picks[1].rating})\n\n* 현지 추천 맛집`,
                         img: getImg(picks[0].name, 'Food', data.destination, data.destinationId),
                         latitude: picks[0].latitude,
-                        longitude: picks[0].longitude
+                        longitude: picks[0].longitude,
+                        mapsUrl: picks[0].latitude && picks[0].longitude
+                            ? `https://www.google.com/maps/search/?api=1&query=${picks[0].latitude},${picks[0].longitude}`
+                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(picks[0].name + ' ' + data.destination)}`,
                     };
                 };
 
@@ -286,7 +366,8 @@ const Itinerary = () => {
                     
                     // Add Breakfast if Packed
                     if (data.pace === 'Packed') {
-                        dayItems.push(getMealRecommendation('Breakfast', lastLat, lastLng));
+                        const breakfast = await getMealRecommendation('Breakfast', lastLat, lastLng);
+                        dayItems.push(breakfast);
                     }
 
                     // Activities & Lunch/Dinner
@@ -305,7 +386,10 @@ const Itinerary = () => {
                         lastLat = next.latitude; lastLng = next.longitude;
                         
                         const extras = generateItemExtras(next, false);
-                        const itemTime = `${10 + j * 2.5}:00`; // Dynamic time based on index
+                        const totalHours = 10 + j * 2.5;
+                        const hours = Math.floor(totalHours);
+                        const minutes = totalHours % 1 === 0.5 ? '30' : '00';
+                        const itemTime = `${hours.toString().padStart(2, '0')}:${minutes}`;
                         
                         actsForDay.push({ 
                             ...next, 
@@ -319,7 +403,8 @@ const Itinerary = () => {
                     // Construct final day list with meals injected between activities
                     if (actsForDay.length > 0) {
                         dayItems.push(actsForDay[0]); // Morning activity
-                        dayItems.push(getMealRecommendation('Lunch', actsForDay[0].latitude, actsForDay[0].longitude));
+                        const lunch = await getMealRecommendation('Lunch', actsForDay[0].latitude, actsForDay[0].longitude);
+                        dayItems.push(lunch);
                         
                         if (actsForDay.length > 1) {
                             dayItems.push(actsForDay[1]); // Afternoon activity
@@ -330,7 +415,8 @@ const Itinerary = () => {
                             dayItems.push(actsForDay[k]);
                         }
 
-                        dayItems.push(getMealRecommendation('Dinner', dayItems[dayItems.length-1].latitude, dayItems[dayItems.length-1].longitude));
+                        const dinner = await getMealRecommendation('Dinner', dayItems[dayItems.length-1].latitude, dayItems[dayItems.length-1].longitude);
+                        dayItems.push(dinner);
                     }
 
                     // Sort by time just in case
@@ -366,6 +452,24 @@ const Itinerary = () => {
         const nm = t('newSpotName'), tp = 'City';
         const item = { id: `new-${Date.now()}`, name: nm, time: '12:00', desc: t('newSpotDesc'), type: tp, img: null, isNew: true };
         setDayItems(di, [...itinerary[di].items, item]);
+    };
+
+    const exportToGoogleMaps = (items) => {
+        const validItems = (items || []).filter(it => it.latitude && it.longitude);
+        if (validItems.length < 1) {
+            alert(t('noLocationsForMap', { defaultValue: '지도에 표시할 위치가 없습니다.' }));
+            return;
+        }
+        if (validItems.length === 1) {
+            window.open(`https://www.google.com/maps/search/?api=1&query=${validItems[0].latitude},${validItems[0].longitude}`, '_blank');
+            return;
+        }
+        const origin = `${validItems[0].latitude},${validItems[0].longitude}`;
+        const destination = `${validItems[validItems.length - 1].latitude},${validItems[validItems.length - 1].longitude}`;
+        const waypoints = validItems.slice(1, -1).map(it => `${it.latitude},${it.longitude}`).join('|');
+        let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+        if (waypoints) url += `&waypoints=${waypoints}`;
+        window.open(url, '_blank');
     };
     // 吏?꾩뿉??洹쇱쿂 ?μ냼瑜??쇱젙??異붽?
     const addItemToDay = useCallback((di, newItem) => {
@@ -482,36 +586,26 @@ const Itinerary = () => {
                                     {/* 날짜 제목 */}
                                     {activeDay && (
                                         <div className="px-3 py-2 border-b border-gray-100 bg-white shrink-0 flex items-center justify-between">
-                                            <h2 className="text-gray-900 font-black text-xs">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
-                                            <p className="text-gray-500 text-[10px]">{(activeDay.items||[]).length} places</p>
+                                            <div>
+                                                <h2 className="text-gray-900 font-black text-xs">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
+                                                <p className="text-gray-500 text-[10px]">{(activeDay.items||[]).length} places</p>
+                                            </div>
+                                            <button onClick={() => exportToGoogleMaps(activeDay.items)} className="flex items-center gap-1 px-2 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-colors">
+                                                <MapPin size={12} /> 구글맵 연동
+                                            </button>
                                         </div>
                                     )}
                                     {/* 타임라인 */}
-                                    <div className="flex-1 overflow-y-auto p-3 space-y-2" onPointerDownCapture={(e) => {
+                                    <div className="flex-1 overflow-y-auto p-2" onPointerDownCapture={(e) => {
                                         // 리스트 내부 스크롤 시 바텀시트 드래그가 방해받지 않도록 중단
                                         e.stopPropagation();
                                     }}>
-                                        {(activeDay?.items||[]).map((act,idx)=>(
-                                            <motion.div key={act.id} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:idx*0.05}}
-                                                className="flex items-start gap-2.5 p-2.5 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all group shadow-sm">
-                                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 shadow-lg"
-                                                    style={{backgroundColor:['#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'][idx%8],color:'#fff'}}>
-                                                    {idx+1}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-gray-900 font-bold text-xs truncate">{act.name}</p>
-                                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                                        <span className="text-amber-500 text-[10px] font-bold">{act.time||'09:00'}</span>
-                                                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[9px] text-gray-500 font-bold uppercase">{act.type}</span>
-                                                    </div>
-                                                    {act.desc&&<p className="text-gray-400 text-[10px] mt-1 line-clamp-1">{act.desc}</p>}
-                                                </div>
-                                                <button onClick={(e)=>{ e.stopPropagation(); deleteAct(activeDayIndex,act.id); }} className="w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-red-500 hover:text-white transition-all shrink-0">
-                                                    <X size={10}/>
-                                                </button>
-                                            </motion.div>
-                                        ))}
-                                        <button onClick={()=>addAct(activeDayIndex)} className="w-full py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-1.5 text-[10px] font-bold">
+                                        <Reorder.Group axis="y" values={activeDay?.items||[]} onReorder={items=>setDayItems(activeDayIndex,items)} className="space-y-2">
+                                            {(activeDay?.items||[]).map(act=>(
+                                                <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(activeDayIndex,act.id,a)} onDelete={()=>deleteAct(activeDayIndex,act.id)} destination={displayDestination} destinationId={data.destinationId} compact={true}/>
+                                            ))}
+                                        </Reorder.Group>
+                                        <button onClick={()=>addAct(activeDayIndex)} className="w-full mt-3 py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-1.5 text-[10px] font-bold">
                                             <Plus size={12}/> {t('addSpot')}
                                         </button>
                                     </div>
@@ -530,34 +624,24 @@ const Itinerary = () => {
                                 </div>
                                 {/* 날짜 제목 */}
                                 {activeDay && (
-                                    <div className="px-4 py-3 border-b border-gray-100 bg-white">
-                                        <h2 className="text-gray-900 font-black text-sm">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
-                                        <p className="text-gray-500 text-xs">{(activeDay.items||[]).length} places</p>
+                                    <div className="px-4 py-3 border-b border-gray-100 bg-white flex items-center justify-between">
+                                        <div>
+                                            <h2 className="text-gray-900 font-black text-sm">{safeFormat(activeDay.date,'EEEE, MMM do',i18n.language==='ko'?ko:enUS)}</h2>
+                                            <p className="text-gray-500 text-xs">{(activeDay.items||[]).length} places</p>
+                                        </div>
+                                        <button onClick={() => exportToGoogleMaps(activeDay.items)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors">
+                                            <MapPin size={14} /> 구글맵으로 내보내기
+                                        </button>
                                     </div>
                                 )}
                                 {/* 타임라인 (데스크톱) */}
-                                <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                                    {(activeDay?.items||[]).map((act,idx)=>(
-                                        <motion.div key={act.id} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:idx*0.05}}
-                                            className="flex items-start gap-3 p-3 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all group shadow-sm">
-                                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 shadow-lg"
-                                                style={{backgroundColor:['#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'][idx%8],color:'#fff'}}>
-                                                {idx+1}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-gray-900 font-bold text-sm truncate">{act.name}</p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-amber-500 text-xs font-bold">{act.time||'09:00'}</span>
-                                                    <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 font-bold uppercase">{act.type}</span>
-                                                </div>
-                                                {act.desc&&<p className="text-gray-400 text-xs mt-1 line-clamp-2">{act.desc}</p>}
-                                            </div>
-                                            <button onClick={()=>deleteAct(activeDayIndex,act.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-400 hover:bg-red-500 hover:text-white transition-all shrink-0">
-                                                <X size={12}/>
-                                            </button>
-                                        </motion.div>
-                                    ))}
-                                    <button onClick={()=>addAct(activeDayIndex)} className="w-full py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 text-xs font-bold">
+                                <div className="flex-1 overflow-y-auto p-3">
+                                    <Reorder.Group axis="y" values={activeDay?.items||[]} onReorder={items=>setDayItems(activeDayIndex,items)} className="space-y-3">
+                                        {(activeDay?.items||[]).map(act=>(
+                                            <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(activeDayIndex,act.id,a)} onDelete={()=>deleteAct(activeDayIndex,act.id)} destination={displayDestination} destinationId={data.destinationId} compact={true}/>
+                                        ))}
+                                    </Reorder.Group>
+                                    <button onClick={()=>addAct(activeDayIndex)} className="w-full mt-4 py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 text-xs font-bold">
                                         <Plus size={14}/> {t('addSpot')}
                                     </button>
                                 </div>
