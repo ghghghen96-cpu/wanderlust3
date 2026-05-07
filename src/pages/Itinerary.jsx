@@ -126,17 +126,18 @@ const Itinerary = () => {
 
     // ?? Flights & Hotels State ??
     const [flights, setFlights] = useState(() => {
-        try { const s = localStorage.getItem(`flights_v2_${data.destination}`); if (s) return JSON.parse(s); } catch { }
+        try { const s = localStorage.getItem(`flights_v2_${data.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
         return [{ id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '', arrivalTime: '' }];
     });
 
     const [hotels, setHotels] = useState(() => {
-        try { const s = localStorage.getItem(`hotels_v2_${data.destination}`); if (s) return JSON.parse(s); } catch { }
+        try { const s = localStorage.getItem(`hotels_v2_${data.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
         return [{ id: Date.now(), name: '', address: '', confirmation: '', checkin: '', checkout: '' }];
     });
 
     useEffect(() => { localStorage.setItem(`flights_v2_${data.destination}`, JSON.stringify(flights)); }, [flights, data.destination]);
     useEffect(() => { localStorage.setItem(`hotels_v2_${data.destination}`, JSON.stringify(hotels)); }, [hotels, data.destination]);
+
 
     const addFlight = () => setFlights(fs => [...fs, { id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '', arrivalTime: '' }]);
     const removeFlight = (id) => setFlights(fs => fs.filter(f => f.id !== id));
@@ -522,7 +523,7 @@ const Itinerary = () => {
                 {/* 하단 (모바일에서는 탭 버튼 전체 너비) */}
                 <div className="flex items-center justify-between gap-3 w-full md:w-auto">
                     <div className="flex bg-gray-100 p-1 rounded-xl w-full md:w-auto justify-center">
-                        {[{id:'map',label:'Map'},{id:'itinerary',label:'List'},{id:'summary',label:'Summary'}].map(tab=>(
+                        {[{id:'map',label:'Map'},{id:'itinerary',label:t('tabSummary', { defaultValue: 'Summary' })}].map(tab=>(
                             <button key={tab.id} onClick={()=>setActiveTab(tab.id)} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab===tab.id?'bg-amber-400 text-gray-900':'text-gray-400 hover:text-gray-700'}`}>{tab.label}</button>
                         ))}
                     </div>
@@ -537,7 +538,7 @@ const Itinerary = () => {
             <div className="flex-1 flex flex-col overflow-hidden">
                 <AnimatePresence mode="wait">
                 {activeTab==='map' ? (
-                    <motion.div key="map" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 relative overflow-hidden" style={{ display: 'flex', minHeight: 0 }}>
+                    <motion.div key="map" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 relative overflow-hidden" style={{ display: 'flex', minHeight: 0 }}>
                         
                         {/* 지도 영역 (모바일: 전체화면, 데스크톱: 우측 65%) */}
                         <div className={`relative ${isMobile ? 'w-full h-full absolute inset-0 z-0' : 'flex-1 order-2 h-full'}`}>
@@ -596,8 +597,8 @@ const Itinerary = () => {
                                         </div>
                                     )}
                                     {/* 타임라인 */}
-                                    <div className="flex-1 overflow-y-auto p-2" onPointerDownCapture={(e) => {
-                                        // 리스트 내부 스크롤 시 바텀시트 드래그가 방해받지 않도록 중단
+                                    <div className="flex-1 overflow-y-auto p-2" onPointerDown={(e) => {
+                                        // 리스트 내부 스크롤 시 바텀시트 드래그가 방해받지 않도록 중단하되, 자식의 이벤트(Reorder 등)는 먼저 실행되도록 캡처 단계 제거
                                         e.stopPropagation();
                                     }}>
                                         <Reorder.Group axis="y" values={activeDay?.items||[]} onReorder={items=>setDayItems(activeDayIndex,items)} className="space-y-2">
@@ -648,9 +649,23 @@ const Itinerary = () => {
                             </div>
                         )}
                     </motion.div>
-                ) : activeTab==='itinerary' ? (
-                    <motion.div key="list" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 overflow-y-auto bg-slate-50" style={{ minHeight: 0 }}>
+                ) : (
+                    <motion.div key="list" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 overflow-y-auto bg-slate-50" style={{ minHeight: 0 }}>
                         <div className="max-w-4xl mx-auto px-6 py-10 space-y-14">
+                            {/* Summary Section */}
+                            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
+                                <h1 className="text-3xl font-black text-slate-800 mb-8 border-b border-gray-100 pb-4">Summary</h1>
+                                <div className="space-y-8">
+                                    <Section title={t('flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('addFlight')}>
+                                        {flights.map(f=><FlightCard key={f.id} f={f} onChange={(k,v)=>updateFlight(f.id,k,v)} onRemove={()=>removeFlight(f.id)} showRemove={flights.length>1}/>)}
+                                    </Section>
+                                    <Section title={t('accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('addStay')}>
+                                        {hotels.map((h,i)=><HotelCard key={h.id} h={h} index={i} onChange={(k,v)=>updateHotel(h.id,k,v)} onRemove={()=>removeHotel(h.id)} showRemove={hotels.length>1}/>)}
+                                    </Section>
+                                </div>
+                            </div>
+                            
+                            {/* Itinerary List */}
                             {itinerary.map((day,di)=>(
                                 <div key={day.id}>
                                     <div className="flex items-center gap-5 mb-7">
@@ -664,7 +679,7 @@ const Itinerary = () => {
                                         </div>
                                     </div>
                                     <Reorder.Group axis="y" values={day.items||[]} onReorder={items=>setDayItems(di,items)} className="space-y-4">
-                                        {day.items.map(act=>(
+                                        {(day.items || []).map(act=>(
                                             <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(di,act.id,a)} onDelete={()=>deleteAct(di,act.id)} destination={displayDestination} destinationId={data.destinationId}/>
                                         ))}
                                     </Reorder.Group>
@@ -673,17 +688,6 @@ const Itinerary = () => {
                                     </button>
                                 </div>
                             ))}
-                        </div>
-                    </motion.div>
-                ) : (
-                    <motion.div key="summary" initial={{opacity:0}} animate={{opacity:1}} className="flex-1 overflow-y-auto bg-slate-50" style={{ minHeight: 0 }}>
-                        <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
-                            <Section title={t('flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('addFlight')}>
-                                {flights.map(f=><FlightCard key={f.id} f={f} onChange={(k,v)=>updateFlight(f.id,k,v)} onRemove={()=>removeFlight(f.id)} showRemove={flights.length>1}/>)}
-                            </Section>
-                            <Section title={t('accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('addStay')}>
-                                {hotels.map((h,i)=><HotelCard key={h.id} h={h} index={i} onChange={(k,v)=>updateHotel(h.id,k,v)} onRemove={()=>removeHotel(h.id)} showRemove={hotels.length>1}/>)}
-                            </Section>
                         </div>
                     </motion.div>
                 )}

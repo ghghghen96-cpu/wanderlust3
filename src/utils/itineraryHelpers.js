@@ -61,7 +61,25 @@ export const calcDist = (lat1, lon1, lat2, lon2) => {
     return R * c;
 };
 
-export const fmtTime = (t) => t || '09:00';
+export const cleanTime = (t) => {
+    if (!t) return '09:00';
+    if (typeof t === 'string' && t.includes('.')) {
+        const [hStr, mStr] = t.split(':');
+        const h = parseFloat(hStr);
+        if (!isNaN(h)) {
+            const floorH = Math.floor(h);
+            const extraMins = (h - floorH) > 0 ? 30 : 0;
+            const originalMins = parseInt(mStr || '0', 10);
+            let totalMins = originalMins + extraMins;
+            let finalH = floorH + Math.floor(totalMins / 60);
+            let finalM = totalMins % 60;
+            return `${finalH.toString().padStart(2, '0')}:${finalM.toString().padStart(2, '0')}`;
+        }
+    }
+    return t;
+};
+
+export const fmtTime = (t) => cleanTime(t);
 
 export const getDayMapUrl = (items, destination) => {
     if (!items || items.length === 0) return '';

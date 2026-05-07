@@ -5,7 +5,7 @@ import {
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import ExternalPlaceImage from '../ExternalPlaceImage';
-import { getImg, fmtTime } from '../../utils/itineraryHelpers';
+import { getImg, fmtTime, cleanTime } from '../../utils/itineraryHelpers';
 
 /**
  * ActivityCard
@@ -19,7 +19,8 @@ import { getImg, fmtTime } from '../../utils/itineraryHelpers';
 const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId, compact = false }) => {
     const { t, i18n } = useTranslation('translation', { keyPrefix: 'itinerary' });
     const [editing, setEditing] = useState(activity.isNew || false);
-    const [ed, setEd] = useState(activity);
+    const cleanActTime = cleanTime(activity.time);
+    const [ed, setEd] = useState({ ...activity, time: cleanActTime });
     const [timeEdit, setTimeEdit] = useState(false);
     const timeRef = useRef(null);
     const dc = useDragControls();
@@ -141,7 +142,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId, 
                                 <input
                                     ref={timeRef}
                                     type="time"
-                                    defaultValue={activity.time}
+                                    defaultValue={cleanActTime}
                                     autoFocus
                                     onBlur={e => commitTime(e.target.value)}
                                     onKeyDown={e => {

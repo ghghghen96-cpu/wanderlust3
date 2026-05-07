@@ -380,7 +380,8 @@ const Marketplace = () => {
                                                     ) : (
                                                         <ExternalPlaceImage 
                                                             initialUrl={template.image} 
-                                                            placeName={template.destination || template.title.split(' ')[0]} 
+                                                            placeName={template.destination || template.displayDestination || template.title.split(' ')[0]}
+                                                            region={template.displayDestination || template.destination || ''}
                                                             className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" 
                                                         />
                                                     )}

@@ -141,6 +141,11 @@ const MapView = ({ dayItems = [], activeDayIndex = 0, destination = '', onAddPla
             mapInstanceRef.current.panTo(coords[0]);
             mapInstanceRef.current.setZoom(15);
         }
+
+        return () => {
+            markersRef.current.forEach(m => m.setMap(null));
+            if (polylineRef.current) polylineRef.current.setMap(null);
+        };
     }, [mapLoaded, JSON.stringify(validItems.map(i => `${i.latitude},${i.longitude}`))]);
 
     // ── 근처 장소 검색 ──
