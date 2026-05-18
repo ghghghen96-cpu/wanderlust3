@@ -467,7 +467,12 @@ const resources = {
         publishedTitle: "My Published Templates",
         publishedDesc: "Your itineraries listed on the marketplace.",
         deleteConfirm: "Are you sure you want to delete this template and its thumbnail?",
-        deleteSuccess: "Template and image deleted successfully."
+        deleteSuccess: "Template and image deleted successfully.",
+        noTrips: "No trips yet",
+        payoutFail: "Payout request failed. Please try again.",
+        bankName: "Bank Name",
+        accountNumber: "Account Number",
+        accountHolder: "Account Holder"
       },
       marketplace: {
         title: "Discover Experiences",
@@ -486,7 +491,9 @@ const resources = {
         noMatchesDesc: "Try adjusting your filters to discover more unique journeys.",
         clearFilters: "Clear all filters",
         resultsCount: "{{count}} curated gems found",
-        myTemplate: "My Template"
+        myTemplate: "My Template",
+        itinerary: "Itinerary",
+        creator: "by {{name}}"
       },
       about: {
         title: "About WanderLust",
@@ -621,6 +628,7 @@ const resources = {
         invalidResponse: "Invalid payment response. Please contact support.",
         dbError: "Delay occurred during data sync. Click the button to proceed.",
         closeMsg: "You closed the payment window. Please try again.",
+        errorOccurred: "An error occurred during purchase. Please try again.",
         methods: {
           kakaopay: "Kakao Pay",
           card: "Credit/Debit Card",
@@ -1093,7 +1101,12 @@ const resources = {
         publishedTitle: "내가 게시한 템플릿",
         publishedDesc: "마켓플레이스에 등록된 나의 여행 일정들입니다.",
         deleteConfirm: "정말로 이 템플릿과 썸네일을 삭제하시겠습니까?",
-        deleteSuccess: "템플릿과 이미지가 완전히 삭제되었습니다."
+        deleteSuccess: "템플릿과 이미지가 완전히 삭제되었습니다.",
+        noTrips: "아직 여행 기록이 없습니다",
+        payoutFail: "출금 신청에 실패했습니다. 다시 시도해주세요.",
+        bankName: "은행명",
+        accountNumber: "계좌번호",
+        accountHolder: "예금주명"
       },
       marketplace: {
         title: "새로운 경험 발견",
@@ -1112,7 +1125,9 @@ const resources = {
         noMatchesDesc: "필터를 조정하여 당신만의 특별한 여정을 찾아보세요.",
         clearFilters: "모든 필터 초기화",
         resultsCount: "{{count}}개의 엄선된 일정 발견",
-        myTemplate: "나의 템플릿"
+        myTemplate: "나의 템플릿",
+        itinerary: "여행 일정",
+        creator: "by {{name}}"
       },
       about: {
         title: "WanderLust 소개",
@@ -1247,6 +1262,7 @@ const resources = {
         invalidResponse: "결제 응답이 올바르지 않습니다. 고객센터에 문의해주세요.",
         dbError: "데이터 기록 중 지연이 발생했습니다. 버튼을 눌러 이동해주세요.",
         closeMsg: "결제창을 닫으셨습니다. 다시 시도해주세요.",
+        errorOccurred: "구매 중 오류가 발생했습니다. 다시 시도해주세요.",
         methods: {
           kakaopay: "카카오페이",
           card: "신용/체크카드",

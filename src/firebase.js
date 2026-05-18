@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, setDoc, updateDoc, increment, onSnapshot, getDoc, deleteDoc, orderBy } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, setDoc, updateDoc, increment, onSnapshot, getDoc, deleteDoc, orderBy, deleteField } from "firebase/firestore";
 
 import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from "firebase/storage";
 
@@ -378,3 +378,115 @@ export const requestPayout = async (uid, amount, bankInfo) => {
         throw error;
     }
 };
+
+// ─── 실시간 공동 작업 (Shared Sessions) ───────────────────────────────────────────────
+export const createSharedSession = async (data, itinerary, flights, hotels) => {
+    try {
+        const docRef = await addDoc(collection(db, "shared_itineraries"), {
+            data: data || {},
+            itinerary: itinerary || [],
+            flights: flights || [],
+            hotels: hotels || [],
+            memos: "",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        return docRef.id;
+    } catch (error) {
+        console.error("Error creating shared session:", error);
+        throw error;
+    }
+};
+
+export const subscribeToSession = (sessionId, callback) => {
+    if (!sessionId) return null;
+    const docRef = doc(db, "shared_itineraries", sessionId);
+    
+    return onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+            callback(docSnap.data());
+        } else {
+            console.warn("Shared session not found:", sessionId);
+            callback(null);
+        }
+    }, (error) => {
+        console.error("Session subscribe error:", error);
+    });
+};
+
+export const updateSessionData = async (sessionId, updates) => {
+    if (!sessionId) return;
+    try {
+        const docRef = doc(db, "shared_itineraries", sessionId);
+        await updateDoc(docRef, {
+            ...updates,
+            updatedAt: serverTimestamp()
+        });
+    } catch (error) {
+        console.error("Error updating session:", error);
+        throw error;
+    }
+};
+
+export const subscribeToChat = (sessionId, callback) => {
+    if (!sessionId) return null;
+    const q = query(
+        collection(db, `shared_itineraries/${sessionId}/messages`),
+        orderBy("timestamp", "asc")
+    );
+    
+    return onSnapshot(q, (querySnapshot) => {
+        const messages = [];
+        querySnapshot.forEach((doc) => {
+            messages.push({ id: doc.id, ...doc.data() });
+        });
+        callback(messages);
+    }, (error) => {
+        console.error("Chat subscribe error:", error);
+    });
+};
+
+export const sendChatMessage = async (sessionId, user, text) => {
+    if (!sessionId || !text.trim()) return;
+    try {
+        await addDoc(collection(db, `shared_itineraries/${sessionId}/messages`), {
+            userId: user?.uid || user?.id || "anonymous",
+            displayName: user?.displayName || user?.name || "여행자",
+            photoURL: user?.photoURL || null,
+            text: text,
+            timestamp: serverTimestamp()
+        });
+    } catch (error) {
+        console.error("Error sending chat message:", error);
+        throw error;
+    }
+};
+
+
+export const updateUserPresence = async (sessionId, userId, userData) => {
+    if (!sessionId || !userId) return;
+    try {
+        const docRef = doc(db, "shared_itineraries", sessionId);
+        await updateDoc(docRef, {
+            [`presence.${userId}`]: {
+                ...userData,
+                updatedAt: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error("Error updating user presence:", error);
+    }
+};
+
+export const removeUserPresence = async (sessionId, userId) => {
+    if (!sessionId || !userId) return;
+    try {
+        const docRef = doc(db, "shared_itineraries", sessionId);
+        await updateDoc(docRef, {
+            [`presence.${userId}`]: deleteField()
+        });
+    } catch (error) {
+        console.error("Error removing user presence:", error);
+    }
+};
+

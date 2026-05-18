@@ -46,11 +46,12 @@ const loadGoogleMapsScript = (apiKey) => {
     });
 };
 
-const MapView = ({ dayItems = [], activeDayIndex = 0, destination = '', onAddPlace }) => {
+const MapView = ({ itinerary = [], activeDayIndex = 0, destination = '', onAddPlace, activeUsers = {}, currentUser = null }) => {
     const mapRef = useRef(null);
     const mapInstanceRef = useRef(null);
     const markersRef = useRef([]);
-    const polylineRef = useRef(null);
+    const polylinesRef = useRef([]); // Multiple polylines
+    const activeUsersMarkersRef = useRef([]); // User presence markers
     const searchServiceRef = useRef(null);
 
     const [mapLoaded, setMapLoaded] = useState(false);
@@ -61,7 +62,11 @@ const MapView = ({ dayItems = [], activeDayIndex = 0, destination = '', onAddPla
     const [searchType, setSearchType] = useState('restaurant');
 
     const GOOGLE_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_PLACE_API_KEY;
-    const validItems = dayItems.filter(it => it.latitude && it.longitude);
+    
+    // 유효한 좌표가 있는 모든 아이템 추출 (모든 일자)
+    const allValidItems = itinerary.flatMap(day => (day.items || []).filter(it => it.latitude && it.longitude));
+    // 현재 선택된 일자의 유효한 아이템
+    const activeValidItems = (itinerary[activeDayIndex]?.items || []).filter(it => it.latitude && it.longitude);
 
     // ── 지도 초기화 ──
     useEffect(() => {
@@ -75,9 +80,9 @@ const MapView = ({ dayItems = [], activeDayIndex = 0, destination = '', onAddPla
         loadGoogleMapsScript(GOOGLE_API_KEY)
             .then((maps) => {
                 if (cancelled || !mapRef.current) return;
-                const center = validItems.length > 0
-                    ? { lat: validItems[0].latitude, lng: validItems[0].longitude }
-                    : { lat: 33.4996, lng: 126.5312 }; // 제주 기본값
+                const center = activeValidItems.length > 0
+                    ? { lat: activeValidItems[0].latitude, lng: activeValidItems[0].longitude }
+                    : (allValidItems.length > 0 ? { lat: allValidItems[0].latitude, lng: allValidItems[0].longitude } : { lat: 33.4996, lng: 126.5312 }); // 제주 기본값
 
                 const map = new maps.Map(mapRef.current, {
                     center,
@@ -97,64 +102,159 @@ const MapView = ({ dayItems = [], activeDayIndex = 0, destination = '', onAddPla
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // ── 마커 + Polyline ──
+    // ── 마커 + 다중 Polyline ──
     useEffect(() => {
         if (!mapLoaded || !mapInstanceRef.current || !window.google) return;
         const maps = window.google.maps;
+        
+        // 기존 마커 및 선 제거
         markersRef.current.forEach(m => m.setMap(null));
         markersRef.current = [];
-        if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
-        if (validItems.length === 0) return;
+        polylinesRef.current.forEach(p => p.setMap(null));
+        polylinesRef.current = [];
 
-        const coords = [];
-        validItems.forEach((item, idx) => {
-            const pos = { lat: item.latitude, lng: item.longitude };
-            coords.push(pos);
-            const color = MARKER_COLORS[idx % MARKER_COLORS.length];
-            const svgMarker = {
-                url: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='44'><circle cx='18' cy='18' r='16' fill='${encodeURIComponent(color)}' stroke='white' stroke-width='3'/><text x='18' y='23' text-anchor='middle' fill='white' font-size='13' font-weight='bold' font-family='Arial'>${idx + 1}</text><polygon points='18,42 11,30 25,30' fill='${encodeURIComponent(color)}'/></svg>`,
-                scaledSize: new maps.Size(36, 44),
-                anchor: new maps.Point(18, 44),
-            };
-            const marker = new maps.Marker({ position: pos, map: mapInstanceRef.current, icon: svgMarker, title: item.name, zIndex: idx + 1 });
-            const searchQuery = encodeURIComponent(`${destination} ${item.name}`);
-            const infoWindow = new maps.InfoWindow({
-                content: `<div style="padding:10px 14px;border-radius:10px;min-width:180px;font-family:sans-serif;">
-                            <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#1e293b;">${item.name}</div>
-                            <div style="font-size:11px;color:#64748b;margin-bottom:12px;">${item.time || ''} · ${item.type || ''}</div>
-                            <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;background-color:#eff6ff;color:#3b82f6;text-decoration:none;border-radius:8px;font-size:11px;font-weight:bold;transition:all 0.2s;border:1px solid #bfdbfe;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                                구글에서 장소 검색하기
-                            </a>
-                          </div>`,
+        if (!itinerary || itinerary.length === 0) return;
+
+        const bounds = new maps.LatLngBounds();
+        let hasValidCoords = false;
+
+        // 모든 일자에 대해 순회
+        itinerary.forEach((day, dayIndex) => {
+            const validDayItems = (day.items || []).filter(it => it.latitude && it.longitude);
+            if (validDayItems.length === 0) return;
+
+            const coords = [];
+            const color = MARKER_COLORS[dayIndex % MARKER_COLORS.length]; // 일자별 색상 고정
+
+            validDayItems.forEach((item, itemIdx) => {
+                const pos = { lat: item.latitude, lng: item.longitude };
+                coords.push(pos);
+                bounds.extend(pos);
+                hasValidCoords = true;
+
+                // 마커 투명도 조절: 현재 선택된 일자가 아니면 약간 흐리게
+                const opacity = (activeDayIndex === dayIndex) ? 1.0 : 0.6;
+                const scale = (activeDayIndex === dayIndex) ? 1.0 : 0.8;
+                
+                const svgWidth = Math.round(36 * scale);
+                const svgHeight = Math.round(44 * scale);
+                const fontSize = Math.round(13 * scale);
+                const circleCenter = Math.round(18 * scale);
+                const circleRadius = Math.round(16 * scale);
+                
+                // SVG 마커 생성 (선택 여부에 따라 크기와 투명도 다름)
+                const svgMarker = {
+                    url: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='${svgWidth}' height='${svgHeight}' opacity='${opacity}'><circle cx='${circleCenter}' cy='${circleCenter}' r='${circleRadius}' fill='${encodeURIComponent(color)}' stroke='white' stroke-width='3'/><text x='${circleCenter}' y='${Math.round(23 * scale)}' text-anchor='middle' fill='white' font-size='${fontSize}' font-weight='bold' font-family='Arial'>${itemIdx + 1}</text><polygon points='${circleCenter},${svgHeight} ${Math.round(11*scale)},${Math.round(30*scale)} ${Math.round(25*scale)},${Math.round(30*scale)}' fill='${encodeURIComponent(color)}'/></svg>`,
+                    scaledSize: new maps.Size(svgWidth, svgHeight),
+                    anchor: new maps.Point(circleCenter, svgHeight),
+                };
+
+                const marker = new maps.Marker({ 
+                    position: pos, 
+                    map: mapInstanceRef.current, 
+                    icon: svgMarker, 
+                    title: `Day ${dayIndex + 1}: ${item.name}`, 
+                    zIndex: (activeDayIndex === dayIndex) ? 1000 + itemIdx : itemIdx // 선택된 일자 마커를 위로
+                });
+
+                const searchQuery = encodeURIComponent(`${destination} ${item.name}`);
+                const infoWindow = new maps.InfoWindow({
+                    content: `<div style="padding:10px 14px;border-radius:10px;min-width:180px;font-family:sans-serif;">
+                                <div style="font-size:10px;font-weight:bold;color:${color};margin-bottom:2px;">Day ${dayIndex + 1}</div>
+                                <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#1e293b;">${item.name}</div>
+                                <div style="font-size:11px;color:#64748b;margin-bottom:12px;">${item.time || ''} · ${item.type || ''}</div>
+                                <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;background-color:#eff6ff;color:#3b82f6;text-decoration:none;border-radius:8px;font-size:11px;font-weight:bold;transition:all 0.2s;border:1px solid #bfdbfe;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    구글에서 장소 검색하기
+                                </a>
+                              </div>`,
+                });
+                marker.addListener('click', () => infoWindow.open(mapInstanceRef.current, marker));
+                markersRef.current.push(marker);
             });
-            marker.addListener('click', () => infoWindow.open(mapInstanceRef.current, marker));
-            markersRef.current.push(marker);
+
+            // 해당 일자의 경로 그리기
+            if (coords.length > 1) {
+                const isSelected = activeDayIndex === dayIndex;
+                const lineSymbol = { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: isSelected ? 3 : 2 };
+                const polyline = new maps.Polyline({
+                    path: coords, 
+                    geodesic: true, 
+                    strokeOpacity: 0,
+                    icons: [{ icon: lineSymbol, offset: '0', repeat: isSelected ? '16px' : '10px' }],
+                    strokeColor: color, 
+                    map: mapInstanceRef.current,
+                    zIndex: isSelected ? 500 : 100 // 선택된 선을 위로
+                });
+                polylinesRef.current.push(polyline);
+            }
         });
 
-        if (coords.length > 1) {
-            const lineSymbol = { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 };
-            polylineRef.current = new maps.Polyline({
-                path: coords, geodesic: true, strokeOpacity: 0,
-                icons: [{ icon: lineSymbol, offset: '0', repeat: '16px' }],
-                strokeColor: '#f59e0b', map: mapInstanceRef.current,
-            });
-        }
-
-        if (coords.length > 1) {
-            const bounds = new maps.LatLngBounds();
-            coords.forEach(c => bounds.extend(c));
-            mapInstanceRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 80, left: 40 });
-        } else if (coords.length === 1) {
-            mapInstanceRef.current.panTo(coords[0]);
-            mapInstanceRef.current.setZoom(15);
+        if (hasValidCoords) {
+            // 현재 활성화된 일자의 좌표가 1개 이상이면 해당 일자의 bounds에 맞춤
+            if (activeValidItems.length > 1) {
+                const activeBounds = new maps.LatLngBounds();
+                activeValidItems.forEach(c => activeBounds.extend({ lat: c.latitude, lng: c.longitude }));
+                mapInstanceRef.current.fitBounds(activeBounds, { top: 60, right: 40, bottom: 80, left: 40 });
+            } else if (activeValidItems.length === 1) {
+                mapInstanceRef.current.panTo({ lat: activeValidItems[0].latitude, lng: activeValidItems[0].longitude });
+                mapInstanceRef.current.setZoom(15);
+            } else {
+                // 활성화된 일자에 좌표가 없으면 전체 맵으로 줌
+                mapInstanceRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 80, left: 40 });
+            }
         }
 
         return () => {
             markersRef.current.forEach(m => m.setMap(null));
-            if (polylineRef.current) polylineRef.current.setMap(null);
+            polylinesRef.current.forEach(p => p.setMap(null));
         };
-    }, [mapLoaded, JSON.stringify(validItems.map(i => `${i.latitude},${i.longitude}`))]);
+    }, [mapLoaded, itinerary, activeDayIndex]);
+
+    // ── 실시간 협업 사용자 위치 마커 ──
+    useEffect(() => {
+        if (!mapLoaded || !mapInstanceRef.current || !window.google) return;
+        const maps = window.google.maps;
+
+        activeUsersMarkersRef.current.forEach(m => m.setMap(null));
+        activeUsersMarkersRef.current = [];
+
+        Object.entries(activeUsers).forEach(([userId, userData]) => {
+            if (currentUser && (userId === currentUser.uid || userId === currentUser.id)) return;
+            
+            const userDayIndex = userData.activeDayIndex;
+            if (userDayIndex !== undefined && itinerary[userDayIndex]) {
+                const dayItems = (itinerary[userDayIndex].items || []).filter(it => it.latitude && it.longitude);
+                if (dayItems.length > 0) {
+                    const firstItem = dayItems[0];
+                    // 첫 번째 항목에 약간의 오프셋을 주어 겹치지 않게 (0.001도 정도)
+                    const pos = { lat: firstItem.latitude + 0.001, lng: firstItem.longitude + 0.001 }; 
+                    const userColor = userData.color || '#3b82f6';
+                    const initial = (userData.displayName || 'U').charAt(0).toUpperCase();
+
+                    const svgAvatar = {
+                        url: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36'><circle cx='18' cy='18' r='16' fill='${encodeURIComponent(userColor)}' stroke='white' stroke-width='2'/><text x='18' y='23' text-anchor='middle' fill='white' font-size='14' font-weight='bold' font-family='Arial'>${initial}</text></svg>`,
+                        scaledSize: new maps.Size(36, 36),
+                        anchor: new maps.Point(18, 36),
+                    };
+
+                    const marker = new maps.Marker({
+                        position: pos,
+                        map: mapInstanceRef.current,
+                        icon: svgAvatar,
+                        title: `${userData.displayName} 님이 Day ${userDayIndex + 1}을(를) 보고 있습니다`,
+                        zIndex: 2000
+                    });
+
+                    activeUsersMarkersRef.current.push(marker);
+                }
+            }
+        });
+
+        return () => {
+            activeUsersMarkersRef.current.forEach(m => m.setMap(null));
+        };
+    }, [mapLoaded, activeUsers, itinerary, currentUser]);
 
     // ── 근처 장소 검색 ──
     const searchNearby = useCallback(() => {

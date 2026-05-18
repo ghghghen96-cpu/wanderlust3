@@ -3,7 +3,7 @@ import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
     ChevronLeft, Calendar, MapPin, Plus, List,
     MessageCircle, X, Plane, BedDouble,
-    ExternalLink, ChevronRight, Upload, Map
+    ExternalLink, ChevronRight, Upload, Map, Users, Link as LinkIcon
 } from 'lucide-react';
 import { addDays, differenceInDays } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
@@ -12,7 +12,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DESTINATION_DATA } from '../data';
 import { saveSearchHistory } from '../utils/history';
-import { auth } from '../firebase';
+import { auth, createSharedSession, subscribeToSession, updateSessionData, updateUserPresence, removeUserPresence } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { fetchPlaceImage } from '../utils/imageApi';
 import { fetchRealRestaurants } from '../utils/placeApi';
@@ -23,6 +23,7 @@ import AIChatModal from '../components/itinerary/AIChatModal';
 import PublishModal from '../components/itinerary/PublishModal';
 import FlightCard from '../components/itinerary/FlightCard';
 import HotelCard from '../components/itinerary/HotelCard';
+import CollaborationPanel from '../components/itinerary/CollaborationPanel';
 import MapView from '../components/itinerary/MapView';
 import { Section, AdPlaceholder } from '../components/itinerary/ItineraryComponents';
 
@@ -34,6 +35,8 @@ import {
     safeFormat, 
     getDayMapUrl 
 } from '../utils/itineraryHelpers';
+
+import { stringToColor } from '../utils/styleUtils';
 
 /**
  * Main Itinerary Page
@@ -88,6 +91,12 @@ const Itinerary = () => {
     const [publishOpen, setPublishOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
 
+    const searchParams = new URLSearchParams(location.search);
+    const sessionId = searchParams.get('sessionId');
+    const [collabOpen, setCollabOpen] = useState(false);
+    const [activeUsers, setActiveUsers] = useState({});
+    const isRemoteUpdateRef = React.useRef(false);
+
     // 모바일 바텀시트 관련 상태
     const [isMobile, setIsMobile] = useState(() => {
         if (typeof window !== 'undefined') {
@@ -135,9 +144,78 @@ const Itinerary = () => {
         return [{ id: Date.now(), name: '', address: '', confirmation: '', checkin: '', checkout: '' }];
     });
 
-    useEffect(() => { localStorage.setItem(`flights_v2_${data.destination}`, JSON.stringify(flights)); }, [flights, data.destination]);
-    useEffect(() => { localStorage.setItem(`hotels_v2_${data.destination}`, JSON.stringify(hotels)); }, [hotels, data.destination]);
+    useEffect(() => { if (!sessionId) localStorage.setItem(`flights_v2_${data.destination}`, JSON.stringify(flights)); }, [flights, data.destination, sessionId]);
+    useEffect(() => { if (!sessionId) localStorage.setItem(`hotels_v2_${data.destination}`, JSON.stringify(hotels)); }, [hotels, data.destination, sessionId]);
 
+    // Firebase Sync Effect
+    useEffect(() => {
+        if (sessionId) {
+            const unsub = subscribeToSession(sessionId, (remoteData) => {
+                if (remoteData) {
+                    isRemoteUpdateRef.current = true;
+                    setItinerary(remoteData.itinerary || []);
+                    setFlights(remoteData.flights || []);
+                    setHotels(remoteData.hotels || []);
+                    
+                    if (remoteData.presence) {
+                        // Filter active users to remove stale presences (>5 min old)
+                        const now = new Date();
+                        const active = Object.fromEntries(
+                            Object.entries(remoteData.presence).filter(([_, data]) => {
+                                const lastUpdated = new Date(data.updatedAt);
+                                return (now - lastUpdated) < 5 * 60 * 1000;
+                            })
+                        );
+                        setActiveUsers(active);
+                    }
+                }
+            });
+            return () => unsub();
+        }
+    }, [sessionId]);
+
+    // Update Presence Effect
+    useEffect(() => {
+        if (sessionId && currentUser) {
+            const userId = currentUser.uid || currentUser.id;
+            updateUserPresence(sessionId, userId, {
+                displayName: currentUser.displayName || currentUser.name || "여행자",
+                photoURL: currentUser.photoURL || null,
+                activeDayIndex,
+                color: stringToColor(userId)
+            });
+        }
+    }, [sessionId, currentUser, activeDayIndex]);
+
+    // Cleanup Presence on unmount or beforeunload
+    useEffect(() => {
+        if (!sessionId || !currentUser) return;
+        const userId = currentUser.uid || currentUser.id;
+
+        const cleanup = () => {
+            removeUserPresence(sessionId, userId);
+        };
+
+        window.addEventListener('beforeunload', cleanup);
+        return () => {
+            cleanup();
+            window.removeEventListener('beforeunload', cleanup);
+        };
+    }, [sessionId, currentUser]);
+
+    // Push Local Changes to Firebase
+    useEffect(() => {
+        if (sessionId && itinerary.length > 0) {
+            if (isRemoteUpdateRef.current) {
+                isRemoteUpdateRef.current = false;
+                return;
+            }
+            const timer = setTimeout(() => {
+                updateSessionData(sessionId, { itinerary, flights, hotels });
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [itinerary, flights, hotels, sessionId]);
 
     const addFlight = () => setFlights(fs => [...fs, { id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '', arrivalTime: '' }]);
     const removeFlight = (id) => setFlights(fs => fs.filter(f => f.id !== id));
@@ -153,6 +231,7 @@ const Itinerary = () => {
     // ?€?€ SMART TRAVEL ROUTE PLANNER ENGINE (CORE LOGIC) ?€?€
     useEffect(() => {
         const generate = async () => {
+            if (sessionId) return; // Skip generation if we are loading a shared session
             if (!data.destination) return;
             try {
                 const raw = (data.destination || '').toLowerCase().trim();
@@ -440,10 +519,30 @@ const Itinerary = () => {
 
     // 일정이 변경될 때마다 로컬 스토리지 업데이트
     useEffect(() => {
-        if (itinerary.length > 0) {
+        if (!sessionId && itinerary.length > 0) {
             localStorage.setItem(storageKey, JSON.stringify(itinerary));
         }
-    }, [itinerary, storageKey]);
+    }, [itinerary, storageKey, sessionId]);
+
+    const handleShare = async () => {
+        if (sessionId) {
+            navigator.clipboard.writeText(window.location.href);
+            alert(t('linkCopied', { defaultValue: '초대 링크가 복사되었습니다!' }));
+        } else {
+            try {
+                const newId = await createSharedSession(data, itinerary, flights, hotels);
+                const url = new URL(window.location.href);
+                url.searchParams.set('sessionId', newId);
+                navigator.clipboard.writeText(url.toString());
+                alert(t('linkCopied', { defaultValue: '공유 세션이 생성되었고 초대 링크가 복사되었습니다!' }));
+                navigate(`${location.pathname}${url.search}`, { replace: true });
+                setCollabOpen(true);
+            } catch (error) {
+                console.error(error);
+                alert('공유 세션 생성에 실패했습니다.');
+            }
+        }
+    };
 
     // ?€?€ Mutators ?€?€
     const setDayItems = (di, items) => setItinerary(prev => { const n = [...prev]; n[di] = { ...n[di], items }; return n; });
@@ -514,10 +613,20 @@ const Itinerary = () => {
                             </p>
                         </div>
                     </Link>
-                    <button onClick={()=>currentUser?setPublishOpen(true):window.confirm(t('publishLoginRequired'))&&navigate('/login')}
-                        className="md:hidden flex items-center justify-center p-2.5 bg-gradient-to-r from-amber-400 to-orange-400 text-gray-900 rounded-xl shadow-md shrink-0 ml-2">
-                        <Upload size={16}/>
-                    </button>
+                    <div className="flex gap-1.5 md:hidden ml-2">
+                        <button onClick={handleShare}
+                            className="flex items-center justify-center p-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl shadow-md shrink-0">
+                            <LinkIcon size={16}/>
+                        </button>
+                        <button onClick={() => setCollabOpen(true)}
+                            className="flex items-center justify-center p-2.5 bg-white border border-blue-200 text-blue-600 rounded-xl shadow-md shrink-0">
+                            <Users size={16}/>
+                        </button>
+                        <button onClick={()=>currentUser?setPublishOpen(true):window.confirm(t('publishLoginRequired'))&&navigate('/login')}
+                            className="flex items-center justify-center p-2.5 bg-gradient-to-r from-amber-400 to-orange-400 text-gray-900 rounded-xl shadow-md shrink-0">
+                            <Upload size={16}/>
+                        </button>
+                    </div>
                 </div>
                 
                 {/* 하단 (모바일에서는 탭 버튼 전체 너비) */}
@@ -527,10 +636,43 @@ const Itinerary = () => {
                             <button key={tab.id} onClick={()=>setActiveTab(tab.id)} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab===tab.id?'bg-amber-400 text-gray-900':'text-gray-400 hover:text-gray-700'}`}>{tab.label}</button>
                         ))}
                     </div>
-                    <button onClick={()=>currentUser?setPublishOpen(true):window.confirm(t('publishLoginRequired'))&&navigate('/login')}
-                        className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 to-orange-400 text-gray-900 font-black text-xs rounded-xl shadow-lg hover:shadow-xl transition-all shrink-0">
-                        <Upload size={15}/> {t('publishBtn')}
-                    </button>
+                    
+                    {/* Active Collaborators Avatars (Desktop) */}
+                    {sessionId && Object.keys(activeUsers).length > 0 && (
+                        <div className="hidden md:flex items-center mr-1">
+                            <div className="flex -space-x-2">
+                                {Object.entries(activeUsers).slice(0, 4).map(([uid, u]) => (
+                                    <div key={uid} className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold text-white shadow-sm" style={{ backgroundColor: u.color || '#ccc' }} title={u.displayName}>
+                                        {u.photoURL ? (
+                                            <img src={u.photoURL} alt={u.displayName} className="w-full h-full rounded-full object-cover" />
+                                        ) : (
+                                            u.displayName ? u.displayName.charAt(0).toUpperCase() : 'U'
+                                        )}
+                                    </div>
+                                ))}
+                                {Object.keys(activeUsers).length > 4 && (
+                                    <div className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold text-gray-600 bg-gray-100 shadow-sm z-10" title={`${Object.keys(activeUsers).length - 4} more collaborators`}>
+                                        +{Object.keys(activeUsers).length - 4}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="hidden md:flex gap-2">
+                        <button onClick={handleShare}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-700 font-black text-xs rounded-xl shadow-sm hover:bg-gray-50 transition-all shrink-0">
+                            <LinkIcon size={15}/> {t('shareBtn', { defaultValue: '초대링크' })}
+                        </button>
+                        <button onClick={() => setCollabOpen(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-blue-200 text-blue-600 font-black text-xs rounded-xl shadow-sm hover:bg-blue-50 transition-all shrink-0">
+                            <Users size={15}/> {t('collabBtn', { defaultValue: '공동작업' })}
+                        </button>
+                        <button onClick={()=>currentUser?setPublishOpen(true):window.confirm(t('publishLoginRequired'))&&navigate('/login')}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 to-orange-400 text-gray-900 font-black text-xs rounded-xl shadow-lg hover:shadow-xl transition-all shrink-0">
+                            <Upload size={15}/> {t('publishBtn')}
+                        </button>
+                    </div>
                 </div>
             </nav>
 
@@ -540,14 +682,15 @@ const Itinerary = () => {
                 {activeTab==='map' ? (
                     <motion.div key="map" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 relative overflow-hidden" style={{ display: 'flex', minHeight: 0 }}>
                         
-                        {/* 지도 영역 (모바일: 전체화면, 데스크톱: 우측 65%) */}
                         <div className={`relative ${isMobile ? 'w-full h-full absolute inset-0 z-0' : 'flex-1 order-2 h-full'}`}>
                             <MapView
                                 key={`map-day-${activeDayIndex}`}
-                                dayItems={activeDay?.items||[]}
+                                itinerary={itinerary}
                                 activeDayIndex={activeDayIndex}
                                 destination={displayDestination}
                                 onAddPlace={addItemToDay}
+                                activeUsers={activeUsers}
+                                currentUser={currentUser}
                             />
                         </div>
 
@@ -704,6 +847,7 @@ const Itinerary = () => {
 
             {/* Chat icon removed per user request */}
             <PublishModal isOpen={publishOpen} onClose={()=>setPublishOpen(false)} itinerary={itinerary} data={data} flights={flights} hotels={hotels} user={currentUser}/>
+            <CollaborationPanel isOpen={collabOpen} onClose={() => setCollabOpen(false)} sessionId={sessionId} user={currentUser} />
         </div>
     );
 };
