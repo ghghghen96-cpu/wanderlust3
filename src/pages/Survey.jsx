@@ -299,10 +299,12 @@ const Survey = () => {
                                                         }`}
                                                 >
                                                     <div className="relative w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
-                                                        <img
-                                                            src={`https://images.unsplash.com/${dest.imgId}?auto=format&fit=crop&q=80&w=100&h=100`}
-                                                            alt={city}
+                                                        <ExternalPlaceImage
+                                                            name={city}
+                                                            region={country}
+                                                            initialUrl={`https://images.unsplash.com/${dest.imgId}?auto=format&fit=crop&q=80&w=100&h=100`}
                                                             className="w-full h-full object-cover"
+                                                            alt={city}
                                                         />
                                                         <div className="absolute inset-0 bg-black/10" />
                                                         <span className="absolute bottom-1 right-1 text-xs">{dest.emoji}</span>
@@ -345,12 +347,15 @@ const Survey = () => {
                                             `}
                                         >
                                             {/* 모바일: 가로 레이아웃 */}
-                                            <div className="w-11 h-11 md:hidden rounded-lg overflow-hidden flex-shrink-0">
-                                                <img
-                                                    src={`https://images.unsplash.com/${dest.imgId}?auto=format&fit=crop&q=80&w=80&h=80`}
-                                                    alt={city}
+                                            <div className="w-11 h-11 md:hidden rounded-lg overflow-hidden flex-shrink-0 relative">
+                                                <ExternalPlaceImage
+                                                    name={city}
+                                                    region={country}
+                                                    initialUrl={`https://images.unsplash.com/${dest.imgId}?auto=format&fit=crop&q=80&w=80&h=80`}
                                                     className="w-full h-full object-cover"
+                                                    alt={city}
                                                 />
+                                            </div>
                                             </div>
                                             <div className="flex-1 md:hidden">
                                                 <div className={`font-black text-sm ${isSelected ? 'text-primary' : 'text-secondary'}`}>{city}</div>

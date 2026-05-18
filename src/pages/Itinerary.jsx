@@ -652,22 +652,30 @@ const Itinerary = () => {
                 ) : (
                     <motion.div key="list" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 overflow-y-auto bg-slate-50" style={{ minHeight: 0 }}>
                         <div className="max-w-4xl mx-auto px-6 py-10 space-y-14">
-                            {/* Summary Section */}
+                            {/* Summary Section - flights/hotels는 항상 표시 */}
                             <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
                                 <h1 className="text-3xl font-black text-slate-800 mb-8 border-b border-gray-100 pb-4">Summary</h1>
                                 <div className="space-y-8">
-                                    <Section title={t('flights')} icon={Plane} count={flights.length} onAdd={addFlight} addLabel={t('addFlight')}>
-                                        {flights.map(f=><FlightCard key={f.id} f={f} onChange={(k,v)=>updateFlight(f.id,k,v)} onRemove={()=>removeFlight(f.id)} showRemove={flights.length>1}/>)}
+                                    <Section title={t('flights')} icon={Plane} count={(flights || []).length} onAdd={addFlight} addLabel={t('addFlight')}>
+                                        {(flights || []).map(f=><FlightCard key={f.id} f={f} onChange={(k,v)=>updateFlight(f.id,k,v)} onRemove={()=>removeFlight(f.id)} showRemove={(flights || []).length>1}/>)}
                                     </Section>
-                                    <Section title={t('accommodation')} icon={BedDouble} count={hotels.length} onAdd={addHotel} addLabel={t('addStay')}>
-                                        {hotels.map((h,i)=><HotelCard key={h.id} h={h} index={i} onChange={(k,v)=>updateHotel(h.id,k,v)} onRemove={()=>removeHotel(h.id)} showRemove={hotels.length>1}/>)}
+                                    <Section title={t('accommodation')} icon={BedDouble} count={(hotels || []).length} onAdd={addHotel} addLabel={t('addStay')}>
+                                        {(hotels || []).map((h,i)=><HotelCard key={h.id} h={h} index={i} onChange={(k,v)=>updateHotel(h.id,k,v)} onRemove={()=>removeHotel(h.id)} showRemove={(hotels || []).length>1}/>)}
                                     </Section>
                                 </div>
                             </div>
                             
+                            {/* 일정 로드 중 안내 */}
+                            {itinerary.length === 0 && (
+                                <div className="flex flex-col items-center justify-center py-20 text-center">
+                                    <div className="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mb-6" />
+                                    <p className="text-gray-400 font-bold text-sm">{t('curating', { defaultValue: '일정을 생성하고 있습니다...' })}</p>
+                                </div>
+                            )}
+
                             {/* Itinerary List */}
-                            {itinerary.map((day,di)=>(
-                                <div key={day.id}>
+                            {(itinerary || []).map((day,di)=>(
+                                <div key={day.id || di}>
                                     <div className="flex items-center gap-5 mb-7">
                                         <div className="w-20 h-20 bg-secondary text-white rounded-3xl flex flex-col items-center justify-center font-black shadow-2xl shrink-0">
                                             <span className="text-[10px] uppercase tracking-widest opacity-50 mb-0.5">{t('dayLabel')}</span>

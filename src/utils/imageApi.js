@@ -6,6 +6,31 @@ export const SERPAPI_KEY = "fe72560f7dfef3bc3e2cf9fb9fd2013f3413405df5c39f0ed558
 export const GOOGLE_PLACE_API_KEY = import.meta.env.VITE_GOOGLE_PLACE_API_KEY || "AIzaSyBwR9DgMXq1Iwx8vnqiB3GYbD5ikJ5r4Uw";
 
 const imageCache = new Map();
+const sessionCachePrefix = "img_v2_";
+
+/**
+ * [Level 1] 메모리 캐시에서 즉시 이미지를 가져옵니다.
+ * (컴포넌트 초기화 시 동기적으로 사용 가능)
+ */
+export const getMemoryCachedImage = (city, place) => {
+    if (!city && !place) return null;
+    const query = `${city || ''} ${place || ''}`.trim();
+    const cacheKey = query.toLowerCase().replace(/\s+/g, '_');
+    
+    // 1. 메모리 캐시 확인
+    if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
+    
+    // 2. 세션 스토리지 확인 (동기적)
+    try {
+        const stored = sessionStorage.getItem(`${sessionCachePrefix}${cacheKey}`);
+        if (stored) {
+            imageCache.set(cacheKey, stored);
+            return stored;
+        }
+    } catch (e) {}
+    
+    return null;
+};
 
 /**
  * 허용된 호스트인지 확인 (기초 보안)
@@ -91,21 +116,9 @@ export const fetchPlaceImage = async (city, place) => {
     const unsplashQuery = `${googleQuery} travel`;
     const cacheKey = googleQuery.toLowerCase().replace(/\s+/g, '_');
 
-    // [Level 1] 메모리 캐시
-    if (imageCache.has(cacheKey)) {
-        return imageCache.get(cacheKey);
-    }
-
-    // [Level 1.5] 세션 스토리지 캐시
-    try {
-        const sessionCache = sessionStorage.getItem(`img_${cacheKey}`);
-        if (sessionCache) {
-            imageCache.set(cacheKey, sessionCache);
-            return sessionCache;
-        }
-    } catch (e) {
-        console.warn("Session storage 접근 실패:", e);
-    }
+    // [Level 1] 메모리 캐시 및 세션 캐시 (동기적 확인 가능)
+    const cached = getMemoryCachedImage(city, place);
+    if (cached) return cached;
 
     try {
         // [Level 2] Firestore 캐시
@@ -144,7 +157,7 @@ export const fetchPlaceImage = async (city, place) => {
         if (imageUrl) {
             // 모든 캐시 레벨에 저장
             imageCache.set(cacheKey, imageUrl);
-            try { sessionStorage.setItem(`img_${cacheKey}`, imageUrl); } catch (e) { }
+            try { sessionStorage.setItem(`${sessionCachePrefix}${cacheKey}`, imageUrl); } catch (e) { }
             try {
                 await setDoc(cacheDocRef, {
                     query: googleQuery,

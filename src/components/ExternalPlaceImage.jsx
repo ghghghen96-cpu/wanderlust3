@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchPlaceImage } from '../utils/imageApi';
+import { fetchPlaceImage, getMemoryCachedImage } from '../utils/imageApi';
 
 /**
  * ExternalPlaceImage
- * - Google Places API를 1순위로 이미지를 가져옵니다.
- * - Google Places 실패 시 initialUrl(Unsplash 등 정적 이미지)로 폴백합니다.
+ * - [1순위] 메모리/세션 캐시를 즉시 확인합니다 (동기).
+ * - [2순위] Google Places API를 통해 이미지를 가져옵니다.
+ * - [3순위] 실패 시 initialUrl(Unsplash 등 정적 이미지)로 폴백합니다.
  *
  * @param {string} name - 장소 이름 (검색 키워드로 사용)
  * @param {string} placeName - name 대체 prop
@@ -17,9 +18,12 @@ import { fetchPlaceImage } from '../utils/imageApi';
  */
 const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, alt, style }) => {
     const searchName = name || placeName;
-    // 초기값을 null로 설정하여 항상 API 우선 호출
-    const [imgUrl, setImgUrl] = useState(null);
-    const [loading, setLoading] = useState(true);
+    
+    // [동기식 캐시 확인] 컴포넌트 생성 시점에 이미 알고 있는 이미지는 즉시 표시
+    const cached = getMemoryCachedImage(region, searchName);
+    
+    const [imgUrl, setImgUrl] = useState(cached || null);
+    const [loading, setLoading] = useState(!cached);
     const [error, setError] = useState(false);
 
     useEffect(() => {
@@ -31,6 +35,14 @@ const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, al
             return;
         }
 
+        // [캐시 히트] 이미 동기적으로 캐시를 로드했으면 API 호출 생략
+        const alreadyCached = getMemoryCachedImage(region, searchName);
+        if (alreadyCached) {
+            setImgUrl(alreadyCached);
+            setLoading(false);
+            return;
+        }
+
         let cancelled = false;
 
         const loadImg = async () => {
@@ -38,7 +50,7 @@ const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, al
             setError(false);
 
             try {
-                // [1순위] Google Places API
+                // [1순위] Google Places API → 캐시 레이어 포함
                 const fetched = await fetchPlaceImage(region || '', searchName);
 
                 if (cancelled) return;
@@ -67,7 +79,7 @@ const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, al
         loadImg();
 
         return () => { cancelled = true; };
-    }, [searchName, region, initialUrl]);
+    }, [searchName, region]);  // initialUrl은 폴백이므로 의존성에서 제외 (불필요한 재호출 방지)
 
     return (
         <div className={`relative overflow-hidden ${className} bg-gray-200`} style={style}>
