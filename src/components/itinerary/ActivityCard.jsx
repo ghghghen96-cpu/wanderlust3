@@ -111,14 +111,7 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId, 
                     </div>
                 </div>
 
-                <div className="w-full sm:w-40 xl:w-48 aspect-video rounded-2xl overflow-hidden flex-shrink-0 relative shadow-sm border border-gray-100 bg-gray-100 group-hover:shadow-md transition-shadow">
-                    <ExternalPlaceImage 
-                        name={activity.name}
-                        region={destination}
-                        initialUrl={activity.img} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                    />
-                </div>
+
 
                 <div className="flex-1 min-w-0 w-full">
                     <div className="flex items-start justify-between">

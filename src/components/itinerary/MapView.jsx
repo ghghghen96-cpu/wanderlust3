@@ -117,8 +117,16 @@ const MapView = ({ dayItems = [], activeDayIndex = 0, destination = '', onAddPla
                 anchor: new maps.Point(18, 44),
             };
             const marker = new maps.Marker({ position: pos, map: mapInstanceRef.current, icon: svgMarker, title: item.name, zIndex: idx + 1 });
+            const searchQuery = encodeURIComponent(`${destination} ${item.name}`);
             const infoWindow = new maps.InfoWindow({
-                content: `<div style="padding:10px 14px;border-radius:10px;min-width:160px;font-family:sans-serif;"><div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#1e293b;">${item.name}</div><div style="font-size:11px;color:#64748b;">${item.time || ''} · ${item.type || ''}</div></div>`,
+                content: `<div style="padding:10px 14px;border-radius:10px;min-width:180px;font-family:sans-serif;">
+                            <div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#1e293b;">${item.name}</div>
+                            <div style="font-size:11px;color:#64748b;margin-bottom:12px;">${item.time || ''} · ${item.type || ''}</div>
+                            <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;background-color:#eff6ff;color:#3b82f6;text-decoration:none;border-radius:8px;font-size:11px;font-weight:bold;transition:all 0.2s;border:1px solid #bfdbfe;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                구글에서 장소 검색하기
+                            </a>
+                          </div>`,
             });
             marker.addListener('click', () => infoWindow.open(mapInstanceRef.current, marker));
             markersRef.current.push(marker);
