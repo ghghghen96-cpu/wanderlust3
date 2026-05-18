@@ -380,7 +380,22 @@ export const requestPayout = async (uid, amount, bankInfo) => {
 };
 
 // ─── 실시간 공동 작업 (Shared Sessions) ───────────────────────────────────────────────
+// 세션 데이터를 일회성으로 fetch (공유 링크 접속 시 초기 데이터 복원용)
+export const getSharedSession = async (sessionId) => {
+    if (!sessionId) return null;
+    try {
+        const docRef = doc(db, "shared_itineraries", sessionId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) return docSnap.data();
+        return null;
+    } catch (error) {
+        console.error("Error fetching shared session:", error);
+        return null;
+    }
+};
+
 export const createSharedSession = async (data, itinerary, flights, hotels) => {
+
     try {
         const docRef = await addDoc(collection(db, "shared_itineraries"), {
             data: data || {},

@@ -12,7 +12,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DESTINATION_DATA } from '../data';
 import { saveSearchHistory } from '../utils/history';
-import { auth, createSharedSession, subscribeToSession, updateSessionData, updateUserPresence, removeUserPresence } from '../firebase';
+import { auth, createSharedSession, getSharedSession, subscribeToSession, updateSessionData, updateUserPresence, removeUserPresence } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { fetchPlaceImage } from '../utils/imageApi';
 import { fetchRealRestaurants } from '../utils/placeApi';
@@ -45,24 +45,36 @@ import { stringToColor } from '../utils/styleUtils';
 const Itinerary = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    // 공유 링크 접속 시 sessionData로 대체, 없으면 location.state 또는 localStorage
     const data = location.state || JSON.parse(localStorage.getItem('last_search_data') || '{}');
 
+    // 공유 링크로 접속한 경우 sessionData로 병합 (Firebase에서 복원)
+    // sessionData는 나중에 로드되므로 효과적으로 병합하려면 useMemo나 직접 참조 필요
+    // -> 아래 useEffect에서 sessionData 로드 후 destData 설정이 다시 trigger됨
+
     // 새로고침 시에도 state 유지, 데이터가 없으면 설문으로 이동
+    // sessionId가 있는 경우(공유 링크 접속)는 survey로 이동하지 않음
+    const searchParamsEarly = new URLSearchParams(location.search);
+    const sessionIdEarly = searchParamsEarly.get('sessionId');
     useEffect(() => {
         if (location.state) {
             localStorage.setItem('last_search_data', JSON.stringify(location.state));
-        } else if (!data.destination) {
+        } else if (!data.destination && !sessionIdEarly) {
             navigate('/survey', { replace: true });
         }
-    }, [location.state, data.destination, navigate]);
+    }, [location.state, data.destination, navigate, sessionIdEarly]);
 
     const { t, i18n } = useTranslation('translation', { keyPrefix: 'itinerary' });
     const [displayDestination, setDisplayDestination] = useState('');
 
+    // sessionData(공유 접속 복원)와 로컬 data를 병합
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const effectiveData = sessionData ? { ...data, ...sessionData } : data;
+
     // Pre-calculate display destination
     useEffect(() => {
-        const raw = data.destination || '';
-        const id = data.destinationId || '';
+        const raw = effectiveData.destination || '';
+        const id = effectiveData.destinationId || '';
 
         // If we have a destinationId, try to get the translated name first
         if (id) {
@@ -81,7 +93,7 @@ const Itinerary = () => {
             return;
         }
         setDisplayDestination(raw);
-    }, [data.destination, data.destinationId, i18n.language, t]);
+    }, [effectiveData.destination, effectiveData.destinationId, i18n.language, t, sessionData]);
 
     const [itinerary, setItinerary] = useState([]);
     const [destData, setDestData] = useState(null);
@@ -93,8 +105,12 @@ const Itinerary = () => {
 
     const searchParams = new URLSearchParams(location.search);
     const sessionId = searchParams.get('sessionId');
-    const [collabOpen, setCollabOpen] = useState(false);
+    // 공유 링크로 접속한 경우 협업 패널 자동 열기
+    const [collabOpen, setCollabOpen] = useState(!!sessionId);
     const [activeUsers, setActiveUsers] = useState({});
+    // 공유 링크 접속 시 복원된 data (destination 등)
+    const [sessionData, setSessionData] = useState(null);
+    const [sessionLoading, setSessionLoading] = useState(!!sessionId);
     const isRemoteUpdateRef = React.useRef(false);
 
     // 모바일 바텀시트 관련 상태
@@ -127,11 +143,23 @@ const Itinerary = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // ?€?€ Auth Observer ?€?€
+    // ── Auth Observer ──
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
         return () => unsub();
     }, []);
+
+    // ── 공유 세션 접속 시: Firebase에서 data(destination 등) 복원 ──
+    useEffect(() => {
+        if (!sessionId) return;
+        setSessionLoading(true);
+        getSharedSession(sessionId).then((sd) => {
+            if (sd && sd.data) {
+                setSessionData(sd.data);
+            }
+            setSessionLoading(false);
+        });
+    }, [sessionId]);
 
     // ?? Flights & Hotels State ??
     const [flights, setFlights] = useState(() => {
@@ -226,16 +254,16 @@ const Itinerary = () => {
     const updateHotel = (id, k, v) => setHotels(hs => hs.map(h => h.id === id ? { ...h, [k]: v } : h));
 
     // 동선 최적화 알고리즘 업데이트에 따른 스토리지 키 버전 변경 (v4)
-    const storageKey = `itinerary_v4_${data.destination}_${data.startDate}_${data.endDate}_${data.vibe}_${data.pace}`;
+    const storageKey = `itinerary_v4_${effectiveData.destination}_${effectiveData.startDate}_${effectiveData.endDate}_${effectiveData.vibe}_${effectiveData.pace}`;
 
     // ?€?€ SMART TRAVEL ROUTE PLANNER ENGINE (CORE LOGIC) ?€?€
     useEffect(() => {
         const generate = async () => {
             if (sessionId) return; // Skip generation if we are loading a shared session
-            if (!data.destination) return;
+            if (!effectiveData.destination) return;
             try {
-                const raw = (data.destination || '').toLowerCase().trim();
-                const idMatch = (data.destinationId || '').toLowerCase().trim();
+                const raw = (effectiveData.destination || '').toLowerCase().trim();
+                const idMatch = (effectiveData.destinationId || '').toLowerCase().trim();
 
                 // 1. Fuzzy Destination Matching
                 let matchKey = null;
@@ -272,17 +300,17 @@ const Itinerary = () => {
                 const allActivities = [...sd.activities];
                 const globalUsed = new Set();
                 const BASE_PER_DAY = { 'Relaxed': 2, 'Packed': 4, 'Balanced': 3 };
-                let basePerDay = BASE_PER_DAY[data.pace] || 3;
-                if (['Chill', 'Chill Wanderer'].includes(data.vibe)) basePerDay = Math.max(2, basePerDay - 1);
-                if (['Active', 'Active Explorer'].includes(data.vibe)) basePerDay = Math.min(5, basePerDay + 1);
+                let basePerDay = BASE_PER_DAY[effectiveData.pace] || 3;
+                if (['Chill', 'Chill Wanderer'].includes(effectiveData.vibe)) basePerDay = Math.max(2, basePerDay - 1);
+                if (['Active', 'Active Explorer'].includes(effectiveData.vibe)) basePerDay = Math.min(5, basePerDay + 1);
 
                 const VIBE_PREFS = {
                     'Chill': ['Relax', 'Nature', 'Culture'], 'Chill Wanderer': ['Relax', 'Nature', 'Culture'],
                     'Active': ['Nature', 'City', 'Culture'], 'Active Explorer': ['Nature', 'City', 'Culture'],
                     'Social': ['City', 'Food', 'Culture'], 'Quiet': ['Nature', 'Relax', 'Culture'],
                 };
-                const prefTypes = VIBE_PREFS[data.vibe] || [];
-                const focusTypes = Array.isArray(data.focus) ? data.focus : [];
+                const prefTypes = VIBE_PREFS[effectiveData.vibe] || [];
+                const focusTypes = Array.isArray(effectiveData.focus) ? effectiveData.focus : [];
 
                 const scoreActivity = (act, distKm) => {
                     let score = (act.rating || 4.0) * 10;
@@ -299,7 +327,7 @@ const Itinerary = () => {
                     'Street Food': [{ name: 'Local Street Food Tour', type: 'Food', rating: 4.7 }, { name: 'Night Market Eats', type: 'Food', rating: 4.6 }],
                     'Cafe Culture': [{ name: 'Specialty Coffee & Brunch', type: 'Food', rating: 4.7 }, { name: 'Afternoon Cafe', type: 'Food', rating: 4.6 }],
                 };
-                const diningSlots = DINING_SPOTS[data.dining] || [];
+                const diningSlots = DINING_SPOTS[effectiveData.dining] || [];
                 const globalDiningUsed = new Set();
 
                 const generateItemExtras = (act, isDining) => {
@@ -311,7 +339,7 @@ const Itinerary = () => {
                     
                     let recReason = t('reasonGeneral', { rating: act.rating || 4.5 });
                     if (isDining) {
-                        recReason = t('reasonDining', { style: data.dining || 'preferred' });
+                        recReason = t('reasonDining', { style: effectiveData.dining || 'preferred' });
                     } else if (matchedFocus) {
                         // Localize the focus name for the reason string
                         const focusLabel = t(`theme${matchedFocus}`) || matchedFocus;
@@ -336,7 +364,7 @@ const Itinerary = () => {
                  * 3순위: 기본 더미 텍스트
                  */
                 const getMealRecommendation = async (mealType, lastLat, lastLng) => {
-                    const diningPrefs = Array.isArray(data.dining) ? data.dining : [data.dining || 'Casual'];
+                    const diningPrefs = Array.isArray(effectiveData.dining) ? effectiveData.dining : [effectiveData.dining || 'Casual'];
                     const time = mealType === 'Breakfast' ? '08:30' : (mealType === 'Lunch' ? '12:30' : '18:30');
 
                     // ── 1순위: 구글 플레이스 API 실시간 검색 ──────────────────────────────
@@ -415,8 +443,8 @@ const Itinerary = () => {
                     } else {
                         // ── 3순위: 기본 더미 ───────────────────────────────────────────────
                         picks = [
-                            { name: `${data.destination} Popular ${mealType}`, type: 'Food', rating: 4.8 },
-                            { name: `${data.destination} Local Favorite`, type: 'Food', rating: 4.7 },
+                            { name: `${effectiveData.destination} Popular ${mealType}`, type: 'Food', rating: 4.8 },
+                            { name: `${effectiveData.destination} Local Favorite`, type: 'Food', rating: 4.7 },
                         ];
                     }
                     picks.forEach(p => usedFood.add(p.name));
@@ -579,6 +607,16 @@ const Itinerary = () => {
             return n;
         });
     }, []);
+
+    if (sessionLoading) return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6 p-6">
+            <Navbar />
+            <div className="text-2xl font-black text-secondary animate-pulse mt-20">
+                🔗 공유 일정을 불러오는 중...
+            </div>
+            <AdPlaceholder className="w-full max-w-2xl h-[250px] shadow-sm" />
+        </div>
+    );
 
     if (!destData) return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6 p-6">
@@ -847,7 +885,7 @@ const Itinerary = () => {
 
             {/* Chat icon removed per user request */}
             <PublishModal isOpen={publishOpen} onClose={()=>setPublishOpen(false)} itinerary={itinerary} data={data} flights={flights} hotels={hotels} user={currentUser}/>
-            <CollaborationPanel isOpen={collabOpen} onClose={() => setCollabOpen(false)} sessionId={sessionId} user={currentUser} />
+            <CollaborationPanel isOpen={collabOpen} onClose={() => setCollabOpen(false)} sessionId={sessionId} user={currentUser} activeUsers={activeUsers} />
         </div>
     );
 };
