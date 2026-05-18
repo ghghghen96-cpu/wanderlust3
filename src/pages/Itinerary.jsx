@@ -534,12 +534,12 @@ const Itinerary = () => {
                 const url = new URL(window.location.href);
                 url.searchParams.set('sessionId', newId);
                 navigator.clipboard.writeText(url.toString());
-                alert(t('linkCopied', { defaultValue: '공유 세션이 생성되었고 초대 링크가 복사되었습니다!' }));
+                alert(t('linkCopiedSession', { defaultValue: '공유 세션이 생성되었고 초대 링크가 복사되었습니다!' }));
                 navigate(`${location.pathname}${url.search}`, { replace: true });
                 setCollabOpen(true);
             } catch (error) {
                 console.error(error);
-                alert('공유 세션 생성에 실패했습니다.');
+                alert(t('shareFail', { defaultValue: 'Failed to create shared session.' }));
             }
         }
     };
@@ -735,7 +735,7 @@ const Itinerary = () => {
                                                 <p className="text-gray-500 text-[10px]">{(activeDay.items||[]).length} places</p>
                                             </div>
                                             <button onClick={() => exportToGoogleMaps(activeDay.items)} className="flex items-center gap-1 px-2 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-colors">
-                                                <MapPin size={12} /> 구글맵 연동
+                                                <MapPin size={12} /> {t('exportToMap', { defaultValue: 'Export to Google Maps' })}
                                             </button>
                                         </div>
                                     )}
@@ -774,7 +774,7 @@ const Itinerary = () => {
                                             <p className="text-gray-500 text-xs">{(activeDay.items||[]).length} places</p>
                                         </div>
                                         <button onClick={() => exportToGoogleMaps(activeDay.items)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors">
-                                            <MapPin size={14} /> 구글맵으로 내보내기
+                                            <MapPin size={14} /> {t('exportToMap', { defaultValue: 'Export to Google Maps' })}
                                         </button>
                                     </div>
                                 )}
@@ -797,7 +797,7 @@ const Itinerary = () => {
                         <div className="max-w-4xl mx-auto px-6 py-10 space-y-14">
                             {/* Summary Section - flights/hotels는 항상 표시 */}
                             <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
-                                <h1 className="text-3xl font-black text-slate-800 mb-8 border-b border-gray-100 pb-4">Summary</h1>
+                                <h1 className="text-3xl font-black text-slate-800 mb-8 border-b border-gray-100 pb-4">{t('tabSummary', { defaultValue: 'Summary' })}</h1>
                                 <div className="space-y-8">
                                     <Section title={t('flights')} icon={Plane} count={(flights || []).length} onAdd={addFlight} addLabel={t('addFlight')}>
                                         {(flights || []).map(f=><FlightCard key={f.id} f={f} onChange={(k,v)=>updateFlight(f.id,k,v)} onRemove={()=>removeFlight(f.id)} showRemove={(flights || []).length>1}/>)}
