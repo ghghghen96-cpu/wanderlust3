@@ -356,7 +356,6 @@ const Survey = () => {
                                                     alt={city}
                                                 />
                                             </div>
-                                            </div>
                                             <div className="flex-1 md:hidden">
                                                 <div className={`font-black text-sm ${isSelected ? 'text-primary' : 'text-secondary'}`}>{city}</div>
                                                 <div className="text-[11px] text-gray-400">{country} {dest.emoji}</div>
