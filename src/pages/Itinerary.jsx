@@ -14,7 +14,7 @@ import { DESTINATION_DATA } from '../data';
 import { saveSearchHistory } from '../utils/history';
 import { auth, createSharedSession, getSharedSession, subscribeToSession, updateSessionData, updateUserPresence, removeUserPresence } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { fetchPlaceImage } from '../utils/imageApi';
+import { fetchPlaceImage, prefetchActivityImages } from '../utils/imageApi';
 import { fetchRealRestaurants } from '../utils/placeApi';
 
 // Modular Components
@@ -163,17 +163,17 @@ const Itinerary = () => {
 
     // ?? Flights & Hotels State ??
     const [flights, setFlights] = useState(() => {
-        try { const s = localStorage.getItem(`flights_v2_${data.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
+        try { const s = localStorage.getItem(`flights_v2_${effectiveData.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
         return [{ id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '', arrivalTime: '' }];
     });
 
     const [hotels, setHotels] = useState(() => {
-        try { const s = localStorage.getItem(`hotels_v2_${data.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
+        try { const s = localStorage.getItem(`hotels_v2_${effectiveData.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
         return [{ id: Date.now(), name: '', address: '', confirmation: '', checkin: '', checkout: '' }];
     });
 
-    useEffect(() => { if (!sessionId) localStorage.setItem(`flights_v2_${data.destination}`, JSON.stringify(flights)); }, [flights, data.destination, sessionId]);
-    useEffect(() => { if (!sessionId) localStorage.setItem(`hotels_v2_${data.destination}`, JSON.stringify(hotels)); }, [hotels, data.destination, sessionId]);
+    useEffect(() => { if (!sessionId) localStorage.setItem(`flights_v2_${effectiveData.destination}`, JSON.stringify(flights)); }, [flights, effectiveData.destination, sessionId]);
+    useEffect(() => { if (!sessionId) localStorage.setItem(`hotels_v2_${effectiveData.destination}`, JSON.stringify(hotels)); }, [hotels, effectiveData.destination, sessionId]);
 
     // Firebase Sync Effect
     useEffect(() => {
@@ -286,13 +286,17 @@ const Itinerary = () => {
                         const parsed = JSON.parse(saved);
                         if (parsed && parsed.length > 0) {
                             setItinerary(parsed);
+                            // 캐시된 일정도 이미지 프리페치 (아직 캐싱 안 된 항목)
+                            prefetchActivityImages(parsed, effectiveData.destination).catch(() => {});
                             return;
                         }
                     }
                 } catch(e) {}
 
-                const start = new Date(data.startDate);
-                const end = new Date(data.endDate);
+                let start = new Date(effectiveData.startDate || Date.now());
+                let end = new Date(effectiveData.endDate || Date.now());
+                if (isNaN(start.getTime())) start = new Date();
+                if (isNaN(end.getTime())) end = new Date();
                 const dayCount = Math.max(differenceInDays(end, start) + 1, 1);
                 
                 if (!sd || !sd.activities) return;
@@ -413,7 +417,7 @@ const Itinerary = () => {
                                     desc: descMain + descSecond + descSource,
                                     desc_ko: descMain + descSecond + descSource,
                                     // 구글 플레이스 실제 사진 URL
-                                    img: best.photoUrl || getImg(best.name, 'Food', data.destination, data.destinationId),
+                                    img: best.photoUrl || getImg(best.name, 'Food', effectiveData.destination, effectiveData.destinationId),
                                     latitude: best.latitude,
                                     longitude: best.longitude,
                                     placeId: best.placeId,
@@ -458,12 +462,12 @@ const Itinerary = () => {
                         rating: picks[0].rating,
                         desc: `- 식사 옵션:\n1. ${picks[0].name} (⭐ ${picks[0].rating})\n2. ${picks[1].name} (⭐ ${picks[1].rating})\n\n* 현지 추천 맛집`,
                         desc_ko: `- 식사 옵션:\n1. ${picks[0].name} (⭐ ${picks[0].rating})\n2. ${picks[1].name} (⭐ ${picks[1].rating})\n\n* 현지 추천 맛집`,
-                        img: getImg(picks[0].name, 'Food', data.destination, data.destinationId),
+                        img: getImg(picks[0].name, 'Food', effectiveData.destination, effectiveData.destinationId),
                         latitude: picks[0].latitude,
                         longitude: picks[0].longitude,
                         mapsUrl: picks[0].latitude && picks[0].longitude
                             ? `https://www.google.com/maps/search/?api=1&query=${picks[0].latitude},${picks[0].longitude}`
-                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(picks[0].name + ' ' + data.destination)}`,
+                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(picks[0].name + ' ' + effectiveData.destination)}`,
                     };
                 };
 
@@ -473,7 +477,7 @@ const Itinerary = () => {
                     const dayItems = [];
                     
                     // Add Breakfast if Packed
-                    if (data.pace === 'Packed') {
+                    if (effectiveData.pace === 'Packed') {
                         const breakfast = await getMealRecommendation('Breakfast', lastLat, lastLng);
                         dayItems.push(breakfast);
                     }
@@ -502,7 +506,7 @@ const Itinerary = () => {
                         actsForDay.push({ 
                             ...next, 
                             ...extras, 
-                            img: getImg(next.name, next.type, data.destination, data.destinationId), 
+                            img: getImg(next.name, next.type, effectiveData.destination, effectiveData.destinationId), 
                             id: `${i}-${j}-${Date.now()}`, 
                             time: itemTime
                         });
@@ -533,9 +537,11 @@ const Itinerary = () => {
                     days.push({ id: i, dayNum: i + 1, date: addDays(start, i), theme: t('themeDefault'), items: sortedDayItems });
                 }
 
-                // ?€?€ Text First! Render the itinerary immediately ?€?€
+                // 일정 렌더 즉시 (이미지는 백그라운드에서 캐싱)
                 setItinerary(days);
-                saveSearchHistory(data);
+                saveSearchHistory(effectiveData);
+                // 백그라운드에서 모든 활동 이미지를 미리 캐싱 (다음 방문부터 즉시 표시)
+                prefetchActivityImages(days, effectiveData.destination).catch(() => {});
 
             } catch (error) {
                 console.error("Critical error in generation:", error);
@@ -646,7 +652,7 @@ const Itinerary = () => {
                             <h1 className="font-extrabold text-lg md:text-xl text-gray-900 truncate">{displayDestination}</h1>
                             <p className="text-[10px] md:text-xs font-bold text-gray-500 flex items-center gap-1.5 truncate">
                                 <Calendar size={11} className="text-amber-400 shrink-0"/>
-                                <span className="truncate">{safeFormat(data.startDate,'MMM dd',i18n.language==='ko'?ko:enUS)} - {safeFormat(data.endDate,'MMM dd',i18n.language==='ko'?ko:enUS)}</span>
+                                <span className="truncate">{safeFormat(effectiveData.startDate,'MMM dd',i18n.language==='ko'?ko:enUS)} - {safeFormat(effectiveData.endDate,'MMM dd',i18n.language==='ko'?ko:enUS)}</span>
                                 <span className="shrink-0">| {t('days',{count:itinerary.length, defaultValue: itinerary.length + ' days'})}</span>
                             </p>
                         </div>
@@ -784,7 +790,7 @@ const Itinerary = () => {
                                     }}>
                                         <Reorder.Group axis="y" values={activeDay?.items||[]} onReorder={items=>setDayItems(activeDayIndex,items)} className="space-y-2">
                                             {(activeDay?.items||[]).map(act=>(
-                                                <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(activeDayIndex,act.id,a)} onDelete={()=>deleteAct(activeDayIndex,act.id)} destination={displayDestination} destinationId={data.destinationId} compact={true}/>
+                                                <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(activeDayIndex,act.id,a)} onDelete={()=>deleteAct(activeDayIndex,act.id)} destination={displayDestination} destinationId={effectiveData.destinationId} compact={true}/>
                                             ))}
                                         </Reorder.Group>
                                         <button onClick={()=>addAct(activeDayIndex)} className="w-full mt-3 py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-1.5 text-[10px] font-bold">
@@ -820,7 +826,7 @@ const Itinerary = () => {
                                 <div className="flex-1 overflow-y-auto p-3">
                                     <Reorder.Group axis="y" values={activeDay?.items||[]} onReorder={items=>setDayItems(activeDayIndex,items)} className="space-y-3">
                                         {(activeDay?.items||[]).map(act=>(
-                                            <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(activeDayIndex,act.id,a)} onDelete={()=>deleteAct(activeDayIndex,act.id)} destination={displayDestination} destinationId={data.destinationId} compact={true}/>
+                                            <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(activeDayIndex,act.id,a)} onDelete={()=>deleteAct(activeDayIndex,act.id)} destination={displayDestination} destinationId={effectiveData.destinationId} compact={true}/>
                                         ))}
                                     </Reorder.Group>
                                     <button onClick={()=>addAct(activeDayIndex)} className="w-full mt-4 py-3 border border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 text-xs font-bold">
@@ -869,7 +875,7 @@ const Itinerary = () => {
                                     </div>
                                     <Reorder.Group axis="y" values={day.items||[]} onReorder={items=>setDayItems(di,items)} className="space-y-4">
                                         {(day.items || []).map(act=>(
-                                            <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(di,act.id,a)} onDelete={()=>deleteAct(di,act.id)} destination={displayDestination} destinationId={data.destinationId}/>
+                                            <ActivityCard key={act.id} activity={act} onSave={a=>updateAct(di,act.id,a)} onDelete={()=>deleteAct(di,act.id)} destination={displayDestination} destinationId={effectiveData.destinationId}/>
                                         ))}
                                     </Reorder.Group>
                                     <button onClick={()=>addAct(di)} className="w-full mt-6 py-5 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400 font-bold hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2">

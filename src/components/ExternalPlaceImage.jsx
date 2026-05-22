@@ -1,32 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchPlaceImage, getMemoryCachedImage } from '../utils/imageApi';
 
 /**
  * ExternalPlaceImage
- * - [1순위] 메모리/세션 캐시를 즉시 확인합니다 (동기).
- * - [2순위] Google Places API를 통해 이미지를 가져옵니다.
- * - [3순위] 실패 시 initialUrl(Unsplash 등 정적 이미지)로 폴백합니다.
+ * - [1순위] 메모리 캐시 즉시 확인 (동기)
+ * - [2순위] IndexedDB 영구 캐시 (새로고침 후에도 바로 표시, 비동기지만 매우 빠름)
+ * - [3순위] Firestore 캐시
+ * - [4순위] Google Places API (고화질 실사진)
+ * - [5순위] Unsplash 폴백
  *
- * @param {string} name - 장소 이름 (검색 키워드로 사용)
+ * @param {string} name - 장소 이름 (검색 키워드)
  * @param {string} placeName - name 대체 prop
  * @param {string} initialUrl - 폴백용 정적 이미지 URL
- * @param {string} region - 도시 또는 지역 이름 (검색 정확도 향상)
- * @param {string} className - 추가 CSS 클래스
+ * @param {string} region - 도시/지역 이름 (검색 정확도 향상)
+ * @param {string} className - CSS 클래스
  * @param {string} alt - 이미지 alt 텍스트
  * @param {object} style - 인라인 스타일
  */
 const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, alt, style }) => {
     const searchName = name || placeName;
-    
-    // [동기식 캐시 확인] 컴포넌트 생성 시점에 이미 알고 있는 이미지는 즉시 표시
-    const cached = getMemoryCachedImage(region, searchName);
-    
-    const [imgUrl, setImgUrl] = useState(cached || null);
-    const [loading, setLoading] = useState(!cached);
+
+    // [동기] 메모리 캐시 즉시 확인
+    const memoryCached = getMemoryCachedImage(region, searchName);
+
+    const [imgUrl, setImgUrl] = useState(memoryCached || initialUrl || null);
+    const [loading, setLoading] = useState(!memoryCached);
     const [error, setError] = useState(false);
+    const [source, setSource] = useState(memoryCached ? 'cache' : null);
+    const cancelledRef = useRef(false);
 
     useEffect(() => {
+        cancelledRef.current = false;
+
         // searchName이 없으면 initialUrl만 사용
         if (!searchName) {
             setImgUrl(initialUrl || null);
@@ -35,54 +41,58 @@ const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, al
             return;
         }
 
-        // [캐시 히트] 이미 동기적으로 캐시를 로드했으면 API 호출 생략
-        const alreadyCached = getMemoryCachedImage(region, searchName);
-        if (alreadyCached) {
-            setImgUrl(alreadyCached);
+        // [1] 메모리 캐시 히트 → 즉시 반환
+        const memCached = getMemoryCachedImage(region, searchName);
+        if (memCached) {
+            setImgUrl(memCached);
             setLoading(false);
+            setSource('cache');
             return;
         }
 
-        let cancelled = false;
-
+        // [2~5] 비동기 로드 (IndexedDB → Firestore → Google Places → Unsplash)
         const loadImg = async () => {
             setLoading(true);
             setError(false);
 
             try {
-                // [1순위] Google Places API → 캐시 레이어 포함
+                // fetchPlaceImage가 내부적으로 모든 캐시 레이어를 순서대로 확인
                 const fetched = await fetchPlaceImage(region || '', searchName);
 
-                if (cancelled) return;
+                if (cancelledRef.current) return;
 
                 if (fetched) {
                     setImgUrl(fetched);
+                    const src = fetched.includes('maps.googleapis.com') ? 'google_places' : 
+                                fetched.includes('unsplash.com') ? 'unsplash' : 'cache';
+                    setSource(src);
                 } else if (initialUrl) {
-                    // [폴백] 정적 initialUrl (Unsplash 등)
                     setImgUrl(initialUrl);
+                    setSource('fallback');
                 } else {
                     setError(true);
                 }
             } catch (e) {
-                if (cancelled) return;
-                console.error("ExternalPlaceImage 로드 실패:", searchName, e);
+                if (cancelledRef.current) return;
+                console.error('ExternalPlaceImage 로드 실패:', searchName, e);
                 if (initialUrl) {
                     setImgUrl(initialUrl);
+                    setSource('fallback');
                 } else {
                     setError(true);
                 }
             } finally {
-                if (!cancelled) setLoading(false);
+                if (!cancelledRef.current) setLoading(false);
             }
         };
 
         loadImg();
 
-        return () => { cancelled = true; };
-    }, [searchName, region]);  // initialUrl은 폴백이므로 의존성에서 제외 (불필요한 재호출 방지)
+        return () => { cancelledRef.current = true; };
+    }, [searchName, region]);
 
     return (
-        <div className={`relative overflow-hidden ${className} bg-gray-200`} style={style}>
+        <div className={`relative overflow-hidden ${className || ''} bg-gray-200`} style={style}>
             {/* 로딩 상태: Shimmer Skeleton */}
             <AnimatePresence>
                 {loading && (
@@ -120,7 +130,7 @@ const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, al
                         key={imgUrl}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5 }}
+                        transition={{ duration: 0.4 }}
                         src={imgUrl}
                         alt={alt || searchName}
                         className="absolute inset-0 w-full h-full object-cover"
@@ -130,6 +140,7 @@ const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, al
                             // Google Places 이미지 로드 실패 시 initialUrl로 재시도
                             if (initialUrl && imgUrl !== initialUrl) {
                                 setImgUrl(initialUrl);
+                                setSource('fallback');
                             } else {
                                 setImgUrl(null);
                                 setError(true);
@@ -138,6 +149,12 @@ const ExternalPlaceImage = ({ name, placeName, initialUrl, region, className, al
                     />
                     {/* 가독성 향상용 하단 그라데이션 */}
                     <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
+                    {/* Google Places 출처 배지 (개발 환경에서만) */}
+                    {source === 'google_places' && import.meta.env.DEV && (
+                        <div className="absolute top-2 left-2 z-10 bg-blue-600/80 text-white text-[8px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm">
+                            📍 Google
+                        </div>
+                    )}
                 </>
             )}
         </div>

@@ -5,65 +5,126 @@ export const SERPAPI_KEY = "fe72560f7dfef3bc3e2cf9fb9fd2013f3413405df5c39f0ed558
 // Google Places API Key
 export const GOOGLE_PLACE_API_KEY = import.meta.env.VITE_GOOGLE_PLACE_API_KEY || "AIzaSyBwR9DgMXq1Iwx8vnqiB3GYbD5ikJ5r4Uw";
 
-const imageCache = new Map();
-const sessionCachePrefix = "img_v2_";
+// ────────────────────────────────────────────────
+// 레벨 1: 메모리 캐시 (앱 실행 중 가장 빠름)
+// ────────────────────────────────────────────────
+const memoryCache = new Map();
 
-/**
- * [Level 1] 메모리 캐시에서 즉시 이미지를 가져옵니다.
- * (컴포넌트 초기화 시 동기적으로 사용 가능)
- */
-export const getMemoryCachedImage = (city, place) => {
-    if (!city && !place) return null;
-    const query = `${city || ''} ${place || ''}`.trim();
-    const cacheKey = query.toLowerCase().replace(/\s+/g, '_');
-    
-    // 1. 메모리 캐시 확인
-    if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
-    
-    // 2. 세션 스토리지 확인 (동기적)
-    try {
-        const stored = sessionStorage.getItem(`${sessionCachePrefix}${cacheKey}`);
-        if (stored) {
-            imageCache.set(cacheKey, stored);
-            return stored;
-        }
-    } catch (e) {}
-    
-    return null;
+// ────────────────────────────────────────────────
+// 레벨 2: IndexedDB 영구 캐시 (새로고침 후에도 즉시 표시)
+// ────────────────────────────────────────────────
+const IDB_NAME = 'wanderlust_place_images';
+const IDB_STORE = 'images';
+const IDB_VERSION = 1;
+
+let idbPromise = null;
+
+const openIDB = () => {
+    if (idbPromise) return idbPromise;
+    idbPromise = new Promise((resolve, reject) => {
+        if (typeof indexedDB === 'undefined') { resolve(null); return; }
+        const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(IDB_STORE)) {
+                const store = db.createObjectStore(IDB_STORE, { keyPath: 'key' });
+                store.createIndex('cachedAt', 'cachedAt', { unique: false });
+            }
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = () => { console.warn('[IDB] 열기 실패'); resolve(null); };
+    });
+    return idbPromise;
 };
 
-/**
- * 허용된 호스트인지 확인 (기초 보안)
- */
+/** IndexedDB에서 이미지 URL 읽기 */
+const getFromIDB = async (key) => {
+    try {
+        const idb = await openIDB();
+        if (!idb) return null;
+        return new Promise((resolve) => {
+            const tx = idb.transaction(IDB_STORE, 'readonly');
+            const req = tx.objectStore(IDB_STORE).get(key);
+            req.onsuccess = () => {
+                const result = req.result;
+                // 30일 초과 캐시는 무효화
+                if (result && Date.now() - result.cachedAt < 30 * 24 * 60 * 60 * 1000) {
+                    resolve(result.url);
+                } else {
+                    resolve(null);
+                }
+            };
+            req.onerror = () => resolve(null);
+        });
+    } catch { return null; }
+};
+
+/** IndexedDB에 이미지 URL 저장 */
+const saveToIDB = async (key, url, source) => {
+    try {
+        const idb = await openIDB();
+        if (!idb) return;
+        const tx = idb.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put({ key, url, source, cachedAt: Date.now() });
+    } catch (e) {
+        console.warn('[IDB] 저장 실패:', e);
+    }
+};
+
+/** 캐시 키 생성 */
+const makeCacheKey = (city, place) => {
+    return `${city || ''}_${place || ''}`.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_가-힣]/g, '');
+};
+
+// ────────────────────────────────────────────────
+// 메모리 캐시 즉시 조회 (동기, 컴포넌트 초기화용)
+// ────────────────────────────────────────────────
+export const getMemoryCachedImage = (city, place) => {
+    if (!city && !place) return null;
+    const key = makeCacheKey(city, place);
+    return memoryCache.get(key) || null;
+};
+
+/** 모든 캐시 레벨에 일괄 저장 */
+const saveToAllCaches = async (key, url, source) => {
+    memoryCache.set(key, url);
+    saveToIDB(key, url, source);
+    // Firestore 백그라운드 저장
+    try {
+        const cacheDocRef = doc(db, "Place_Images_Cache", key);
+        setDoc(cacheDocRef, {
+            query: key,
+            photo_url: url,
+            source,
+            cachedAt: serverTimestamp()
+        }, { merge: true }).catch(() => {});
+    } catch {}
+};
+
+// ────────────────────────────────────────────────
+// 허용된 호스트 확인 (보안)
+// ────────────────────────────────────────────────
 const isValidOrigin = () => {
     const allowedHosts = ['localhost', '127.0.0.1', 'wanderlust-ai-planner', 'vercel.app'];
     const hostname = window.location.hostname;
     return allowedHosts.some(host => hostname.includes(host)) || hostname === '';
 };
 
-/**
- * 이미지 URL 유효성 검사 및 미리 로드
- */
-const preloadImage = (url) => {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(url);
-        img.onerror = () => reject(new Error("Image load failed"));
-        img.src = url;
-    });
-};
+/** 이미지 URL 프리로드 */
+const preloadImage = (url) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(url);
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = url;
+});
 
-/**
- * [1순위] Google Places API를 사용하여 고화질 이미지를 가져옵니다.
- * Place Text Search → Place Photo 순서로 진행합니다.
- */
+// ────────────────────────────────────────────────
+// Google Places API - 이미지 가져오기
+// ────────────────────────────────────────────────
 export const fetchGooglePlacesImage = async (query) => {
     if (!isValidOrigin()) return null;
-
     try {
-        // 1단계: Place Text Search로 photo_reference 획득
         const searchUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=photos,name,place_id&key=${GOOGLE_PLACE_API_KEY}`;
-        // CORS 우회 프록시 (allorigins.win)
         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
 
         const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
@@ -72,110 +133,128 @@ export const fetchGooglePlacesImage = async (query) => {
         const data = await response.json();
         if (data.status === 'OK' && data.candidates?.[0]?.photos?.[0]) {
             const photoReference = data.candidates[0].photos[0].photo_reference;
-
-            // 2단계: photo_reference로 실제 이미지 URL 생성
-            // Place Photo API는 리다이렉트 URL을 반환하므로 직접 src에 넣어도 동작
             const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoReference}&key=${GOOGLE_PLACE_API_KEY}`;
             return photoUrl;
         }
         return null;
     } catch (error) {
-        console.warn("[Google Places] 이미지 가져오기 실패:", error);
+        console.warn('[Google Places] 이미지 가져오기 실패:', error);
         return null;
     }
 };
 
-/**
- * [2순위 폴백] Unsplash를 통한 이미지 검색
- */
+// ────────────────────────────────────────────────
+// Unsplash 폴백
+// ────────────────────────────────────────────────
 const fetchUnsplashImage = async (query) => {
-    const unsplashUrl = `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}`;
+    const url = `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}`;
     try {
-        await preloadImage(unsplashUrl);
-        console.log("[Source: Unsplash] 폴백 성공");
-        return unsplashUrl;
+        await preloadImage(url);
+        return url;
     } catch {
-        console.warn("[Source: Unsplash] 폴백 실패");
         return null;
     }
 };
 
-/**
- * 장소 이미지를 가져옵니다.
- * 우선순위: [캐시] → [Google Places API] → [Unsplash 폴백]
- *
- * @param {string} city - 도시 이름
- * @param {string} place - 장소 이름
- * @returns {Promise<string|null>} 이미지 URL
- */
+// ────────────────────────────────────────────────
+// 메인 API: 장소 이미지 가져오기
+// 우선순위: 메모리 캐시 → IndexedDB(영구) → Firestore → Google Places → Unsplash
+// ────────────────────────────────────────────────
 export const fetchPlaceImage = async (city, place) => {
     if (!city && !place) return null;
 
-    // 검색 키워드: 도시 + 장소명
     const googleQuery = `${city || ''} ${place || ''}`.trim();
-    const unsplashQuery = `${googleQuery} travel`;
-    const cacheKey = googleQuery.toLowerCase().replace(/\s+/g, '_');
+    const key = makeCacheKey(city, place);
 
-    // [Level 1] 메모리 캐시 및 세션 캐시 (동기적 확인 가능)
-    const cached = getMemoryCachedImage(city, place);
-    if (cached) return cached;
+    // [1] 메모리 캐시 (동기)
+    const memCached = memoryCache.get(key);
+    if (memCached) return memCached;
+
+    // [2] IndexedDB 영구 캐시 (새로고침 후에도 즉시 표시)
+    const idbCached = await getFromIDB(key);
+    if (idbCached) {
+        memoryCache.set(key, idbCached); // 메모리에도 올림
+        return idbCached;
+    }
 
     try {
-        // [Level 2] Firestore 캐시
-        const cacheDocRef = doc(db, "Place_Images_Cache", cacheKey);
+        // [3] Firestore 캐시
+        const cacheDocRef = doc(db, "Place_Images_Cache", key);
         const cacheSnap = await getDoc(cacheDocRef);
-
         if (cacheSnap.exists()) {
             const cachedUrl = cacheSnap.data().photo_url;
-            console.log(`[Cache Hit] Firestore: ${googleQuery}`);
-            imageCache.set(cacheKey, cachedUrl);
-            try { sessionStorage.setItem(`img_${cacheKey}`, cachedUrl); } catch (e) { }
-            return cachedUrl;
+            if (cachedUrl) {
+                console.log(`[Cache Hit] Firestore: ${googleQuery}`);
+                memoryCache.set(key, cachedUrl);
+                await saveToIDB(key, cachedUrl, cacheSnap.data().source || 'firestore');
+                return cachedUrl;
+            }
         }
 
-        // [Level 3] API 직접 호출 - Google Places 우선 → Unsplash 폴백
-        console.log(`[Cache Miss] API 호출: ${googleQuery}`);
+        // [4] Google Places API (우선)
+        console.log(`[Cache Miss] Google Places API 호출: ${googleQuery}`);
         let imageUrl = null;
 
-        // 1순위: Google Places API
         const googleUrl = await fetchGooglePlacesImage(googleQuery);
         if (googleUrl) {
             try {
                 await preloadImage(googleUrl);
                 imageUrl = googleUrl;
-                console.log("[Source: Google Places] 성공");
+                console.log('[Source: Google Places] ✅ 성공:', googleQuery);
             } catch {
-                console.warn("[Source: Google Places] 이미지 로드 실패, Unsplash로 폴백");
+                console.warn('[Source: Google Places] 이미지 로드 실패 → Unsplash 폴백');
             }
         }
 
-        // 2순위 폴백: Unsplash
+        // [5] Unsplash 폴백
         if (!imageUrl) {
-            imageUrl = await fetchUnsplashImage(unsplashQuery);
+            imageUrl = await fetchUnsplashImage(`${googleQuery} travel`);
+            if (imageUrl) console.log('[Source: Unsplash] 폴백 사용:', googleQuery);
         }
 
         if (imageUrl) {
-            // 모든 캐시 레벨에 저장
-            imageCache.set(cacheKey, imageUrl);
-            try { sessionStorage.setItem(`${sessionCachePrefix}${cacheKey}`, imageUrl); } catch (e) { }
-            try {
-                await setDoc(cacheDocRef, {
-                    query: googleQuery,
-                    photo_url: imageUrl,
-                    source: imageUrl.includes('maps.googleapis.com') ? 'google_places' : 'unsplash',
-                    cachedAt: serverTimestamp()
-                });
-            } catch (dbError) {
-                console.warn("Firestore 캐시 저장 실패:", dbError);
-            }
+            const source = imageUrl.includes('maps.googleapis.com') ? 'google_places' : 'unsplash';
+            await saveToAllCaches(key, imageUrl, source);
             return imageUrl;
         }
 
-        // 모든 소스 실패 시 null (컴포넌트에서 플레이스홀더 처리)
         return null;
 
     } catch (error) {
-        console.error("fetchPlaceImage 오류:", error);
+        console.error('fetchPlaceImage 오류:', error);
         return null;
     }
+};
+
+// ────────────────────────────────────────────────
+// 배치 프리페치: 여러 장소 이미지를 병렬로 미리 캐싱
+// 일정 생성 직후 호출하여 모든 활동 이미지를 백그라운드에서 미리 저장
+// ────────────────────────────────────────────────
+export const prefetchActivityImages = async (activities, destination) => {
+    if (!activities || !destination) return;
+
+    const unique = new Map();
+    activities.forEach(day => {
+        (day.activities || []).forEach(act => {
+            const key = makeCacheKey(destination, act.name);
+            if (!unique.has(key) && !memoryCache.has(key)) {
+                unique.set(key, { city: destination, place: act.name });
+            }
+        });
+    });
+
+    const entries = [...unique.values()];
+    if (entries.length === 0) return;
+
+    console.log(`[Prefetch] ${entries.length}개 장소 이미지 백그라운드 캐싱 시작`);
+
+    // 3개씩 병렬 처리 (API 한도 고려)
+    for (let i = 0; i < entries.length; i += 3) {
+        const batch = entries.slice(i, i + 3);
+        await Promise.allSettled(batch.map(({ city, place }) => fetchPlaceImage(city, place)));
+        // API 호출 간 짧은 지연
+        if (i + 3 < entries.length) await new Promise(r => setTimeout(r, 300));
+    }
+
+    console.log(`[Prefetch] ✅ ${entries.length}개 이미지 캐싱 완료`);
 };
