@@ -75,18 +75,6 @@ const Itinerary = () => {
     // ✅ sessionData 선언 이후에 effectiveData 계산
     const effectiveData = sessionData ? { ...(data || {}), ...sessionData } : (data || {});
 
-    // ── Flights & Hotels State ──
-    const [flights, setFlights] = useState(() => {
-        try { const s = localStorage.getItem(`flights_v2_${effectiveData.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
-        return [{ id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '', arrivalTime: '' }];
-    });
-
-    const [hotels, setHotels] = useState(() => {
-        try { const s = localStorage.getItem(`hotels_v2_${effectiveData.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
-        return [{ id: Date.now(), name: '', address: '', confirmation: '', checkin: '', checkout: '' }];
-    });
-
-
     // 새로고침 시에도 state 유지, 데이터가 없으면 설문으로 이동
     useEffect(() => {
         if (location.state) {
@@ -117,7 +105,24 @@ const Itinerary = () => {
         setDisplayDestination(raw);
     }, [effectiveData.destination, effectiveData.destinationId, i18n.language, sessionData]);
 
-    
+    // 공유하기 버튼 핸들러
+    const handleShare = useCallback(async () => {
+        try {
+            const { createSharedSession: _create } = await import('../firebase');
+            const sid = await _create(effectiveData, itinerary, flights, hotels);
+            const shareUrl = `${window.location.origin}/itinerary?sessionId=${sid}`;
+            await navigator.clipboard.writeText(shareUrl);
+            alert('✅ 공유 링크가 클립보드에 복사되었습니다!');
+        } catch (err) {
+            console.error('공유 링크 생성 실패:', err);
+            alert('공유 링크 생성에 실패했습니다. 다시 시도해주세요.');
+        }
+    }, [effectiveData, itinerary]);
+
+    const isRemoteUpdateRefAny = isRemoteUpdateRef;�� 시 복원된 data (destination 등)
+    const [sessionData, setSessionData] = useState(null);
+    const [sessionLoading, setSessionLoading] = useState(!!sessionId);
+    const isRemoteUpdateRef = React.useRef(false);
 
     // 모바일 바텀시트 관련 상태
     const [isMobile, setIsMobile] = useState(() => {
@@ -168,7 +173,15 @@ const Itinerary = () => {
     }, [sessionId]);
 
     // ?? Flights & Hotels State ??
-    
+    const [flights, setFlights] = useState(() => {
+        try { const s = localStorage.getItem(`flights_v2_${effectiveData.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
+        return [{ id: Date.now(), type: 'Outbound', from: '', to: '', number: '', time: '', notes: '', arrivalTime: '' }];
+    });
+
+    const [hotels, setHotels] = useState(() => {
+        try { const s = localStorage.getItem(`hotels_v2_${effectiveData.destination}`); if (s) { const p = JSON.parse(s); if (Array.isArray(p)) return p; } } catch { }
+        return [{ id: Date.now(), name: '', address: '', confirmation: '', checkin: '', checkout: '' }];
+    });
 
     useEffect(() => { if (!sessionId) localStorage.setItem(`flights_v2_${effectiveData.destination}`, JSON.stringify(flights)); }, [flights, effectiveData.destination, sessionId]);
     useEffect(() => { if (!sessionId) localStorage.setItem(`hotels_v2_${effectiveData.destination}`, JSON.stringify(hotels)); }, [hotels, effectiveData.destination, sessionId]);
@@ -556,13 +569,13 @@ const Itinerary = () => {
         }
     }, [itinerary, storageKey, sessionId]);
 
-    const handleShare = useCallback(async () => {
+    const handleShare = async () => {
         if (sessionId) {
             navigator.clipboard.writeText(window.location.href);
             alert(t('linkCopied', { defaultValue: '초대 링크가 복사되었습니다!' }));
         } else {
             try {
-                const newId = await createSharedSession(effectiveData, itinerary, flights, hotels);
+                const newId = await createSharedSession(data, itinerary, flights, hotels);
                 const url = new URL(window.location.href);
                 url.searchParams.set('sessionId', newId);
                 navigator.clipboard.writeText(url.toString());
@@ -574,9 +587,9 @@ const Itinerary = () => {
                 alert(t('shareFail', { defaultValue: 'Failed to create shared session.' }));
             }
         }
-    }, [sessionId, t, effectiveData, itinerary, flights, hotels, navigate, location.pathname]);
+    };
 
-    // ── Mutators ──
+    // ?€?€ Mutators ?€?€
     const setDayItems = (di, items) => setItinerary(prev => { const n = [...prev]; n[di] = { ...n[di], items }; return n; });
     const updateAct = (di, id, a) => setDayItems(di, ((itinerary || [])[di]?.items || []).map(x => x.id === id ? a : x));
     const deleteAct = (di, id) => setDayItems(di, ((itinerary || [])[di]?.items || []).filter(x => x.id !== id));
