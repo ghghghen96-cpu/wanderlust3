@@ -25,7 +25,7 @@ import FlightCard from '../components/itinerary/FlightCard';
 import HotelCard from '../components/itinerary/HotelCard';
 import CollaborationPanel from '../components/itinerary/CollaborationPanel';
 import MapView from '../components/itinerary/MapView';
-import { Section, AdPlaceholder } from '../components/itinerary/ItineraryComponents';
+import { Section } from '../components/itinerary/ItineraryComponents';
 
 // Helpers
 import { 
@@ -173,6 +173,27 @@ const Itinerary = () => {
     useEffect(() => { if (!sessionId) localStorage.setItem(`flights_v2_${effectiveData.destination}`, JSON.stringify(flights)); }, [flights, effectiveData.destination, sessionId]);
     useEffect(() => { if (!sessionId) localStorage.setItem(`hotels_v2_${effectiveData.destination}`, JSON.stringify(hotels)); }, [hotels, effectiveData.destination, sessionId]);
 
+    
+    // [Fix] 공유 세션 시에도 목적지가 정상 세팅되도록 독립된 useEffect로 분리
+    useEffect(() => {
+        if (!effectiveData || !effectiveData.destination) return;
+        const raw = (effectiveData.destination || '').toLowerCase().trim();
+        const idMatch = (effectiveData.destinationId || '').toLowerCase().trim();
+
+        let matchKey = null;
+        if (idMatch) {
+            matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && (k === idMatch || k.includes(`(${idMatch})`) || idMatch.includes(k)));
+        }
+        if (!matchKey) matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && raw === k);
+        if (!matchKey) {
+            const rawBase = raw.split('(')[0].trim();
+            matchKey = Object.keys(DESTINATION_DATA).find(k => k !== 'default' && (raw.includes(k) || rawBase.includes(k) || k.includes(rawBase)));
+        }
+
+        const sd = (matchKey && DESTINATION_DATA[matchKey]) || DESTINATION_DATA['default'];
+        setDestData(sd);
+    }, [effectiveData.destination, effectiveData.destinationId]);
+
     // Firebase Sync Effect
     useEffect(() => {
         if (sessionId) {
@@ -257,7 +278,6 @@ const Itinerary = () => {
     // ?€?€ SMART TRAVEL ROUTE PLANNER ENGINE (CORE LOGIC) ?€?€
     useEffect(() => {
         const generate = async () => {
-            if (sessionId) return; // Skip generation if we are loading a shared session
             if (!effectiveData.destination) return;
             try {
                 const raw = (effectiveData.destination || '').toLowerCase().trim();
@@ -275,7 +295,9 @@ const Itinerary = () => {
                 }
 
                 const sd = (matchKey && DESTINATION_DATA[matchKey]) || DESTINATION_DATA['default'];
-                setDestData(sd);
+                // setDestData(sd); (Moved to separate useEffect)
+
+                if (sessionId) return; // Skip generation if we are loading a shared session
 
                 // 이미 생성된 일정이 있다면 로드하고 새로 생성하지 않음
                 try {
@@ -618,7 +640,7 @@ const Itinerary = () => {
             <div className="text-2xl font-black text-secondary animate-pulse mt-20">
                 🔗 공유 일정을 불러오는 중...
             </div>
-            <AdPlaceholder className="w-full max-w-2xl h-[250px] shadow-sm" />
+            
         </div>
     );
 
@@ -626,7 +648,7 @@ const Itinerary = () => {
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6 p-6">
             <Navbar />
             <div className="text-2xl font-black text-secondary animate-pulse mt-20">{t('curating')}</div>
-            <AdPlaceholder className="w-full max-w-2xl h-[250px] shadow-sm" />
+            
         </div>
     );
 

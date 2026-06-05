@@ -1,11 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { 
-    List, Edit2, Trash2, Clock, Sparkles, Wallet, Bus, Info, Star, MapPin, ExternalLink 
+import {
+    List, Edit2, Trash2, Clock, Sparkles, Wallet, Bus, Info, Star, MapPin, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import ExternalPlaceImage from '../ExternalPlaceImage';
-import { getImg, fmtTime, cleanTime } from '../../utils/itineraryHelpers';
+import { fmtTime, cleanTime } from '../../utils/itineraryHelpers';
 
 /**
  * ActivityCard
@@ -25,13 +24,13 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId, 
     const timeRef = useRef(null);
     const dc = useDragControls();
 
-    const save = () => { 
-        onSave({ 
-            ...ed, 
-            img: getImg(ed.name, ed.type, destination, destinationId), 
-            isNew: false 
-        }); 
-        setEditing(false); 
+    const save = () => {
+        onSave({
+            ...ed,
+            img: null, // 이미지 제거에 맞춰 img 속성을 null로 설정
+            isNew: false
+        });
+        setEditing(false);
     };
 
     const commitTime = (val) => {
@@ -61,28 +60,20 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId, 
 
     const displayName = (i18n.language === 'ko' && activity.name_ko) ? activity.name_ko : activity.name;
     const displayDesc = (i18n.language === 'ko' && activity.desc_ko) ? activity.desc_ko : activity.desc;
-    // 음식 카드: 실제 식당 이름이 따로 있으면 서브타이틀로 표시
     const isFood = activity.type === 'Food';
     const restaurantName = activity.restaurantName || null;
 
-    // 이미지 검색에 사용할 이름: 식당이면 restaurantName 우선
-    const imageSearchName = (isFood && restaurantName) ? restaurantName : displayName;
-
+    // ── 컴팩트 뷰 (사이드바 / 요약 목록용) ──
     if (compact) {
         return (
             <Reorder.Item value={activity} id={activity.id} dragListener={false} dragControls={dc} className="group">
                 <div className="flex items-start gap-2.5 p-2.5 bg-white hover:bg-amber-50 rounded-2xl border border-gray-100 transition-all shadow-sm relative pr-8">
+                    {/* 드래그 핸들 */}
                     <div onPointerDown={e => dc.start(e)} className="cursor-move p-1 text-gray-300 hover:text-gray-500 transition-colors mt-0.5">
                         <List size={14} />
                     </div>
-                    {/* 컴팩트 뷰에서도 소형 이미지 표시 */}
-                    <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 relative">
-                        <ExternalPlaceImage
-                            name={imageSearchName}
-                            region={destination}
-                            className="w-full h-full"
-                        />
-                    </div>
+                    
+                    {/* 콘텐츠 영역 (사진 칸을 제거하여 텍스트가 바로 오도록 배치) */}
                     <div className="flex-1 min-w-0">
                         <p className="text-gray-900 font-bold text-xs truncate group-hover:text-amber-600 transition-colors">{displayName}</p>
                         {isFood && restaurantName && (
@@ -96,6 +87,8 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId, 
                         </div>
                         {activity.desc && <p className="text-gray-400 text-[10px] mt-1 line-clamp-1">{displayDesc}</p>}
                     </div>
+
+                    {/* 수정 및 삭제 단축 버튼 */}
                     <div className="absolute right-2 top-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => setEditing(true)} className="w-5 h-5 flex items-center justify-center rounded-full bg-blue-50 text-blue-400 hover:bg-blue-500 hover:text-white transition-all">
                             <Edit2 size={10} />
@@ -109,70 +102,70 @@ const ActivityCard = ({ activity, onSave, onDelete, destination, destinationId, 
         );
     }
 
+    // ── 일반 결과지 뷰 (메인 일정 카드) ──
     return (
         <Reorder.Item value={activity} id={activity.id} dragListener={false} dragControls={dc} className="group">
             <div className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300">
-                {/* ── 이미지 영역 (Google Places 우선) ── */}
-                <div className="relative w-full h-48 overflow-hidden">
-                    <ExternalPlaceImage
-                        name={imageSearchName}
-                        region={destination}
-                        className="w-full h-full"
-                        alt={displayName}
-                    />
-                    {/* 상단 오버레이: 드래그 핸들 + 수정/삭제 버튼 */}
-                    <div className="absolute inset-0 flex items-start justify-between p-3 bg-gradient-to-b from-black/30 to-transparent">
-                        <div onPointerDown={e => dc.start(e)} className="cursor-move p-1.5 bg-black/30 backdrop-blur-sm hover:bg-black/50 rounded-lg text-white/80 hover:text-white transition-colors">
+                
+                {/* 상단 컨트롤 바 (이미지를 제거하고 텍스트 및 버튼 컨트롤들을 통합) */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-slate-50/50">
+                    <div className="flex items-center gap-3">
+                        {/* 드래그 핸들 */}
+                        <div onPointerDown={e => dc.start(e)} className="cursor-move p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
                             <List size={16} />
                         </div>
+                        
+                        {/* 시간 수정/표시 버튼 */}
+                        <div>
+                            {timeEdit ? (
+                                <div className="inline-flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-xl border border-gray-200 shadow-sm">
+                                    <Clock size={14} className="text-gray-400" />
+                                    <input
+                                        ref={timeRef}
+                                        type="time"
+                                        defaultValue={cleanActTime}
+                                        autoFocus
+                                        onBlur={e => commitTime(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') commitTime(e.target.value);
+                                            if (e.key === 'Escape') setTimeEdit(false);
+                                        }}
+                                        className="text-xs font-bold text-gray-700 bg-transparent outline-none"
+                                    />
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setTimeEdit(true)}
+                                    className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-slate-200"
+                                >
+                                    <Clock size={12} />
+                                    {fmtTime(activity.time, i18n.language) || t('setTime')}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {/* 카테고리 뱃지 */}
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            isFood ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                            {activity.type}
+                        </span>
+
+                        {/* 수정 / 삭제 버튼 */}
                         <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => setEditing(true)} className="p-1.5 bg-blue-500/80 backdrop-blur-sm text-white rounded-lg hover:bg-blue-500 transition-colors">
+                            <button onClick={() => setEditing(true)} className="p-1.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-500 hover:text-white transition-colors">
                                 <Edit2 size={14} />
                             </button>
-                            <button onClick={onDelete} className="p-1.5 bg-red-500/80 backdrop-blur-sm text-white rounded-lg hover:bg-red-500 transition-colors">
+                            <button onClick={onDelete} className="p-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-500 hover:text-white transition-colors">
                                 <Trash2 size={14} />
                             </button>
                         </div>
                     </div>
-                    {/* 하단 오버레이: 시간 버튼 */}
-                    <div className="absolute bottom-3 left-3 right-3">
-                        {timeEdit ? (
-                            <div className="inline-flex items-center gap-2 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/20">
-                                <Clock size={14} className="text-white" />
-                                <input
-                                    ref={timeRef}
-                                    type="time"
-                                    defaultValue={cleanActTime}
-                                    autoFocus
-                                    onBlur={e => commitTime(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter') commitTime(e.target.value);
-                                        if (e.key === 'Escape') setTimeEdit(false);
-                                    }}
-                                    className="text-sm font-bold text-white bg-transparent outline-none"
-                                />
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => setTimeEdit(true)}
-                                className="inline-flex items-center gap-1.5 bg-black/50 backdrop-blur-sm text-white/90 px-3 py-1.5 rounded-xl text-sm font-bold hover:bg-black/70 transition-all border border-white/10"
-                            >
-                                <Clock size={13} />
-                                {fmtTime(activity.time, i18n.language) || t('setTime')}
-                            </button>
-                        )}
-                    </div>
-                    {/* 카테고리 뱃지 */}
-                    <div className="absolute top-3 right-14 group-hover:right-28 transition-all duration-200">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider backdrop-blur-sm ${
-                            isFood ? 'bg-orange-500/80 text-white' : 'bg-white/20 text-white border border-white/20'
-                        }`}>
-                            {activity.type}
-                        </span>
-                    </div>
                 </div>
 
-                {/* ── 콘텐츠 영역 ── */}
+                {/* 콘텐츠 영역 */}
                 <div className="p-5">
                     {/* 장소명 */}
                     <div className="mb-3">
